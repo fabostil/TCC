@@ -1,21 +1,29 @@
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class SpeechService {
-  final stt.SpeechToText _speech = stt.SpeechToText();
+  SpeechService() : _speech = stt.SpeechToText();
+
+  final stt.SpeechToText _speech;
 
   Future<bool> initialize() async {
-    return await _speech.initialize();
+    return _speech.initialize();
   }
 
-  void startListening(Function(String) onResult) {
-    _speech.listen(
-      onResult: (result) {
-        onResult(result.recognizedWords);
-      },
+  bool get isListening => _speech.isListening;
+
+  Future<void> startListening(void Function(String result) onResult) async {
+    if (_speech.isListening) {
+      return;
+    }
+
+    await _speech.listen(
+      localeId: 'pt_BR',
+      listenMode: stt.ListenMode.confirmation,
+      onResult: (result) => onResult(result.recognizedWords.trim()),
     );
   }
 
-  void stopListening() {
-    _speech.stop();
+  Future<void> stopListening() async {
+    await _speech.stop();
   }
 }
