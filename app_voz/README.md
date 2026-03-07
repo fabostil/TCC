@@ -1,17 +1,16 @@
-# app_voz
+# App Voz - TCC
 
-A new Flutter project.
+Aplicativo desenvolvido em Flutter que permite controlar funções do aplicativo por comandos de voz.
 
-## Getting Started
+## Tecnologias
+- Flutter
+- Dart
+- Speech Recognition
 
-This project is a starting point for a Flutter application.
+## Como rodar
+1. Instale o Flutter
+2. Clone o projeto
+3. Execute:
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+flutter pub get
+flutter run
