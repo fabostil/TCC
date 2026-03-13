@@ -8,11 +8,13 @@ class SpeechService {
   }
 
   void startListening(Function(String) onResult) {
-    _speech.listen(
-      onResult: (result) {
-        onResult(result.recognizedWords);
-      },
-    );
+    if (!_speech.isListening) {
+      _speech.listen(
+        onResult: (result) {
+          onResult(result.recognizedWords);
+        },
+      );
+    }
   }
 
   void stopListening() {
