@@ -14,7 +14,6 @@ class _VoicePageState extends State<VoicePage> {
   bool listening = false;
   String text = "Pressione o microfone e fale";
 
-  // Alterna o microfone
   void toggleListening() async {
     if (!listening) {
       bool available = await speech.initialize();
@@ -22,38 +21,31 @@ class _VoicePageState extends State<VoicePage> {
       if (available) {
         setState(() => listening = true);
 
-        speech.startListening((result) {
+        await speech.startListening((result) {
           setState(() {
             text = result;
           });
 
-          // Aqui você pode adicionar comandos de voz
           handleVoiceCommand(result);
         });
       }
     } else {
       setState(() => listening = false);
-      speech.stopListening();
+      await speech.stopListening();
     }
   }
 
-  // Limpa o texto da tela
   void clearText() {
     setState(() {
       text = "Pressione o microfone e fale";
     });
   }
 
-  // Função para interpretar comandos de voz
   void handleVoiceCommand(String command) {
     final cmd = command.toLowerCase();
     if (cmd.contains("limpar")) {
       clearText();
     }
-    // Exemplo: adicionar mais comandos
-    // else if (cmd.contains("abrir mapa")) {
-    //   Navigator.pushNamed(context, '/mapa');
-    // }
   }
 
   @override
@@ -77,14 +69,12 @@ class _VoicePageState extends State<VoicePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Botão microfone
                 FloatingActionButton(
                   onPressed: toggleListening,
                   backgroundColor: listening ? Colors.red : Colors.blue,
                   child: Icon(listening ? Icons.mic : Icons.mic_none),
                 ),
                 const SizedBox(width: 16),
-                // Botão limpar
                 FloatingActionButton(
                   onPressed: clearText,
                   backgroundColor: Colors.grey,

@@ -7,9 +7,9 @@ class SpeechService {
     return await _speech.initialize();
   }
 
-  void startListening(Function(String) onResult) {
+  Future<void> startListening(Function(String) onResult) async {
     if (!_speech.isListening) {
-      _speech.listen(
+      await _speech.listen(
         onResult: (result) {
           onResult(result.recognizedWords);
         },
@@ -17,7 +17,9 @@ class SpeechService {
     }
   }
 
-  void stopListening() {
-    _speech.stop();
+  Future<void> stopListening() async {
+    if (_speech.isListening) {
+      await _speech.stop();
+    }
   }
 }
