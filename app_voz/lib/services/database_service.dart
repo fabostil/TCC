@@ -26,7 +26,14 @@ class DatabaseService {
     final databasePath = await getDatabasesPath();
     final path = join(databasePath, 'assistente_musical.db');
 
-    return await openDatabase(path, version: 1, onCreate: _createDatabase);
+    return await openDatabase(
+      path,
+      version: 1,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
+      onCreate: _createDatabase,
+    );
   }
 
   Future<void> _createDatabase(Database db, int version) async {
@@ -47,7 +54,7 @@ class DatabaseService {
         caminho_arquivo TEXT NOT NULL,
         data_criacao TEXT NOT NULL,
         duracao_segundos INTEGER DEFAULT 0,
-        FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+        FOREIGN KEY (usuario_id) REFERENCES usuario(id) ON DELETE CASCADE
       )
     ''');
 
@@ -58,13 +65,13 @@ class DatabaseService {
         comando TEXT NOT NULL,
         acao_executada TEXT NOT NULL,
         data_execucao TEXT NOT NULL,
-        FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+        FOREIGN KEY (usuario_id) REFERENCES usuario(id) ON DELETE CASCADE
       )
     ''');
   }
 
   String gerarHashSenha(String senha) {
-    final bytes = utf8.encode(senha);
+    final bytes = utf8.encode(senha.trim());
     final digest = sha256.convert(bytes);
     return digest.toString();
   }
@@ -76,12 +83,15 @@ class DatabaseService {
   }) async {
     final db = await database;
 
+    final nomeFormatado = nome.trim();
     final emailFormatado = email.trim().toLowerCase();
+    final senhaHash = gerarHashSenha(senha);
 
     final usuariosExistentes = await db.query(
       'usuario',
       where: 'email = ?',
       whereArgs: [emailFormatado],
+      limit: 1,
     );
 
     if (usuariosExistentes.isNotEmpty) {
@@ -89,12 +99,16 @@ class DatabaseService {
     }
 
     final usuario = Usuario(
-      nome: nome.trim(),
+      nome: nomeFormatado,
       email: emailFormatado,
-      senhaHash: gerarHashSenha(senha),
+      senhaHash: senhaHash,
     );
 
-    await db.insert('usuario', usuario.toMap());
+    await db.insert(
+      'usuario',
+      usuario.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
 
     return true;
   }
@@ -120,5 +134,22 @@ class DatabaseService {
     }
 
     return Usuario.fromMap(resultado.first);
+  }
+
+  Future<List<Usuario>> listarUsuarios() async {
+    final db = await database;
+
+    final resultado = await db.query('usuario', orderBy: 'nome ASC');
+
+    return resultado.map((map) => Usuario.fromMap(map)).toList();
+  }
+
+  Future<void> fecharBanco() async {
+    final db = _database;
+
+    if (db != null) {
+      await db.close();
+      _database = null;
+    }
   }
 }

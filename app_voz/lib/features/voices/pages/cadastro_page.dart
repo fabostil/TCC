@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/database_service.dart';
+import '../../services/database_service.dart';
 import 'login_page.dart';
 
 class CadastroPage extends StatefulWidget {
@@ -36,13 +36,13 @@ class _CadastroPageState extends State<CadastroPage> {
       senha: _senhaController.text,
     );
 
-    setState(() {
-      _carregando = false;
-    });
-
     if (!mounted) {
       return;
     }
+
+    setState(() {
+      _carregando = false;
+    });
 
     if (!sucesso) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -203,7 +203,11 @@ class _CadastroPageState extends State<CadastroPage> {
                     minimumSize: const Size(double.infinity, 56),
                   ),
                   child: _carregando
-                      ? const CircularProgressIndicator()
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Text('Cadastrar'),
                 ),
 

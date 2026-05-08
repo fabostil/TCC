@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'features/voices/pages/voice_page.dart';
+
+import 'features/pages/login_page.dart';
 
 void main() {
   runApp(const VoiceApp());
@@ -10,9 +11,12 @@ class VoiceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
+      title: 'Assistente Musical',
       debugShowCheckedModeBanner: false,
-      home: VoicePage(),
+      theme: ThemeData(colorSchemeSeed: Colors.deepPurple, useMaterial3: true),
+      initialRoute: '/',
+      routes: {'/': (context) => const LoginPage()},
     );
   }
 }

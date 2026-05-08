@@ -17,10 +17,15 @@ class Usuario {
 
   factory Usuario.fromMap(Map<String, dynamic> map) {
     return Usuario(
-      id: map['id'],
-      nome: map['nome'],
-      email: map['email'],
-      senhaHash: map['senha_hash'],
+      id: map['id'] as int?,
+      nome: map['nome'] as String,
+      email: map['email'] as String,
+      senhaHash: map['senha_hash'] as String,
     );
+  }
+
+  @override
+  String toString() {
+    return 'Usuario(id: $id, nome: $nome, email: $email)';
   }
 }

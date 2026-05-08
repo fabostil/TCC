@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../models/usuario.dart';
-import '../services/database_service.dart';
+import '../../models/usuario.dart';
+import '../../services/database_service.dart';
+import '../voices/pages/voice_page.dart';
 import 'cadastro_page.dart';
-import 'voice_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -35,13 +35,13 @@ class _LoginPageState extends State<LoginPage> {
       senha: _senhaController.text,
     );
 
-    setState(() {
-      _carregando = false;
-    });
-
     if (!mounted) {
       return;
     }
+
+    setState(() {
+      _carregando = false;
+    });
 
     if (usuario == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -150,7 +150,11 @@ class _LoginPageState extends State<LoginPage> {
                     minimumSize: const Size(double.infinity, 56),
                   ),
                   child: _carregando
-                      ? const CircularProgressIndicator()
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Text('Entrar'),
                 ),
 
