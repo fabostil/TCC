@@ -30,35 +30,49 @@ class _CadastroPageState extends State<CadastroPage> {
       _carregando = true;
     });
 
-    final sucesso = await DatabaseService.instance.cadastrarUsuario(
-      nome: _nomeController.text,
-      email: _emailController.text,
-      senha: _senhaController.text,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _carregando = false;
-    });
-
-    if (!sucesso) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Este e-mail já está cadastrado.')),
+    try {
+      final sucesso = await DatabaseService.instance.cadastrarUsuario(
+        nome: _nomeController.text,
+        email: _emailController.text,
+        senha: _senhaController.text,
       );
-      return;
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregando = false;
+      });
+
+      if (!sucesso) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Este e-mail já está cadastrado.')),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cadastro realizado com sucesso.')),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregando = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao cadastrar: $e')));
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Cadastro realizado com sucesso.')),
-    );
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-    );
   }
 
   @override
@@ -86,12 +100,16 @@ class _CadastroPageState extends State<CadastroPage> {
                   size: 72,
                   color: Colors.deepPurple,
                 ),
+
                 const SizedBox(height: 16),
+
                 const Text(
                   'Criar conta',
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                 ),
+
                 const SizedBox(height: 32),
+
                 TextFormField(
                   controller: _nomeController,
                   decoration: const InputDecoration(
@@ -111,7 +129,9 @@ class _CadastroPageState extends State<CadastroPage> {
                     return null;
                   },
                 ),
+
                 const SizedBox(height: 16),
+
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -132,7 +152,9 @@ class _CadastroPageState extends State<CadastroPage> {
                     return null;
                   },
                 ),
+
                 const SizedBox(height: 16),
+
                 TextFormField(
                   controller: _senhaController,
                   obscureText: !_mostrarSenha,
@@ -163,7 +185,9 @@ class _CadastroPageState extends State<CadastroPage> {
                     return null;
                   },
                 ),
+
                 const SizedBox(height: 16),
+
                 TextFormField(
                   controller: _confirmarSenhaController,
                   obscureText: !_mostrarSenha,
@@ -184,7 +208,9 @@ class _CadastroPageState extends State<CadastroPage> {
                     return null;
                   },
                 ),
+
                 const SizedBox(height: 24),
+
                 ElevatedButton(
                   onPressed: _carregando ? null : _cadastrar,
                   style: ElevatedButton.styleFrom(
@@ -198,14 +224,20 @@ class _CadastroPageState extends State<CadastroPage> {
                         )
                       : const Text('Cadastrar'),
                 ),
+
                 const SizedBox(height: 16),
+
                 TextButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginPage()),
-                    );
-                  },
+                  onPressed: _carregando
+                      ? null
+                      : () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const LoginPage(),
+                            ),
+                          );
+                        },
                   child: const Text('Já tenho uma conta'),
                 ),
               ],

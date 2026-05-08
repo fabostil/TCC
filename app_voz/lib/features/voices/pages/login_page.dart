@@ -30,30 +30,44 @@ class _LoginPageState extends State<LoginPage> {
       _carregando = true;
     });
 
-    final Usuario? usuario = await DatabaseService.instance.autenticarUsuario(
-      email: _emailController.text,
-      senha: _senhaController.text,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _carregando = false;
-    });
-
-    if (usuario == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('E-mail ou senha incorretos.')),
+    try {
+      final Usuario? usuario = await DatabaseService.instance.autenticarUsuario(
+        email: _emailController.text,
+        senha: _senhaController.text,
       );
-      return;
-    }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => VoicePage(usuario: usuario)),
-    );
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregando = false;
+      });
+
+      if (usuario == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('E-mail ou senha incorretos.')),
+        );
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => VoicePage(usuario: usuario)),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregando = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao entrar: $e')));
+    }
   }
 
   @override
@@ -74,18 +88,24 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               children: [
                 const Icon(Icons.mic, size: 80, color: Colors.deepPurple),
+
                 const SizedBox(height: 16),
+
                 const Text(
                   'Assistente Musical',
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
+
                 const SizedBox(height: 8),
+
                 const Text(
                   'Entre para controlar gravações por voz',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16),
                 ),
+
                 const SizedBox(height: 32),
+
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -106,7 +126,9 @@ class _LoginPageState extends State<LoginPage> {
                     return null;
                   },
                 ),
+
                 const SizedBox(height: 16),
+
                 TextFormField(
                   controller: _senhaController,
                   obscureText: !_mostrarSenha,
@@ -133,7 +155,9 @@ class _LoginPageState extends State<LoginPage> {
                     return null;
                   },
                 ),
+
                 const SizedBox(height: 24),
+
                 ElevatedButton(
                   onPressed: _carregando ? null : _entrar,
                   style: ElevatedButton.styleFrom(
@@ -147,14 +171,20 @@ class _LoginPageState extends State<LoginPage> {
                         )
                       : const Text('Entrar'),
                 ),
+
                 const SizedBox(height: 16),
+
                 TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const CadastroPage()),
-                    );
-                  },
+                  onPressed: _carregando
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const CadastroPage(),
+                            ),
+                          );
+                        },
                   child: const Text('Criar nova conta'),
                 ),
               ],
