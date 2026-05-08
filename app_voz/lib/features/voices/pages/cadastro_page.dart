@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../services/database_service.dart';
+import '../../../services/database_service.dart';
 import 'login_page.dart';
 
 class CadastroPage extends StatefulWidget {
@@ -86,16 +86,12 @@ class _CadastroPageState extends State<CadastroPage> {
                   size: 72,
                   color: Colors.deepPurple,
                 ),
-
                 const SizedBox(height: 16),
-
                 const Text(
                   'Criar conta',
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                 ),
-
                 const SizedBox(height: 32),
-
                 TextFormField(
                   controller: _nomeController,
                   decoration: const InputDecoration(
@@ -115,9 +111,7 @@ class _CadastroPageState extends State<CadastroPage> {
                     return null;
                   },
                 ),
-
                 const SizedBox(height: 16),
-
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -138,9 +132,7 @@ class _CadastroPageState extends State<CadastroPage> {
                     return null;
                   },
                 ),
-
                 const SizedBox(height: 16),
-
                 TextFormField(
                   controller: _senhaController,
                   obscureText: !_mostrarSenha,
@@ -171,9 +163,7 @@ class _CadastroPageState extends State<CadastroPage> {
                     return null;
                   },
                 ),
-
                 const SizedBox(height: 16),
-
                 TextFormField(
                   controller: _confirmarSenhaController,
                   obscureText: !_mostrarSenha,
@@ -194,9 +184,7 @@ class _CadastroPageState extends State<CadastroPage> {
                     return null;
                   },
                 ),
-
                 const SizedBox(height: 24),
-
                 ElevatedButton(
                   onPressed: _carregando ? null : _cadastrar,
                   style: ElevatedButton.styleFrom(
@@ -210,9 +198,7 @@ class _CadastroPageState extends State<CadastroPage> {
                         )
                       : const Text('Cadastrar'),
                 ),
-
                 const SizedBox(height: 16),
-
                 TextButton(
                   onPressed: () {
                     Navigator.pushReplacement(

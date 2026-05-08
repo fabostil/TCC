@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/usuario.dart';
+import 'login_page.dart';
 import '../services/speech_service.dart';
 
 class VoicePage extends StatefulWidget {
@@ -76,7 +77,6 @@ class _VoicePageState extends State<VoicePage> {
       setState(() {
         ultimoComando = 'Comando reconhecido: iniciar gravação';
       });
-
       return;
     }
 
@@ -84,7 +84,6 @@ class _VoicePageState extends State<VoicePage> {
       setState(() {
         ultimoComando = 'Comando reconhecido: pausar gravação';
       });
-
       return;
     }
 
@@ -93,7 +92,6 @@ class _VoicePageState extends State<VoicePage> {
       setState(() {
         ultimoComando = 'Comando reconhecido: retomar gravação';
       });
-
       return;
     }
 
@@ -103,7 +101,6 @@ class _VoicePageState extends State<VoicePage> {
       setState(() {
         ultimoComando = 'Comando reconhecido: encerrar gravação';
       });
-
       return;
     }
 
@@ -111,7 +108,6 @@ class _VoicePageState extends State<VoicePage> {
       setState(() {
         ultimoComando = 'Comando reconhecido: listar gravações';
       });
-
       return;
     }
 
@@ -126,6 +122,14 @@ class _VoicePageState extends State<VoicePage> {
     super.dispose();
   }
 
+  void sair() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -135,9 +139,7 @@ class _VoicePageState extends State<VoicePage> {
         actions: [
           IconButton(
             tooltip: 'Sair',
-            onPressed: () {
-              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
-            },
+            onPressed: sair,
             icon: const Icon(Icons.logout),
           ),
         ],
@@ -147,26 +149,19 @@ class _VoicePageState extends State<VoicePage> {
         child: Column(
           children: [
             const SizedBox(height: 16),
-
             const Icon(Icons.music_note, size: 56, color: Colors.deepPurple),
-
             const SizedBox(height: 12),
-
             const Text(
               'Assistente de Voz',
               style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 8),
-
             const Text(
               'Use comandos como: iniciar gravação, pausar gravação, retomar gravação ou encerrar gravação.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 15),
             ),
-
             const SizedBox(height: 24),
-
             Expanded(
               child: Center(
                 child: Text(
@@ -176,7 +171,6 @@ class _VoicePageState extends State<VoicePage> {
                 ),
               ),
             ),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -191,7 +185,6 @@ class _VoicePageState extends State<VoicePage> {
                 style: const TextStyle(fontSize: 16),
               ),
             ),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -201,9 +194,7 @@ class _VoicePageState extends State<VoicePage> {
                   backgroundColor: listening ? Colors.red : Colors.blue,
                   child: Icon(listening ? Icons.mic : Icons.mic_none),
                 ),
-
                 const SizedBox(width: 16),
-
                 FloatingActionButton(
                   heroTag: 'clearButton',
                   onPressed: clearText,
@@ -212,7 +203,6 @@ class _VoicePageState extends State<VoicePage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 24),
           ],
         ),

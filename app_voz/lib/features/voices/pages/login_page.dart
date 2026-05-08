@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../models/usuario.dart';
-import '../../services/database_service.dart';
-import '../voices/pages/voice_page.dart';
+import '../../../models/usuario.dart';
+import '../../../services/database_service.dart';
 import 'cadastro_page.dart';
+import 'voice_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -74,24 +74,18 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               children: [
                 const Icon(Icons.mic, size: 80, color: Colors.deepPurple),
-
                 const SizedBox(height: 16),
-
                 const Text(
                   'Assistente Musical',
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
-
                 const SizedBox(height: 8),
-
                 const Text(
                   'Entre para controlar gravações por voz',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16),
                 ),
-
                 const SizedBox(height: 32),
-
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -112,9 +106,7 @@ class _LoginPageState extends State<LoginPage> {
                     return null;
                   },
                 ),
-
                 const SizedBox(height: 16),
-
                 TextFormField(
                   controller: _senhaController,
                   obscureText: !_mostrarSenha,
@@ -141,9 +133,7 @@ class _LoginPageState extends State<LoginPage> {
                     return null;
                   },
                 ),
-
                 const SizedBox(height: 24),
-
                 ElevatedButton(
                   onPressed: _carregando ? null : _entrar,
                   style: ElevatedButton.styleFrom(
@@ -157,9 +147,7 @@ class _LoginPageState extends State<LoginPage> {
                         )
                       : const Text('Entrar'),
                 ),
-
                 const SizedBox(height: 16),
-
                 TextButton(
                   onPressed: () {
                     Navigator.push(
