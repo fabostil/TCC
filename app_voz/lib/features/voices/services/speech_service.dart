@@ -7,7 +7,10 @@ class SpeechService {
 
   bool get isListening => _speech.isListening;
 
-  Future<bool> initialize() async {
+  Future<bool> initialize({
+    Function(String status)? onStatus,
+    Function(String error)? onError,
+  }) async {
     if (_initialized) {
       return true;
     }
@@ -15,19 +18,34 @@ class SpeechService {
     _initialized = await _speech.initialize(
       onStatus: (status) {
         print('Status reconhecimento de voz: $status');
+
+        if (onStatus != null) {
+          onStatus(status);
+        }
       },
       onError: (error) {
-        print('Erro reconhecimento de voz: $error');
+        print('Erro reconhecimento de voz: ${error.errorMsg}');
+
+        if (onError != null) {
+          onError(error.errorMsg);
+        }
       },
     );
 
     return _initialized;
   }
 
-  Future<void> startListening(Function(String) onResult) async {
-    final available = await initialize();
+  Future<void> startListening({
+    required Function(String text) onResult,
+    Function(String status)? onStatus,
+    Function(String error)? onError,
+  }) async {
+    final available = await initialize(onStatus: onStatus, onError: onError);
 
     if (!available) {
+      if (onError != null) {
+        onError('Reconhecimento de voz indisponível.');
+      }
       return;
     }
 
@@ -37,9 +55,16 @@ class SpeechService {
 
     await _speech.listen(
       localeId: 'pt_BR',
-      listenMode: stt.ListenMode.confirmation,
+      listenMode: stt.ListenMode.dictation,
+      listenFor: const Duration(seconds: 8),
+      pauseFor: const Duration(seconds: 3),
+      partialResults: true,
       onResult: (result) {
-        onResult(result.recognizedWords);
+        final text = result.recognizedWords.trim();
+
+        if (text.isNotEmpty) {
+          onResult(text);
+        }
       },
     );
   }

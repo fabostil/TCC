@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/usuario.dart';
+import '../../../services/audio_recording_service.dart';
 import '../../voices/services/speech_service.dart';
 
 class EditorPage extends StatefulWidget {
@@ -14,42 +15,65 @@ class EditorPage extends StatefulWidget {
 
 class _EditorPageState extends State<EditorPage> {
   final SpeechService speech = SpeechService();
+  final AudioRecordingService audioService = AudioRecordingService();
 
   bool ouvindo = false;
   bool gravando = false;
   bool pausado = false;
   bool reproduzindo = false;
+  bool carregandoAudio = false;
 
   String textoReconhecido = 'Pressione o microfone e fale um comando.';
   String statusProjeto = 'Projeto pronto para gravar.';
   String nomeProjeto = 'Projeto sem nome';
+  String? caminhoGravacaoAtual;
 
-  final List<String> faixas = [];
+  final List<Map<String, String>> faixas = [];
   final List<String> historicoComandos = [];
 
   Future<void> alternarMicrofone() async {
+    if (gravando) {
+      setState(() {
+        statusProjeto =
+            'Pare a gravação antes de usar o comando de voz. O microfone já está em uso.';
+      });
+      return;
+    }
+
     if (!ouvindo) {
-      final disponivel = await speech.initialize();
-
-      if (!disponivel) {
-        setState(() {
-          statusProjeto = 'Reconhecimento de voz indisponível.';
-        });
-        return;
-      }
-
       setState(() {
         ouvindo = true;
-        textoReconhecido = 'Ouvindo...';
+        textoReconhecido = 'Ouvindo... fale um comando.';
+        statusProjeto = 'Aguardando comando de voz...';
       });
 
-      await speech.startListening((resultado) {
-        setState(() {
-          textoReconhecido = resultado;
-        });
+      await speech.startListening(
+        onResult: (resultado) {
+          setState(() {
+            textoReconhecido = resultado;
+          });
 
-        interpretarComando(resultado);
-      });
+          interpretarComando(resultado);
+        },
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            if (mounted) {
+              setState(() {
+                ouvindo = false;
+              });
+            }
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            setState(() {
+              ouvindo = false;
+              statusProjeto = 'Erro no reconhecimento de voz: $error';
+              textoReconhecido = 'Não foi possível reconhecer a fala.';
+            });
+          }
+        },
+      );
     } else {
       await speech.stopListening();
 
@@ -92,13 +116,13 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    if (cmd.contains('reproduzir') || cmd.contains('tocar')) {
-      reproduzirProjeto(comando);
+    if (cmd.contains('parar reprodução')) {
+      pararReproducao(comando);
       return;
     }
 
-    if (cmd.contains('parar reprodução')) {
-      pararReproducao(comando);
+    if (cmd.contains('reproduzir') || cmd.contains('tocar')) {
+      reproduzirProjeto(comando);
       return;
     }
 
@@ -122,18 +146,44 @@ class _EditorPageState extends State<EditorPage> {
     });
   }
 
-  void iniciarGravacao(String comando) {
+  Future<void> iniciarGravacao(String comando) async {
+    if (gravando) {
+      setState(() {
+        statusProjeto = 'Já existe uma gravação em andamento.';
+      });
+      return;
+    }
+
     setState(() {
-      gravando = true;
-      pausado = false;
-      reproduzindo = false;
-      statusProjeto = 'Gravação iniciada.';
+      carregandoAudio = true;
+      statusProjeto = 'Preparando gravação...';
     });
 
-    adicionarHistorico(comandoOriginal: comando, acao: 'Iniciou gravação');
+    try {
+      final path = await audioService.startRecording();
+
+      setState(() {
+        caminhoGravacaoAtual = path;
+        gravando = true;
+        pausado = false;
+        reproduzindo = false;
+        carregandoAudio = false;
+        statusProjeto = 'Gravação real iniciada.';
+      });
+
+      adicionarHistorico(
+        comandoOriginal: comando,
+        acao: 'Iniciou gravação real',
+      );
+    } catch (e) {
+      setState(() {
+        carregandoAudio = false;
+        statusProjeto = 'Erro ao iniciar gravação: $e';
+      });
+    }
   }
 
-  void pausarGravacao(String comando) {
+  Future<void> pausarGravacao(String comando) async {
     if (!gravando) {
       setState(() {
         statusProjeto = 'Não existe gravação em andamento para pausar.';
@@ -141,15 +191,30 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    setState(() {
-      pausado = true;
-      statusProjeto = 'Gravação pausada.';
-    });
+    if (pausado) {
+      setState(() {
+        statusProjeto = 'A gravação já está pausada.';
+      });
+      return;
+    }
 
-    adicionarHistorico(comandoOriginal: comando, acao: 'Pausou gravação');
+    try {
+      await audioService.pauseRecording();
+
+      setState(() {
+        pausado = true;
+        statusProjeto = 'Gravação pausada.';
+      });
+
+      adicionarHistorico(comandoOriginal: comando, acao: 'Pausou gravação');
+    } catch (e) {
+      setState(() {
+        statusProjeto = 'Erro ao pausar gravação: $e';
+      });
+    }
   }
 
-  void retomarGravacao(String comando) {
+  Future<void> retomarGravacao(String comando) async {
     if (!gravando || !pausado) {
       setState(() {
         statusProjeto = 'Não existe gravação pausada para retomar.';
@@ -157,15 +222,23 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    setState(() {
-      pausado = false;
-      statusProjeto = 'Gravação retomada.';
-    });
+    try {
+      await audioService.resumeRecording();
 
-    adicionarHistorico(comandoOriginal: comando, acao: 'Retomou gravação');
+      setState(() {
+        pausado = false;
+        statusProjeto = 'Gravação retomada.';
+      });
+
+      adicionarHistorico(comandoOriginal: comando, acao: 'Retomou gravação');
+    } catch (e) {
+      setState(() {
+        statusProjeto = 'Erro ao retomar gravação: $e';
+      });
+    }
   }
 
-  void encerrarGravacao(String comando) {
+  Future<void> encerrarGravacao(String comando) async {
     if (!gravando) {
       setState(() {
         statusProjeto = 'Não existe gravação em andamento para encerrar.';
@@ -173,20 +246,44 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    final numeroFaixa = faixas.length + 1;
-    final nomeFaixa = 'Gravação $numeroFaixa';
-
     setState(() {
-      gravando = false;
-      pausado = false;
-      faixas.add(nomeFaixa);
-      statusProjeto = '$nomeFaixa salva no projeto.';
+      carregandoAudio = true;
+      statusProjeto = 'Salvando gravação...';
     });
 
-    adicionarHistorico(
-      comandoOriginal: comando,
-      acao: 'Encerrou gravação e criou $nomeFaixa',
-    );
+    try {
+      final path = await audioService.stopRecording();
+
+      if (path == null || path.isEmpty) {
+        setState(() {
+          carregandoAudio = false;
+          statusProjeto = 'Não foi possível salvar a gravação.';
+        });
+        return;
+      }
+
+      final numeroFaixa = faixas.length + 1;
+      final nomeFaixa = 'Gravação $numeroFaixa';
+
+      setState(() {
+        gravando = false;
+        pausado = false;
+        carregandoAudio = false;
+        caminhoGravacaoAtual = null;
+        faixas.add({'nome': nomeFaixa, 'caminho': path});
+        statusProjeto = '$nomeFaixa salva no projeto.';
+      });
+
+      adicionarHistorico(
+        comandoOriginal: comando,
+        acao: 'Encerrou gravação real e criou $nomeFaixa',
+      );
+    } catch (e) {
+      setState(() {
+        carregandoAudio = false;
+        statusProjeto = 'Erro ao encerrar gravação: $e';
+      });
+    }
   }
 
   void reproduzirProjeto(String comando) {
@@ -199,10 +296,14 @@ class _EditorPageState extends State<EditorPage> {
 
     setState(() {
       reproduzindo = true;
-      statusProjeto = 'Reprodução iniciada.';
+      statusProjeto =
+          'Reprodução simulada. Na próxima etapa vamos tocar o áudio real.';
     });
 
-    adicionarHistorico(comandoOriginal: comando, acao: 'Iniciou reprodução');
+    adicionarHistorico(
+      comandoOriginal: comando,
+      acao: 'Iniciou reprodução simulada',
+    );
   }
 
   void pararReproducao(String comando) {
@@ -265,6 +366,10 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   String get textoStatus {
+    if (carregandoAudio) {
+      return 'Processando';
+    }
+
     if (gravando && !pausado) {
       return 'Gravando';
     }
@@ -283,6 +388,7 @@ class _EditorPageState extends State<EditorPage> {
   @override
   void dispose() {
     speech.stopListening();
+    audioService.dispose();
     super.dispose();
   }
 
@@ -296,25 +402,15 @@ class _EditorPageState extends State<EditorPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _cabecalhoProjeto(),
-
             const SizedBox(height: 18),
-
             _linhaDoTempo(),
-
             const SizedBox(height: 18),
-
             _controlesManuais(),
-
             const SizedBox(height: 18),
-
             _painelVoz(),
-
             const SizedBox(height: 18),
-
             _listaFaixas(),
-
             const SizedBox(height: 18),
-
             _historico(),
           ],
         ),
@@ -334,9 +430,7 @@ class _EditorPageState extends State<EditorPage> {
               backgroundColor: corStatus.withOpacity(0.12),
               child: Icon(Icons.graphic_eq, color: corStatus, size: 32),
             ),
-
             const SizedBox(width: 16),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,14 +442,20 @@ class _EditorPageState extends State<EditorPage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-
                   const SizedBox(height: 4),
-
                   Text(statusProjeto, style: const TextStyle(fontSize: 15)),
+                  if (caminhoGravacaoAtual != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      caminhoGravacaoAtual!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ],
                 ],
               ),
             ),
-
             Chip(
               label: Text(textoStatus),
               avatar: Icon(Icons.circle, size: 12, color: corStatus),
@@ -378,9 +478,7 @@ class _EditorPageState extends State<EditorPage> {
               'Linha do tempo',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 16),
-
             Row(
               children: [
                 const Text('00:00'),
@@ -396,9 +494,7 @@ class _EditorPageState extends State<EditorPage> {
                 const Text('03:00'),
               ],
             ),
-
             const SizedBox(height: 12),
-
             const Text(
               'Representação visual simplificada do andamento do projeto.',
               style: TextStyle(fontSize: 13),
@@ -421,35 +517,43 @@ class _EditorPageState extends State<EditorPage> {
               'Controles',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 16),
-
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
                 ElevatedButton.icon(
-                  onPressed: () => iniciarGravacao('botão gravar'),
+                  onPressed: carregandoAudio
+                      ? null
+                      : () => iniciarGravacao('botão gravar'),
                   icon: const Icon(Icons.fiber_manual_record),
                   label: const Text('Gravar'),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () => pausarGravacao('botão pausar'),
+                  onPressed: carregandoAudio
+                      ? null
+                      : () => pausarGravacao('botão pausar'),
                   icon: const Icon(Icons.pause),
                   label: const Text('Pausar'),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () => retomarGravacao('botão retomar'),
+                  onPressed: carregandoAudio
+                      ? null
+                      : () => retomarGravacao('botão retomar'),
                   icon: const Icon(Icons.play_arrow),
                   label: const Text('Retomar'),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () => encerrarGravacao('botão parar'),
+                  onPressed: carregandoAudio
+                      ? null
+                      : () => encerrarGravacao('botão parar'),
                   icon: const Icon(Icons.stop),
                   label: const Text('Parar'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () => reproduzirProjeto('botão reproduzir'),
+                  onPressed: carregandoAudio
+                      ? null
+                      : () => reproduzirProjeto('botão reproduzir'),
                   icon: const Icon(Icons.headphones),
                   label: const Text('Reproduzir'),
                 ),
@@ -473,15 +577,11 @@ class _EditorPageState extends State<EditorPage> {
               'Assistente de voz',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 8),
-
             const Text(
               'Comandos: iniciar gravação, pausar gravação, retomar gravação, encerrar gravação, reproduzir, criar marcador.',
             ),
-
             const SizedBox(height: 16),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
@@ -495,12 +595,10 @@ class _EditorPageState extends State<EditorPage> {
                 style: const TextStyle(fontSize: 16),
               ),
             ),
-
             const SizedBox(height: 16),
-
             Center(
               child: FloatingActionButton.extended(
-                onPressed: alternarMicrofone,
+                onPressed: carregandoAudio ? null : alternarMicrofone,
                 backgroundColor: ouvindo ? Colors.red : Colors.deepPurple,
                 icon: Icon(ouvindo ? Icons.mic : Icons.mic_none),
                 label: Text(ouvindo ? 'Parar escuta' : 'Falar comando'),
@@ -524,19 +622,20 @@ class _EditorPageState extends State<EditorPage> {
               'Faixas do projeto',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 12),
-
             if (faixas.isEmpty)
               const Text('Nenhuma gravação adicionada ainda.'),
-
             if (faixas.isNotEmpty)
               ...faixas.map(
                 (faixa) => ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.audiotrack),
-                  title: Text(faixa),
-                  subtitle: const Text('Áudio do projeto'),
+                  title: Text(faixa['nome'] ?? 'Gravação'),
+                  subtitle: Text(
+                    faixa['caminho'] ?? 'Arquivo de áudio',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   trailing: const Icon(Icons.more_vert),
                 ),
               ),
@@ -558,12 +657,9 @@ class _EditorPageState extends State<EditorPage> {
               'Histórico de comandos',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 12),
-
             if (historicoComandos.isEmpty)
               const Text('Nenhum comando executado ainda.'),
-
             if (historicoComandos.isNotEmpty)
               ...historicoComandos
                   .take(6)
