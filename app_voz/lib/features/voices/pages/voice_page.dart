@@ -22,33 +22,46 @@ class _VoicePageState extends State<VoicePage> {
 
   Future<void> toggleListening() async {
     if (!listening) {
-      final bool available = await speech.initialize();
+      setState(() {
+        listening = true;
+        text = 'Ouvindo...';
+        ultimoComando = 'Aguardando comando de voz...';
+      });
 
-      if (available) {
-        setState(() {
-          listening = true;
-          text = 'Ouvindo...';
-        });
-
-        await speech.startListening((result) {
+      await speech.startListening(
+        onResult: (result) {
           setState(() {
             text = result;
           });
 
           handleVoiceCommand(result);
-        });
-      } else {
-        setState(() {
-          text = 'Reconhecimento de voz indisponível.';
-          ultimoComando = 'Não foi possível iniciar o microfone.';
-        });
-      }
+        },
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            if (mounted) {
+              setState(() {
+                listening = false;
+              });
+            }
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            setState(() {
+              listening = false;
+              text = 'Não foi possível reconhecer a fala.';
+              ultimoComando = 'Erro no reconhecimento de voz: $error';
+            });
+          }
+        },
+      );
     } else {
+      await speech.stopListening();
+
       setState(() {
         listening = false;
+        text = 'Pressione o microfone e fale';
       });
-
-      await speech.stopListening();
     }
   }
 
@@ -149,19 +162,26 @@ class _VoicePageState extends State<VoicePage> {
         child: Column(
           children: [
             const SizedBox(height: 16),
+
             const Icon(Icons.music_note, size: 56, color: Colors.deepPurple),
+
             const SizedBox(height: 12),
+
             const Text(
               'Assistente de Voz',
               style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
+
             const SizedBox(height: 8),
+
             const Text(
               'Use comandos como: iniciar gravação, pausar gravação, retomar gravação ou encerrar gravação.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 15),
             ),
+
             const SizedBox(height: 24),
+
             Expanded(
               child: Center(
                 child: Text(
@@ -171,6 +191,7 @@ class _VoicePageState extends State<VoicePage> {
                 ),
               ),
             ),
+
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -185,24 +206,28 @@ class _VoicePageState extends State<VoicePage> {
                 style: const TextStyle(fontSize: 16),
               ),
             ),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 FloatingActionButton(
-                  heroTag: 'micButton',
+                  heroTag: 'micButtonVoicePage',
                   onPressed: toggleListening,
                   backgroundColor: listening ? Colors.red : Colors.blue,
                   child: Icon(listening ? Icons.mic : Icons.mic_none),
                 ),
+
                 const SizedBox(width: 16),
+
                 FloatingActionButton(
-                  heroTag: 'clearButton',
+                  heroTag: 'clearButtonVoicePage',
                   onPressed: clearText,
                   backgroundColor: Colors.grey,
                   child: const Icon(Icons.clear),
                 ),
               ],
             ),
+
             const SizedBox(height: 24),
           ],
         ),
