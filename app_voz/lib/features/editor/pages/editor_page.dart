@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../models/usuario.dart';
@@ -22,6 +24,17 @@ class _EditorPageState extends State<EditorPage> {
   bool pausado = false;
   bool reproduzindo = false;
   bool carregandoAudio = false;
+
+  Timer? monitorSilencioTimer;
+
+  double nivelAudioAtual = -160.0;
+  int tempoSilencioMs = 0;
+
+  final int limiteSilencioMs = 5000;
+  final int intervaloMonitoramentoMs = 500;
+  final double limiteSilencioDb = -30.0;
+
+  bool paradaAutomaticaPorSilencio = true;
 
   String textoReconhecido = 'Pressione o microfone e fale um comando.';
   String statusProjeto = 'Projeto pronto para gravar.';
@@ -57,21 +70,21 @@ class _EditorPageState extends State<EditorPage> {
           interpretarComando(resultado);
         },
         onStatus: (status) {
+          if (!mounted) {
+            return;
+          }
+
           if (status == 'listening') {
-            if (mounted) {
-              setState(() {
-                ouvindo = true;
-                statusProjeto = 'Estou ouvindo...';
-              });
-            }
+            setState(() {
+              ouvindo = true;
+              statusProjeto = 'Estou ouvindo...';
+            });
           }
 
           if (status == 'done' || status == 'notListening') {
-            if (mounted) {
-              setState(() {
-                ouvindo = false;
-              });
-            }
+            setState(() {
+              ouvindo = false;
+            });
           }
         },
         onError: (error) {
@@ -177,6 +190,14 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
+    if (ouvindo) {
+      await speech.stopListening();
+
+      setState(() {
+        ouvindo = false;
+      });
+    }
+
     setState(() {
       carregandoAudio = true;
       statusProjeto = 'Preparando gravação...';
@@ -191,8 +212,13 @@ class _EditorPageState extends State<EditorPage> {
         pausado = false;
         reproduzindo = false;
         carregandoAudio = false;
+        tempoSilencioMs = 0;
+        nivelAudioAtual = -160.0;
         statusProjeto = 'Gravação real iniciada.';
+        textoReconhecido = 'Gravação iniciada.';
       });
+
+      iniciarMonitoramentoSilencio();
 
       adicionarHistorico(
         comandoOriginal: comando,
@@ -221,17 +247,25 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
+    setState(() {
+      carregandoAudio = true;
+      statusProjeto = 'Pausando gravação...';
+    });
+
     try {
       await audioService.pauseRecording();
 
       setState(() {
         pausado = true;
+        carregandoAudio = false;
+        tempoSilencioMs = 0;
         statusProjeto = 'Gravação pausada.';
       });
 
       adicionarHistorico(comandoOriginal: comando, acao: 'Pausou gravação');
     } catch (e) {
       setState(() {
+        carregandoAudio = false;
         statusProjeto = 'Erro ao pausar gravação: $e';
       });
     }
@@ -245,17 +279,25 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
+    setState(() {
+      carregandoAudio = true;
+      statusProjeto = 'Retomando gravação...';
+    });
+
     try {
       await audioService.resumeRecording();
 
       setState(() {
         pausado = false;
+        carregandoAudio = false;
+        tempoSilencioMs = 0;
         statusProjeto = 'Gravação retomada.';
       });
 
       adicionarHistorico(comandoOriginal: comando, acao: 'Retomou gravação');
     } catch (e) {
       setState(() {
+        carregandoAudio = false;
         statusProjeto = 'Erro ao retomar gravação: $e';
       });
     }
@@ -269,6 +311,8 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
+    pararMonitoramentoSilencio();
+
     setState(() {
       carregandoAudio = true;
       statusProjeto = 'Salvando gravação...';
@@ -279,6 +323,8 @@ class _EditorPageState extends State<EditorPage> {
 
       if (path == null || path.isEmpty) {
         setState(() {
+          gravando = false;
+          pausado = false;
           carregandoAudio = false;
           statusProjeto = 'Não foi possível salvar a gravação.';
         });
@@ -288,25 +334,91 @@ class _EditorPageState extends State<EditorPage> {
       final numeroFaixa = faixas.length + 1;
       final nomeFaixa = 'Gravação $numeroFaixa';
 
+      final foiParadaAutomatica = comando == 'parada automática por silêncio';
+
       setState(() {
         gravando = false;
         pausado = false;
         carregandoAudio = false;
         caminhoGravacaoAtual = null;
+        tempoSilencioMs = 0;
+        nivelAudioAtual = -160.0;
         faixas.add({'nome': nomeFaixa, 'caminho': path});
-        statusProjeto = '$nomeFaixa salva no projeto.';
+        statusProjeto = foiParadaAutomatica
+            ? '$nomeFaixa salva automaticamente após silêncio.'
+            : '$nomeFaixa salva no projeto.';
       });
 
       adicionarHistorico(
         comandoOriginal: comando,
-        acao: 'Encerrou gravação real e criou $nomeFaixa',
+        acao: foiParadaAutomatica
+            ? 'Encerrou gravação por silêncio'
+            : 'Encerrou gravação real e criou $nomeFaixa',
       );
     } catch (e) {
       setState(() {
+        gravando = false;
+        pausado = false;
         carregandoAudio = false;
         statusProjeto = 'Erro ao encerrar gravação: $e';
       });
     }
+  }
+
+  void iniciarMonitoramentoSilencio() {
+    monitorSilencioTimer?.cancel();
+
+    tempoSilencioMs = 0;
+    nivelAudioAtual = -160.0;
+
+    monitorSilencioTimer = Timer.periodic(
+      Duration(milliseconds: intervaloMonitoramentoMs),
+      (timer) async {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+
+        if (!gravando || pausado || carregandoAudio) {
+          return;
+        }
+
+        if (!paradaAutomaticaPorSilencio) {
+          return;
+        }
+
+        try {
+          final amplitude = await audioService.getAmplitude();
+          final nivelAtual = amplitude.current;
+
+          setState(() {
+            nivelAudioAtual = nivelAtual;
+          });
+
+          if (nivelAtual <= limiteSilencioDb) {
+            tempoSilencioMs += intervaloMonitoramentoMs;
+          } else {
+            tempoSilencioMs = 0;
+          }
+
+          if (tempoSilencioMs >= limiteSilencioMs) {
+            timer.cancel();
+
+            if (mounted && gravando) {
+              await encerrarGravacao('parada automática por silêncio');
+            }
+          }
+        } catch (e) {
+          debugPrint('Erro ao monitorar silêncio: $e');
+        }
+      },
+    );
+  }
+
+  void pararMonitoramentoSilencio() {
+    monitorSilencioTimer?.cancel();
+    monitorSilencioTimer = null;
+    tempoSilencioMs = 0;
   }
 
   void reproduzirProjeto(String comando) {
@@ -410,6 +522,7 @@ class _EditorPageState extends State<EditorPage> {
 
   @override
   void dispose() {
+    pararMonitoramentoSilencio();
     speech.stopListening();
     audioService.dispose();
     super.dispose();
@@ -425,6 +538,7 @@ class _EditorPageState extends State<EditorPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _cabecalhoProjeto(),
+            if (gravando) ...[const SizedBox(height: 18), _modoGravacaoAtivo()],
             const SizedBox(height: 18),
             _linhaDoTempo(),
             const SizedBox(height: 18),
@@ -482,6 +596,92 @@ class _EditorPageState extends State<EditorPage> {
             Chip(
               label: Text(textoStatus),
               avatar: Icon(Icons.circle, size: 12, color: corStatus),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modoGravacaoAtivo() {
+    final segundosSilencioRestantes =
+        ((limiteSilencioMs - tempoSilencioMs) / 1000).ceil();
+
+    return Card(
+      color: Colors.red.withOpacity(0.08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: Colors.red.withOpacity(0.3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(Icons.fiber_manual_record, color: Colors.red, size: 56),
+            const SizedBox(height: 12),
+            Text(
+              pausado ? 'GRAVAÇÃO PAUSADA' : 'GRAVANDO...',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              pausado
+                  ? 'A gravação está pausada.'
+                  : 'O microfone está sendo usado para capturar o áudio.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Nível atual: ${nivelAudioAtual.toStringAsFixed(1)} dB',
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 6),
+            if (paradaAutomaticaPorSilencio && !pausado)
+              Text(
+                tempoSilencioMs > 0
+                    ? 'Silêncio detectado. Parando em $segundosSilencioRestantes s...'
+                    : 'Parada automática por silêncio ativada.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13),
+              ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              height: 64,
+              child: ElevatedButton.icon(
+                onPressed: carregandoAudio
+                    ? null
+                    : () => encerrarGravacao('botão grande parar'),
+                icon: const Icon(Icons.stop, size: 32),
+                label: const Text(
+                  'PARAR GRAVAÇÃO',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Parada automática por silêncio'),
+              subtitle: const Text('Encerra após 5 segundos em silêncio.'),
+              value: paradaAutomaticaPorSilencio,
+              onChanged: carregandoAudio
+                  ? null
+                  : (value) {
+                      setState(() {
+                        paradaAutomaticaPorSilencio = value;
+                        tempoSilencioMs = 0;
+                      });
+                    },
             ),
           ],
         ),

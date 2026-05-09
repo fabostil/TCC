@@ -20,7 +20,6 @@ class AudioRecordingService {
     }
 
     final directory = await getApplicationDocumentsDirectory();
-
     final recordingsDirectory = Directory('${directory.path}/gravacoes');
 
     if (!await recordingsDirectory.exists()) {
@@ -61,22 +60,31 @@ class AudioRecordingService {
   }
 
   Future<String?> stopRecording() async {
-    final isRecording = await _recorder.isRecording();
-
-    if (!isRecording) {
-      return _currentPath;
-    }
-
     final path = await _recorder.stop();
 
-    _currentPath = path;
+    if (path != null && path.isNotEmpty) {
+      _currentPath = path;
+      return path;
+    }
 
-    return path;
+    return _currentPath;
   }
 
   Future<void> cancelRecording() async {
     await _recorder.cancel();
     _currentPath = null;
+  }
+
+  Future<Amplitude> getAmplitude() async {
+    return await _recorder.getAmplitude();
+  }
+
+  Future<bool> isRecording() async {
+    return await _recorder.isRecording();
+  }
+
+  Future<bool> isPaused() async {
+    return await _recorder.isPaused();
   }
 
   Future<void> dispose() async {
