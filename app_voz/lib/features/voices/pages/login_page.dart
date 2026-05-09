@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../models/usuario.dart';
 import '../../../services/database_service.dart';
+import '../../home/pages/home_page.dart';
 import 'cadastro_page.dart';
-import 'voice_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -53,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => VoicePage(usuario: usuario)),
+        MaterialPageRoute(builder: (_) => HomePage(usuario: usuario)),
       );
     } catch (e) {
       if (!mounted) {
