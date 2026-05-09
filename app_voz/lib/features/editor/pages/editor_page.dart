@@ -35,7 +35,7 @@ class _EditorPageState extends State<EditorPage> {
     if (gravando) {
       setState(() {
         statusProjeto =
-            'Pare a gravação antes de usar o comando de voz. O microfone já está em uso.';
+            'Pare a gravação antes de usar comando de voz. O microfone já está em uso.';
       });
       return;
     }
@@ -51,11 +51,21 @@ class _EditorPageState extends State<EditorPage> {
         onResult: (resultado) {
           setState(() {
             textoReconhecido = resultado;
+            statusProjeto = 'Comando detectado: $resultado';
           });
 
           interpretarComando(resultado);
         },
         onStatus: (status) {
+          if (status == 'listening') {
+            if (mounted) {
+              setState(() {
+                ouvindo = true;
+                statusProjeto = 'Estou ouvindo...';
+              });
+            }
+          }
+
           if (status == 'done' || status == 'notListening') {
             if (mounted) {
               setState(() {
@@ -65,13 +75,25 @@ class _EditorPageState extends State<EditorPage> {
           }
         },
         onError: (error) {
-          if (mounted) {
+          if (!mounted) {
+            return;
+          }
+
+          if (error == 'error_speech_timeout') {
             setState(() {
               ouvindo = false;
-              statusProjeto = 'Erro no reconhecimento de voz: $error';
-              textoReconhecido = 'Não foi possível reconhecer a fala.';
+              textoReconhecido =
+                  'Nenhuma fala detectada. Tente falar mais perto do microfone.';
+              statusProjeto = 'Tempo de escuta encerrado sem comando.';
             });
+            return;
           }
+
+          setState(() {
+            ouvindo = false;
+            statusProjeto = 'Erro no reconhecimento de voz: $error';
+            textoReconhecido = 'Não foi possível reconhecer a fala.';
+          });
         },
       );
     } else {
@@ -80,6 +102,7 @@ class _EditorPageState extends State<EditorPage> {
       setState(() {
         ouvindo = false;
         textoReconhecido = 'Pressione o microfone e fale um comando.';
+        statusProjeto = 'Escuta encerrada.';
       });
     }
   }

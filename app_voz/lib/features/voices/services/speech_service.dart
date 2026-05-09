@@ -51,14 +51,16 @@ class SpeechService {
 
     if (_speech.isListening) {
       await _speech.stop();
+      await Future.delayed(const Duration(milliseconds: 300));
     }
 
     await _speech.listen(
       localeId: 'pt_BR',
-      listenMode: stt.ListenMode.dictation,
-      listenFor: const Duration(seconds: 8),
-      pauseFor: const Duration(seconds: 3),
+      listenMode: stt.ListenMode.confirmation,
+      listenFor: const Duration(seconds: 15),
+      pauseFor: const Duration(seconds: 6),
       partialResults: true,
+      cancelOnError: false,
       onResult: (result) {
         final text = result.recognizedWords.trim();
 

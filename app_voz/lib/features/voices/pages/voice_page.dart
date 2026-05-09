@@ -24,7 +24,7 @@ class _VoicePageState extends State<VoicePage> {
     if (!listening) {
       setState(() {
         listening = true;
-        text = 'Ouvindo...';
+        text = 'Ouvindo... fale um comando.';
         ultimoComando = 'Aguardando comando de voz...';
       });
 
@@ -37,22 +37,42 @@ class _VoicePageState extends State<VoicePage> {
           handleVoiceCommand(result);
         },
         onStatus: (status) {
+          if (!mounted) {
+            return;
+          }
+
+          if (status == 'listening') {
+            setState(() {
+              listening = true;
+              ultimoComando = 'Estou ouvindo...';
+            });
+          }
+
           if (status == 'done' || status == 'notListening') {
-            if (mounted) {
-              setState(() {
-                listening = false;
-              });
-            }
+            setState(() {
+              listening = false;
+            });
           }
         },
         onError: (error) {
-          if (mounted) {
+          if (!mounted) {
+            return;
+          }
+
+          if (error == 'error_speech_timeout') {
             setState(() {
               listening = false;
-              text = 'Não foi possível reconhecer a fala.';
-              ultimoComando = 'Erro no reconhecimento de voz: $error';
+              text = 'Nenhuma fala detectada. Tente novamente.';
+              ultimoComando = 'Tempo de escuta encerrado sem comando.';
             });
+            return;
           }
+
+          setState(() {
+            listening = false;
+            text = 'Não foi possível reconhecer a fala.';
+            ultimoComando = 'Erro no reconhecimento de voz: $error';
+          });
         },
       );
     } else {
@@ -61,6 +81,7 @@ class _VoicePageState extends State<VoicePage> {
       setState(() {
         listening = false;
         text = 'Pressione o microfone e fale';
+        ultimoComando = 'Escuta encerrada.';
       });
     }
   }
@@ -124,6 +145,13 @@ class _VoicePageState extends State<VoicePage> {
       return;
     }
 
+    if (cmd.contains('criar marcador') || cmd.contains('marcar')) {
+      setState(() {
+        ultimoComando = 'Comando reconhecido: criar marcador';
+      });
+      return;
+    }
+
     setState(() {
       ultimoComando = 'Comando não reconhecido.';
     });
@@ -162,26 +190,19 @@ class _VoicePageState extends State<VoicePage> {
         child: Column(
           children: [
             const SizedBox(height: 16),
-
             const Icon(Icons.music_note, size: 56, color: Colors.deepPurple),
-
             const SizedBox(height: 12),
-
             const Text(
               'Assistente de Voz',
               style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 8),
-
             const Text(
               'Use comandos como: iniciar gravação, pausar gravação, retomar gravação ou encerrar gravação.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 15),
             ),
-
             const SizedBox(height: 24),
-
             Expanded(
               child: Center(
                 child: Text(
@@ -191,7 +212,6 @@ class _VoicePageState extends State<VoicePage> {
                 ),
               ),
             ),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -206,7 +226,6 @@ class _VoicePageState extends State<VoicePage> {
                 style: const TextStyle(fontSize: 16),
               ),
             ),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -216,9 +235,7 @@ class _VoicePageState extends State<VoicePage> {
                   backgroundColor: listening ? Colors.red : Colors.blue,
                   child: Icon(listening ? Icons.mic : Icons.mic_none),
                 ),
-
                 const SizedBox(width: 16),
-
                 FloatingActionButton(
                   heroTag: 'clearButtonVoicePage',
                   onPressed: clearText,
@@ -227,7 +244,6 @@ class _VoicePageState extends State<VoicePage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 24),
           ],
         ),
