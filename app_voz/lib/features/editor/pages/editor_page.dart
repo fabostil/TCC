@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../models/usuario.dart';
+import '../../../services/audio_player_service.dart';
 import '../../../services/audio_recording_service.dart';
 import '../../voices/services/speech_service.dart';
 
@@ -18,6 +19,7 @@ class EditorPage extends StatefulWidget {
 class _EditorPageState extends State<EditorPage> {
   final SpeechService speech = SpeechService();
   final AudioRecordingService audioService = AudioRecordingService();
+  final AudioPlayerService playerService = AudioPlayerService();
 
   bool ouvindo = false;
   bool gravando = false;
@@ -30,9 +32,9 @@ class _EditorPageState extends State<EditorPage> {
   double nivelAudioAtual = -160.0;
   int tempoSilencioMs = 0;
 
-  final int limiteSilencioMs = 5000;
+  final int limiteSilencioMs = 6000;
   final int intervaloMonitoramentoMs = 500;
-  final double limiteSilencioDb = -30.0;
+  final double limiteSilencioDb = -36.0;
 
   bool paradaAutomaticaPorSilencio = true;
 
@@ -195,6 +197,14 @@ class _EditorPageState extends State<EditorPage> {
 
       setState(() {
         ouvindo = false;
+      });
+    }
+
+    if (reproduzindo) {
+      await playerService.stop();
+
+      setState(() {
+        reproduzindo = false;
       });
     }
 
@@ -421,7 +431,7 @@ class _EditorPageState extends State<EditorPage> {
     tempoSilencioMs = 0;
   }
 
-  void reproduzirProjeto(String comando) {
+  Future<void> reproduzirProjeto(String comando) async {
     if (faixas.isEmpty) {
       setState(() {
         statusProjeto = 'Ainda não há gravações para reproduzir.';
@@ -429,25 +439,111 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
+    final ultimaFaixa = faixas.last;
+    final caminho = ultimaFaixa['caminho'];
+    final nome = ultimaFaixa['nome'] ?? 'gravação';
+
+    if (caminho == null || caminho.isEmpty) {
+      setState(() {
+        statusProjeto = 'Arquivo da gravação não encontrado.';
+      });
+      return;
+    }
+
+    if (gravando) {
+      setState(() {
+        statusProjeto = 'Pare a gravação antes de reproduzir áudio.';
+      });
+      return;
+    }
+
     setState(() {
-      reproduzindo = true;
-      statusProjeto =
-          'Reprodução simulada. Na próxima etapa vamos tocar o áudio real.';
+      carregandoAudio = true;
+      statusProjeto = 'Preparando reprodução...';
     });
 
-    adicionarHistorico(
-      comandoOriginal: comando,
-      acao: 'Iniciou reprodução simulada',
-    );
+    try {
+      await playerService.play(caminho);
+
+      setState(() {
+        reproduzindo = true;
+        carregandoAudio = false;
+        statusProjeto = 'Reproduzindo $nome.';
+      });
+
+      adicionarHistorico(
+        comandoOriginal: comando,
+        acao: 'Reproduziu gravação real',
+      );
+    } catch (e) {
+      setState(() {
+        reproduzindo = false;
+        carregandoAudio = false;
+        statusProjeto = 'Erro ao reproduzir áudio: $e';
+      });
+    }
   }
 
-  void pararReproducao(String comando) {
+  Future<void> reproduzirFaixa(Map<String, String> faixa) async {
+    final caminho = faixa['caminho'];
+    final nome = faixa['nome'] ?? 'Gravação';
+
+    if (caminho == null || caminho.isEmpty) {
+      setState(() {
+        statusProjeto = 'Arquivo da gravação não encontrado.';
+      });
+      return;
+    }
+
+    if (gravando) {
+      setState(() {
+        statusProjeto = 'Pare a gravação antes de reproduzir áudio.';
+      });
+      return;
+    }
+
     setState(() {
-      reproduzindo = false;
-      statusProjeto = 'Reprodução parada.';
+      carregandoAudio = true;
+      statusProjeto = 'Preparando reprodução...';
     });
 
-    adicionarHistorico(comandoOriginal: comando, acao: 'Parou reprodução');
+    try {
+      await playerService.play(caminho);
+
+      setState(() {
+        reproduzindo = true;
+        carregandoAudio = false;
+        statusProjeto = 'Reproduzindo $nome.';
+      });
+
+      adicionarHistorico(
+        comandoOriginal: 'botão play da faixa',
+        acao: 'Reproduziu $nome',
+      );
+    } catch (e) {
+      setState(() {
+        reproduzindo = false;
+        carregandoAudio = false;
+        statusProjeto = 'Erro ao reproduzir áudio: $e';
+      });
+    }
+  }
+
+  Future<void> pararReproducao(String comando) async {
+    try {
+      await playerService.stop();
+
+      setState(() {
+        reproduzindo = false;
+        statusProjeto = 'Reprodução parada.';
+      });
+
+      adicionarHistorico(comandoOriginal: comando, acao: 'Parou reprodução');
+    } catch (e) {
+      setState(() {
+        statusProjeto = 'Erro ao parar reprodução: $e';
+      });
+    }
   }
 
   void criarMarcador(String comando) {
@@ -525,6 +621,7 @@ class _EditorPageState extends State<EditorPage> {
     pararMonitoramentoSilencio();
     speech.stopListening();
     audioService.dispose();
+    playerService.dispose();
     super.dispose();
   }
 
@@ -538,16 +635,27 @@ class _EditorPageState extends State<EditorPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _cabecalhoProjeto(),
+
             if (gravando) ...[const SizedBox(height: 18), _modoGravacaoAtivo()],
+
             const SizedBox(height: 18),
+
             _linhaDoTempo(),
+
             const SizedBox(height: 18),
+
             _controlesManuais(),
+
             const SizedBox(height: 18),
+
             _painelVoz(),
+
             const SizedBox(height: 18),
+
             _listaFaixas(),
+
             const SizedBox(height: 18),
+
             _historico(),
           ],
         ),
@@ -672,7 +780,7 @@ class _EditorPageState extends State<EditorPage> {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Parada automática por silêncio'),
-              subtitle: const Text('Encerra após 5 segundos em silêncio.'),
+              subtitle: const Text('Encerra após 7 segundos em silêncio.'),
               value: paradaAutomaticaPorSilencio,
               onChanged: carregandoAudio
                   ? null
@@ -780,6 +888,13 @@ class _EditorPageState extends State<EditorPage> {
                   icon: const Icon(Icons.headphones),
                   label: const Text('Reproduzir'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: carregandoAudio
+                      ? null
+                      : () => pararReproducao('botão parar reprodução'),
+                  icon: const Icon(Icons.stop_circle_outlined),
+                  label: const Text('Parar áudio'),
+                ),
               ],
             ),
           ],
@@ -859,7 +974,14 @@ class _EditorPageState extends State<EditorPage> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  trailing: const Icon(Icons.more_vert),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.play_arrow),
+                    onPressed: carregandoAudio
+                        ? null
+                        : () {
+                            reproduzirFaixa(faixa);
+                          },
+                  ),
                 ),
               ),
           ],
