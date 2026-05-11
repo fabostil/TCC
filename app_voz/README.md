@@ -1,4 +1,4 @@
-# 🎵 Voice Assistant for Musicians
+# 🎙️ Assistente Virtual para Produção Musical
 
 ![Flutter](https://img.shields.io/badge/Flutter-Framework-blue)
 ![Dart](https://img.shields.io/badge/Dart-Language-blue)
@@ -6,150 +6,75 @@
 
 Aplicativo móvel desenvolvido em **Flutter** como projeto acadêmico de **Projeto e Desenvolvimento de Sistemas**.
 
-O objetivo do sistema é auxiliar **músicos durante estudos ou apresentações**, permitindo o controle de funcionalidades por **comandos de voz**, evitando a interrupção da prática musical.
+O objetivo do sistema é auxiliar **músicos independentes** na captura, organização e reprodução de ideias musicais por meio de uma interface simples, intuitiva e com apoio de **comandos de voz**.
 
 ---
 
-# 📚 Contexto do Projeto
+## 📚 Contexto do Projeto
 
-Durante a prática musical, músicos frequentemente precisam interagir com aplicativos como metrônomos, exercícios ou materiais de estudo.
+Durante o processo de criação musical, músicos independentes costumam registrar ideias rapidamente, como melodias, letras, frases vocais, riffs, harmonias ou rascunhos de arranjos.
 
-Essas interações exigem o uso das mãos, o que pode interromper o fluxo da prática.
+Muitas vezes essas ideias surgem de forma espontânea, e o uso de aplicativos comuns de gravação pode exigir várias interações manuais, como abrir o gravador, iniciar a gravação, salvar o arquivo, nomear a ideia e depois organizá-la.
 
-Este projeto propõe um aplicativo que permite controlar essas funcionalidades utilizando **comandos de voz**, tornando a interação mais natural e eficiente.
+Esse processo pode interromper o fluxo criativo.
 
----
-
-# 🎯 Objetivos
-
-## Objetivo geral
-
-Desenvolver um aplicativo móvel que permita a músicos controlar funcionalidades do sistema por meio de comandos de voz.
-
-## Objetivos específicos
-
-* Implementar reconhecimento de voz
-* Converter fala em texto
-* Interpretar comandos do usuário
-* Executar ações no aplicativo
-* Criar interface simples e intuitiva
+Este projeto propõe um aplicativo que funciona como um **assistente virtual para apoio à produção musical independente**, permitindo que o usuário utilize comandos de voz para iniciar ações, registrar ideias, organizar gravações e acessar informações sobre sua atividade criativa.
 
 ---
 
-# 🎤 Funcionalidades
+## 🎯 Objetivo Geral
 
-O aplicativo contará com funcionalidades como:
-
-* 🎤 Captura de áudio do usuário
-* 🗣 Conversão de fala em texto
-* ⚙️ Interpretação de comandos
-* 🎵 Execução de ações relacionadas à prática musical
-
-### Exemplos de comandos
-
-```
-"Iniciar metrônomo"
-"Aumentar BPM"
-"Próximo exercício"
-"Parar metrônomo"
-```
+Desenvolver um aplicativo móvel Android que utilize comandos de voz para auxiliar músicos independentes na captura, organização e reprodução de ideias musicais.
 
 ---
 
-# 🛠 Tecnologias Utilizadas
+## ✅ Objetivos Específicos
 
-Este projeto utiliza as seguintes tecnologias:
-
-* Flutter
-* Dart
-* Git
-* GitHub
-* Speech-to-text para reconhecimento de voz
-
----
-
-# 🧱 Arquitetura do Projeto
-
-Estrutura básica do projeto Flutter:
-
-```
-lib/
- ├ main.dart
- ├ screens/
- │   └ home_screen.dart
- ├ services/
- │   └ voice_service.dart
- ├ models/
- └ widgets/
-```
-
-Descrição das pastas:
-
-* **screens** → telas do aplicativo
-* **services** → lógica e serviços do sistema
-* **models** → estruturas de dados
-* **widgets** → componentes reutilizáveis
+- Implementar cadastro e autenticação de usuários.
+- Implementar reconhecimento de comandos de voz.
+- Permitir iniciar gravações a partir de comandos de voz.
+- Permitir encerramento da gravação por botão destacado ou parada automática por silêncio.
+- Salvar arquivos de áudio localmente no dispositivo.
+- Listar e reproduzir gravações salvas.
+- Permitir organização das gravações por projetos musicais.
+- Permitir renomeação de gravações.
+- Registrar histórico de comandos e ações realizadas.
+- Exibir um dashboard com informações sobre projetos, gravações e uso do sistema.
+- Criar uma interface simples, acessível e intuitiva.
 
 ---
 
-# 📊 Modelagem do Sistema
+## 🎤 Funcionalidades Planejadas
 
-Durante o desenvolvimento serão produzidos diagramas UML como:
+O sistema contará com as seguintes funcionalidades principais:
 
-* Diagrama de Caso de Uso
-* Diagrama de Classes
-* Diagrama de Sequência
-
-Esses diagramas fazem parte da documentação do projeto.
-
----
-
-# 🚀 Como executar o projeto
-
-### 1️⃣ Clonar o repositório
-
-```
-git clone https://github.com/fabostil/TCC.git
-```
-
-### 2️⃣ Entrar na pasta do projeto
-
-```
-cd TCC
-```
-
-### 3️⃣ Instalar dependências
-
-```
-flutter pub get
-```
-
-### 4️⃣ Executar o aplicativo
-
-```
-flutter run
-```
+- Cadastro de usuário.
+- Login de usuário.
+- Criação de projetos musicais.
+- Sessão de captura de ideias musicais.
+- Reconhecimento de comandos de voz.
+- Gravação de áudio.
+- Parada manual com botão destacado.
+- Parada automática por silêncio.
+- Reprodução de gravações.
+- Listagem de gravações.
+- Renomeação de gravações.
+- Histórico de comandos executados.
+- Dashboard com resumo de uso.
 
 ---
 
-# 🧪 Status do Projeto
+## 🗣️ Exemplos de Comandos de Voz
 
-🚧 Em desenvolvimento.
+Exemplos de comandos previstos no sistema:
 
-O projeto está sendo desenvolvido como parte da disciplina de **Projeto e Desenvolvimento de Sistemas**.
-
----
-
-# 👨‍💻 Equipe
-
-Projeto desenvolvido por:
-
-* Fabio Rogério Munhoz Junior
-* Cristian Alex Anyaipoma Leon 
-
----
-
-# 📄 Licença
-
-Este projeto foi desenvolvido como parte de um trabalho acadêmico
-e é distribuído sob a licença MIT.
+```text
+"iniciar gravação"
+"começar gravação"
+"gravar"
+"criar marcador"
+"reproduzir"
+"tocar última gravação"
+"listar gravações"
+"nomear como refrão da música nova"
+"abrir dashboard"
