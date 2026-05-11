@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'features/voices/pages/login_page.dart';
+import 'features/flutter_sound_test/pages/flutter_sound_test_page.dart';
 
 void main() {
   runApp(const VoiceApp());
@@ -12,10 +12,10 @@ class VoiceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Assistente Musical',
+      title: 'Teste Flutter Sound',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.deepPurple, useMaterial3: true),
-      home: const LoginPage(),
+      home: const FlutterSoundTestPage(),
     );
   }
 }
