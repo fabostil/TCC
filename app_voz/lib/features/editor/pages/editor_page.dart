@@ -27,99 +27,198 @@ class _EditorPageState extends State<EditorPage> {
   bool reproduzindo = false;
   bool carregandoAudio = false;
 
+  bool modoAssistenteAtivo = true;
+  bool reiniciandoEscuta = false;
+
   Timer? monitorSilencioTimer;
+  Timer? reiniciarEscutaTimer;
+
+  String ultimoComandoProcessado = '';
+  DateTime? horarioUltimoComando;
 
   double nivelAudioAtual = -160.0;
   int tempoSilencioMs = 0;
 
-  final int limiteSilencioMs = 6000;
+  final int limiteSilencioMs = 7000;
   final int intervaloMonitoramentoMs = 500;
-  final double limiteSilencioDb = -36.0;
+  final double limiteSilencioDb = -55.0;
 
   bool paradaAutomaticaPorSilencio = true;
 
-  String textoReconhecido = 'Pressione o microfone e fale um comando.';
-  String statusProjeto = 'Projeto pronto para gravar.';
-  String nomeProjeto = 'Projeto sem nome';
+  String textoReconhecido = 'Assistente iniciando...';
+  String statusProjeto = 'Sessão pronta para capturar ideias.';
+  String nomeProjeto = 'Sessão de captura';
   String? caminhoGravacaoAtual;
 
   final List<Map<String, String>> faixas = [];
   final List<String> historicoComandos = [];
 
-  Future<void> alternarMicrofone() async {
-    if (gravando) {
-      setState(() {
-        statusProjeto =
-            'Pare a gravação antes de usar comando de voz. O microfone já está em uso.';
-      });
+  @override
+  void initState() {
+    super.initState();
+
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted && modoAssistenteAtivo && !gravando) {
+        iniciarEscutaAutomatica();
+      }
+    });
+  }
+
+  Future<void> iniciarEscutaAutomatica() async {
+    if (!modoAssistenteAtivo) {
       return;
     }
 
-    if (!ouvindo) {
-      setState(() {
-        ouvindo = true;
-        textoReconhecido = 'Ouvindo... fale um comando.';
-        statusProjeto = 'Aguardando comando de voz...';
-      });
+    if (gravando || carregandoAudio || ouvindo) {
+      return;
+    }
 
-      await speech.startListening(
-        onResult: (resultado) {
+    setState(() {
+      ouvindo = true;
+      textoReconhecido = 'Assistente ouvindo...';
+      statusProjeto = 'Diga um comando, como "iniciar gravação".';
+    });
+
+    await speech.startListening(
+      onResult: (resultado) {
+        setState(() {
+          textoReconhecido = resultado;
+          statusProjeto = 'Comando detectado: $resultado';
+        });
+
+        processarComandoComControle(resultado);
+      },
+      onStatus: (status) {
+        if (!mounted) {
+          return;
+        }
+
+        if (status == 'listening') {
           setState(() {
-            textoReconhecido = resultado;
-            statusProjeto = 'Comando detectado: $resultado';
+            ouvindo = true;
           });
+        }
 
-          interpretarComando(resultado);
-        },
-        onStatus: (status) {
-          if (!mounted) {
-            return;
-          }
-
-          if (status == 'listening') {
-            setState(() {
-              ouvindo = true;
-              statusProjeto = 'Estou ouvindo...';
-            });
-          }
-
-          if (status == 'done' || status == 'notListening') {
-            setState(() {
-              ouvindo = false;
-            });
-          }
-        },
-        onError: (error) {
-          if (!mounted) {
-            return;
-          }
-
-          if (error == 'error_speech_timeout') {
-            setState(() {
-              ouvindo = false;
-              textoReconhecido =
-                  'Nenhuma fala detectada. Tente falar mais perto do microfone.';
-              statusProjeto = 'Tempo de escuta encerrado sem comando.';
-            });
-            return;
-          }
-
+        if (status == 'done' || status == 'notListening') {
           setState(() {
             ouvindo = false;
-            statusProjeto = 'Erro no reconhecimento de voz: $error';
-            textoReconhecido = 'Não foi possível reconhecer a fala.';
           });
-        },
-      );
-    } else {
-      await speech.stopListening();
 
+          agendarReinicioEscuta();
+        }
+      },
+      onError: (error) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          ouvindo = false;
+        });
+
+        if (error == 'error_speech_timeout') {
+          setState(() {
+            textoReconhecido = 'Aguardando comando...';
+            statusProjeto = 'Assistente ativo. Fale um comando quando quiser.';
+          });
+
+          agendarReinicioEscuta();
+          return;
+        }
+
+        setState(() {
+          textoReconhecido = 'Erro ao reconhecer fala.';
+          statusProjeto = 'Erro no assistente de voz: $error';
+        });
+
+        agendarReinicioEscuta();
+      },
+    );
+  }
+
+  void agendarReinicioEscuta() {
+    if (!modoAssistenteAtivo) {
+      return;
+    }
+
+    if (gravando || carregandoAudio) {
+      return;
+    }
+
+    if (reiniciandoEscuta) {
+      return;
+    }
+
+    reiniciandoEscuta = true;
+
+    reiniciarEscutaTimer?.cancel();
+
+    reiniciarEscutaTimer = Timer(const Duration(milliseconds: 800), () {
+      reiniciandoEscuta = false;
+
+      if (mounted && modoAssistenteAtivo && !gravando && !carregandoAudio) {
+        iniciarEscutaAutomatica();
+      }
+    });
+  }
+
+  Future<void> pararEscutaAutomatica() async {
+    reiniciarEscutaTimer?.cancel();
+    reiniciandoEscuta = false;
+
+    if (ouvindo) {
+      await speech.stopListening();
+    }
+
+    if (mounted) {
       setState(() {
         ouvindo = false;
-        textoReconhecido = 'Pressione o microfone e fale um comando.';
-        statusProjeto = 'Escuta encerrada.';
+        textoReconhecido = 'Assistente pausado.';
+        statusProjeto = 'Escuta automática desativada.';
       });
     }
+  }
+
+  void processarComandoComControle(String comando) {
+    final comandoLimpo = comando.toLowerCase().trim();
+
+    if (comandoLimpo.isEmpty) {
+      return;
+    }
+
+    final agora = DateTime.now();
+
+    if (ultimoComandoProcessado == comandoLimpo &&
+        horarioUltimoComando != null &&
+        agora.difference(horarioUltimoComando!).inSeconds < 3) {
+      return;
+    }
+
+    ultimoComandoProcessado = comandoLimpo;
+    horarioUltimoComando = agora;
+
+    interpretarComando(comando);
+  }
+
+  Future<void> alternarModoAssistente() async {
+    if (modoAssistenteAtivo) {
+      setState(() {
+        modoAssistenteAtivo = false;
+      });
+
+      await pararEscutaAutomatica();
+    } else {
+      setState(() {
+        modoAssistenteAtivo = true;
+        statusProjeto = 'Assistente automático ativado.';
+      });
+
+      await iniciarEscutaAutomatica();
+    }
+  }
+
+  Future<void> alternarMicrofone() async {
+    await alternarModoAssistente();
   }
 
   void interpretarComando(String comando) {
@@ -131,8 +230,39 @@ class _EditorPageState extends State<EditorPage> {
 
     if (cmd.contains('iniciar gravação') ||
         cmd.contains('começar gravação') ||
-        cmd.contains('gravar')) {
+        cmd == 'gravar' ||
+        cmd.contains('gravar ideia') ||
+        cmd.contains('nova gravação')) {
       iniciarGravacao(comando);
+      return;
+    }
+
+    if (cmd.startsWith('nomear como') ||
+        cmd.startsWith('renomear como') ||
+        cmd.contains('nomear última') ||
+        cmd.contains('nomear ultima') ||
+        cmd.contains('renomear última') ||
+        cmd.contains('renomear ultima')) {
+      renomearUltimaGravacao(comando);
+      return;
+    }
+
+    if (cmd.contains('tocar última') ||
+        cmd.contains('tocar ultima') ||
+        cmd.contains('reproduzir última') ||
+        cmd.contains('reproduzir ultima') ||
+        cmd.contains('tocar gravação') ||
+        cmd.contains('reproduzir gravação') ||
+        cmd == 'reproduzir' ||
+        cmd == 'tocar') {
+      reproduzirProjeto(comando);
+      return;
+    }
+
+    if (cmd.contains('parar reprodução') ||
+        cmd.contains('parar áudio') ||
+        cmd.contains('parar audio')) {
+      pararReproducao(comando);
       return;
     }
 
@@ -154,18 +284,20 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    if (cmd.contains('parar reprodução')) {
-      pararReproducao(comando);
-      return;
-    }
-
-    if (cmd.contains('reproduzir') || cmd.contains('tocar')) {
-      reproduzirProjeto(comando);
-      return;
-    }
-
     if (cmd.contains('criar marcador') || cmd.contains('marcar')) {
       criarMarcador(comando);
+      return;
+    }
+
+    if (cmd.contains('listar gravações') ||
+        cmd.contains('mostrar gravações') ||
+        cmd.contains('minhas gravações')) {
+      listarGravacoes(comando);
+      return;
+    }
+
+    if (cmd.contains('abrir dashboard') || cmd.contains('dashboard')) {
+      abrirDashboardEmBreve(comando);
       return;
     }
 
@@ -191,6 +323,9 @@ class _EditorPageState extends State<EditorPage> {
       });
       return;
     }
+
+    reiniciarEscutaTimer?.cancel();
+    reiniciandoEscuta = false;
 
     if (ouvindo) {
       await speech.stopListening();
@@ -239,6 +374,10 @@ class _EditorPageState extends State<EditorPage> {
         carregandoAudio = false;
         statusProjeto = 'Erro ao iniciar gravação: $e';
       });
+
+      if (modoAssistenteAtivo) {
+        agendarReinicioEscuta();
+      }
     }
   }
 
@@ -338,6 +477,11 @@ class _EditorPageState extends State<EditorPage> {
           carregandoAudio = false;
           statusProjeto = 'Não foi possível salvar a gravação.';
         });
+
+        if (modoAssistenteAtivo) {
+          agendarReinicioEscuta();
+        }
+
         return;
       }
 
@@ -356,7 +500,7 @@ class _EditorPageState extends State<EditorPage> {
         faixas.add({'nome': nomeFaixa, 'caminho': path});
         statusProjeto = foiParadaAutomatica
             ? '$nomeFaixa salva automaticamente após silêncio.'
-            : '$nomeFaixa salva no projeto.';
+            : '$nomeFaixa salva na sessão.';
       });
 
       adicionarHistorico(
@@ -365,6 +509,10 @@ class _EditorPageState extends State<EditorPage> {
             ? 'Encerrou gravação por silêncio'
             : 'Encerrou gravação real e criou $nomeFaixa',
       );
+
+      if (modoAssistenteAtivo) {
+        agendarReinicioEscuta();
+      }
     } catch (e) {
       setState(() {
         gravando = false;
@@ -372,7 +520,63 @@ class _EditorPageState extends State<EditorPage> {
         carregandoAudio = false;
         statusProjeto = 'Erro ao encerrar gravação: $e';
       });
+
+      if (modoAssistenteAtivo) {
+        agendarReinicioEscuta();
+      }
     }
+  }
+
+  void renomearUltimaGravacao(String comando) {
+    if (faixas.isEmpty) {
+      setState(() {
+        statusProjeto = 'Ainda não há gravações para renomear.';
+      });
+      return;
+    }
+
+    String novoNome = comando.toLowerCase().trim();
+
+    novoNome = novoNome
+        .replaceAll('nomear última gravação como', '')
+        .replaceAll('nomear ultima gravação como', '')
+        .replaceAll('renomear última gravação como', '')
+        .replaceAll('renomear ultima gravação como', '')
+        .replaceAll('nomear última como', '')
+        .replaceAll('nomear ultima como', '')
+        .replaceAll('renomear última como', '')
+        .replaceAll('renomear ultima como', '')
+        .replaceAll('nomear como', '')
+        .replaceAll('renomear como', '')
+        .trim();
+
+    if (novoNome.isEmpty) {
+      setState(() {
+        statusProjeto = 'Não entendi o novo nome da gravação.';
+      });
+      return;
+    }
+
+    novoNome = _capitalizarTexto(novoNome);
+
+    setState(() {
+      faixas[faixas.length - 1]['nome'] = novoNome;
+      statusProjeto = 'Última gravação renomeada para "$novoNome".';
+      textoReconhecido = comando;
+    });
+
+    adicionarHistorico(
+      comandoOriginal: comando,
+      acao: 'Renomeou última gravação para $novoNome',
+    );
+  }
+
+  String _capitalizarTexto(String texto) {
+    if (texto.isEmpty) {
+      return texto;
+    }
+
+    return texto[0].toUpperCase() + texto.substring(1);
   }
 
   void iniciarMonitoramentoSilencio() {
@@ -440,51 +644,13 @@ class _EditorPageState extends State<EditorPage> {
     }
 
     final ultimaFaixa = faixas.last;
-    final caminho = ultimaFaixa['caminho'];
-    final nome = ultimaFaixa['nome'] ?? 'gravação';
-
-    if (caminho == null || caminho.isEmpty) {
-      setState(() {
-        statusProjeto = 'Arquivo da gravação não encontrado.';
-      });
-      return;
-    }
-
-    if (gravando) {
-      setState(() {
-        statusProjeto = 'Pare a gravação antes de reproduzir áudio.';
-      });
-      return;
-    }
-
-    setState(() {
-      carregandoAudio = true;
-      statusProjeto = 'Preparando reprodução...';
-    });
-
-    try {
-      await playerService.play(caminho);
-
-      setState(() {
-        reproduzindo = true;
-        carregandoAudio = false;
-        statusProjeto = 'Reproduzindo $nome.';
-      });
-
-      adicionarHistorico(
-        comandoOriginal: comando,
-        acao: 'Reproduziu gravação real',
-      );
-    } catch (e) {
-      setState(() {
-        reproduzindo = false;
-        carregandoAudio = false;
-        statusProjeto = 'Erro ao reproduzir áudio: $e';
-      });
-    }
+    await reproduzirFaixa(ultimaFaixa, comandoOriginal: comando);
   }
 
-  Future<void> reproduzirFaixa(Map<String, String> faixa) async {
+  Future<void> reproduzirFaixa(
+    Map<String, String> faixa, {
+    String comandoOriginal = 'botão play da faixa',
+  }) async {
     final caminho = faixa['caminho'];
     final nome = faixa['nome'] ?? 'Gravação';
 
@@ -502,6 +668,14 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
+    if (ouvindo) {
+      await speech.stopListening();
+
+      setState(() {
+        ouvindo = false;
+      });
+    }
+
     setState(() {
       carregandoAudio = true;
       statusProjeto = 'Preparando reprodução...';
@@ -517,15 +691,23 @@ class _EditorPageState extends State<EditorPage> {
       });
 
       adicionarHistorico(
-        comandoOriginal: 'botão play da faixa',
+        comandoOriginal: comandoOriginal,
         acao: 'Reproduziu $nome',
       );
+
+      if (modoAssistenteAtivo) {
+        agendarReinicioEscuta();
+      }
     } catch (e) {
       setState(() {
         reproduzindo = false;
         carregandoAudio = false;
         statusProjeto = 'Erro ao reproduzir áudio: $e';
       });
+
+      if (modoAssistenteAtivo) {
+        agendarReinicioEscuta();
+      }
     }
   }
 
@@ -539,6 +721,10 @@ class _EditorPageState extends State<EditorPage> {
       });
 
       adicionarHistorico(comandoOriginal: comando, acao: 'Parou reprodução');
+
+      if (modoAssistenteAtivo) {
+        agendarReinicioEscuta();
+      }
     } catch (e) {
       setState(() {
         statusProjeto = 'Erro ao parar reprodução: $e';
@@ -546,10 +732,38 @@ class _EditorPageState extends State<EditorPage> {
     }
   }
 
+  void listarGravacoes(String comando) {
+    if (faixas.isEmpty) {
+      setState(() {
+        statusProjeto = 'Nenhuma gravação salva nesta sessão.';
+      });
+    } else {
+      setState(() {
+        statusProjeto = 'Você tem ${faixas.length} gravação(ões) nesta sessão.';
+      });
+    }
+
+    adicionarHistorico(
+      comandoOriginal: comando,
+      acao: 'Listou gravações da sessão',
+    );
+  }
+
+  void abrirDashboardEmBreve(String comando) {
+    setState(() {
+      statusProjeto = 'Dashboard será implementado em breve.';
+    });
+
+    adicionarHistorico(
+      comandoOriginal: comando,
+      acao: 'Tentou abrir dashboard',
+    );
+  }
+
   void criarMarcador(String comando) {
     adicionarHistorico(
       comandoOriginal: comando,
-      acao: 'Criou marcador no projeto',
+      acao: 'Criou marcador na sessão',
     );
 
     setState(() {
@@ -559,7 +773,7 @@ class _EditorPageState extends State<EditorPage> {
 
   void limparTexto(String comando) {
     setState(() {
-      textoReconhecido = 'Pressione o microfone e fale um comando.';
+      textoReconhecido = 'Assistente ouvindo...';
       statusProjeto = 'Texto limpo.';
     });
 
@@ -593,6 +807,10 @@ class _EditorPageState extends State<EditorPage> {
       return Colors.green;
     }
 
+    if (ouvindo) {
+      return Colors.blue;
+    }
+
     return Colors.deepPurple;
   }
 
@@ -613,11 +831,16 @@ class _EditorPageState extends State<EditorPage> {
       return 'Reproduzindo';
     }
 
+    if (ouvindo) {
+      return 'Ouvindo';
+    }
+
     return 'Pronto';
   }
 
   @override
   void dispose() {
+    reiniciarEscutaTimer?.cancel();
     pararMonitoramentoSilencio();
     speech.stopListening();
     audioService.dispose();
@@ -628,34 +851,23 @@ class _EditorPageState extends State<EditorPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Editor Musical'), centerTitle: true),
+      appBar: AppBar(title: const Text('Sessão de Captura'), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _cabecalhoProjeto(),
-
             if (gravando) ...[const SizedBox(height: 18), _modoGravacaoAtivo()],
-
             const SizedBox(height: 18),
-
             _linhaDoTempo(),
-
             const SizedBox(height: 18),
-
             _controlesManuais(),
-
             const SizedBox(height: 18),
-
             _painelVoz(),
-
             const SizedBox(height: 18),
-
             _listaFaixas(),
-
             const SizedBox(height: 18),
-
             _historico(),
           ],
         ),
@@ -806,13 +1018,13 @@ class _EditorPageState extends State<EditorPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Linha do tempo',
+              'Captura atual',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                const Text('00:00'),
+                const Text('Início'),
                 const SizedBox(width: 12),
                 Expanded(
                   child: LinearProgressIndicator(
@@ -822,12 +1034,12 @@ class _EditorPageState extends State<EditorPage> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text('03:00'),
+                const Text('Ideia'),
               ],
             ),
             const SizedBox(height: 12),
             const Text(
-              'Representação visual simplificada do andamento do projeto.',
+              'Área simplificada para acompanhar a captura da ideia musical.',
               style: TextStyle(fontSize: 13),
             ),
           ],
@@ -845,7 +1057,7 @@ class _EditorPageState extends State<EditorPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Controles',
+              'Controles manuais',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
@@ -886,7 +1098,7 @@ class _EditorPageState extends State<EditorPage> {
                       ? null
                       : () => reproduzirProjeto('botão reproduzir'),
                   icon: const Icon(Icons.headphones),
-                  label: const Text('Reproduzir'),
+                  label: const Text('Tocar última'),
                 ),
                 OutlinedButton.icon(
                   onPressed: carregandoAudio
@@ -917,7 +1129,7 @@ class _EditorPageState extends State<EditorPage> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Comandos: iniciar gravação, pausar gravação, retomar gravação, encerrar gravação, reproduzir, criar marcador.',
+              'O assistente fica ouvindo automaticamente quando não há gravação em andamento. Comandos: iniciar gravação, tocar última gravação, nomear como refrão, listar gravações.',
             ),
             const SizedBox(height: 16),
             Container(
@@ -937,9 +1149,17 @@ class _EditorPageState extends State<EditorPage> {
             Center(
               child: FloatingActionButton.extended(
                 onPressed: carregandoAudio ? null : alternarMicrofone,
-                backgroundColor: ouvindo ? Colors.red : Colors.deepPurple,
-                icon: Icon(ouvindo ? Icons.mic : Icons.mic_none),
-                label: Text(ouvindo ? 'Parar escuta' : 'Falar comando'),
+                backgroundColor: modoAssistenteAtivo
+                    ? Colors.deepPurple
+                    : Colors.grey,
+                icon: Icon(
+                  modoAssistenteAtivo ? Icons.hearing : Icons.hearing_disabled,
+                ),
+                label: Text(
+                  modoAssistenteAtivo
+                      ? 'Assistente ativo'
+                      : 'Ativar assistente',
+                ),
               ),
             ),
           ],
@@ -957,7 +1177,7 @@ class _EditorPageState extends State<EditorPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Faixas do projeto',
+              'Ideias capturadas',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
