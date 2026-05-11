@@ -1,9 +1,11 @@
+import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class SpeechService {
   final stt.SpeechToText _speech = stt.SpeechToText();
 
   bool _initialized = false;
+  String? _localeId;
 
   bool get isListening => _speech.isListening;
 
@@ -11,6 +13,13 @@ class SpeechService {
     Function(String status)? onStatus,
     Function(String error)? onError,
   }) async {
+    final microphoneStatus = await Permission.microphone.request();
+
+    if (!microphoneStatus.isGranted) {
+      onError?.call('Permissão de microfone negada.');
+      return false;
+    }
+
     if (_initialized) {
       return true;
     }
@@ -18,21 +27,35 @@ class SpeechService {
     _initialized = await _speech.initialize(
       onStatus: (status) {
         print('Status reconhecimento de voz: $status');
-
-        if (onStatus != null) {
-          onStatus(status);
-        }
+        onStatus?.call(status);
       },
       onError: (error) {
         print('Erro reconhecimento de voz: ${error.errorMsg}');
-
-        if (onError != null) {
-          onError(error.errorMsg);
-        }
+        onError?.call(error.errorMsg);
       },
     );
 
-    return _initialized;
+    if (!_initialized) {
+      onError?.call('Reconhecimento de voz indisponível neste dispositivo.');
+      return false;
+    }
+
+    final locales = await _speech.locales();
+
+    final ptBrLocale = locales.where((locale) {
+      return locale.localeId.toLowerCase() == 'pt_br';
+    }).toList();
+
+    if (ptBrLocale.isNotEmpty) {
+      _localeId = ptBrLocale.first.localeId;
+    } else {
+      final systemLocale = await _speech.systemLocale();
+      _localeId = systemLocale?.localeId;
+    }
+
+    print('Locale usado: $_localeId');
+
+    return true;
   }
 
   Future<void> startListening({
@@ -43,9 +66,6 @@ class SpeechService {
     final available = await initialize(onStatus: onStatus, onError: onError);
 
     if (!available) {
-      if (onError != null) {
-        onError('Reconhecimento de voz indisponível.');
-      }
       return;
     }
 
@@ -55,10 +75,10 @@ class SpeechService {
     }
 
     await _speech.listen(
-      localeId: 'pt_BR',
+      localeId: _localeId,
       listenMode: stt.ListenMode.confirmation,
-      listenFor: const Duration(seconds: 15),
-      pauseFor: const Duration(seconds: 6),
+      listenFor: const Duration(seconds: 20),
+      pauseFor: const Duration(seconds: 5),
       partialResults: true,
       cancelOnError: false,
       onResult: (result) {
