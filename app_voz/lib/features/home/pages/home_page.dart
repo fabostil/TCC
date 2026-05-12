@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/ui/app_spacing.dart';
 import '../../../models/usuario.dart';
-import '../../editor/pages/editor_page.dart';
-import '../../voices/pages/voice_page.dart';
+import '../../dashboard/pages/dashboard_page.dart';
+import '../../projects/pages/meus_projetos_page.dart';
+import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../voices/pages/login_page.dart';
+import '../../voices/pages/voice_page.dart';
 
 class HomePage extends StatelessWidget {
   final Usuario usuario;
@@ -18,10 +21,24 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  void _abrirEditor(BuildContext context) {
+  void _abrirNovoProjeto(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => EditorPage(usuario: usuario)),
+      MaterialPageRoute(
+        builder: (_) => MeusProjetosPage(
+          usuario: usuario,
+          abrirCriacaoAoEntrar: true,
+        ),
+      ),
+    );
+  }
+
+  void _abrirProjetos(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MeusProjetosPage(usuario: usuario),
+      ),
     );
   }
 
@@ -32,88 +49,107 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  void _mostrarEmBreve(BuildContext context, String funcionalidade) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$funcionalidade será implementado em breve.')),
+  void _abrirGravacoes(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MinhasGravacoesPage(usuario: usuario),
+      ),
+    );
+  }
+
+  void _abrirDashboard(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DashboardPage(usuario: usuario),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Assistente Musical'),
-        centerTitle: true,
         actions: [
           IconButton(
             tooltip: 'Sair',
             onPressed: () => _sair(context),
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_rounded),
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Olá, ${usuario.nome}',
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary.withOpacity(0.14),
+                    theme.colorScheme.secondary.withOpacity(0.10),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Olá, ${usuario.nome}',
+                    style: theme.textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Organize ideias musicais, grave com rapidez e acompanhe seus projetos com uma experiência mais fluida.',
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                ],
+              ),
             ),
-
-            const SizedBox(height: 8),
-
-            const Text(
-              'Organize suas ideias musicais e controle gravações usando comandos de voz.',
-              style: TextStyle(fontSize: 16),
-            ),
-
-            const SizedBox(height: 32),
-
+            const SizedBox(height: AppSpacing.xxl),
+            Text('Atalhos', style: theme.textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.md),
             _HomeCard(
-              icon: Icons.add_circle,
+              icon: Icons.add_circle_outline_rounded,
               title: 'Novo projeto',
-              subtitle: 'Crie um projeto musical e abra o editor.',
-              onTap: () => _abrirEditor(context),
+              subtitle: 'Crie um projeto musical e vá direto para o editor.',
+              onTap: () => _abrirNovoProjeto(context),
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: AppSpacing.md),
             _HomeCard(
-              icon: Icons.mic,
+              icon: Icons.mic_none_rounded,
               title: 'Assistente de voz',
-              subtitle:
-                  'Teste comandos como iniciar, pausar e encerrar gravação.',
+              subtitle: 'Use comandos para iniciar, pausar e encerrar gravações.',
               onTap: () => _abrirAssistente(context),
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: AppSpacing.md),
             _HomeCard(
-              icon: Icons.folder,
+              icon: Icons.folder_outlined,
               title: 'Meus projetos',
-              subtitle: 'Veja seus projetos musicais salvos.',
-              onTap: () => _mostrarEmBreve(context, 'Meus projetos'),
+              subtitle: 'Acompanhe os projetos criados e seus detalhes.',
+              onTap: () => _abrirProjetos(context),
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: AppSpacing.md),
             _HomeCard(
-              icon: Icons.library_music,
-              title: 'Gravações',
-              subtitle: 'Acesse gravações feitas no aplicativo.',
-              onTap: () => _mostrarEmBreve(context, 'Gravações'),
+              icon: Icons.library_music_outlined,
+              title: 'Minhas gravações',
+              subtitle: 'Reproduza, renomeie e exclua gravações salvas.',
+              onTap: () => _abrirGravacoes(context),
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: AppSpacing.md),
             _HomeCard(
-              icon: Icons.bar_chart,
+              icon: Icons.insights_outlined,
               title: 'Dashboard',
-              subtitle:
-                  'Veja quantidade de projetos, gravações e comandos usados.',
-              onTap: () => _mostrarEmBreve(context, 'Dashboard'),
+              subtitle: 'Visualize métricas e resumos de uso do sistema.',
+              onTap: () => _abrirDashboard(context),
             ),
           ],
         ),
@@ -137,44 +173,36 @@ class _HomeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Card(
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Row(
             children: [
               CircleAvatar(
                 radius: 26,
-                backgroundColor: Colors.deepPurple.withOpacity(0.12),
-                child: Icon(icon, color: Colors.deepPurple, size: 28),
+                backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+                child: Icon(icon, color: theme.colorScheme.primary, size: 28),
               ),
-
-              const SizedBox(width: 16),
-
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
+                    Text(title, style: theme.textTheme.titleMedium),
                     const SizedBox(height: 4),
-
-                    Text(subtitle, style: const TextStyle(fontSize: 14)),
+                    Text(subtitle, style: theme.textTheme.bodyMedium),
                   ],
                 ),
               ),
-
-              const Icon(Icons.chevron_right),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: theme.colorScheme.primary,
+              ),
             ],
           ),
         ),

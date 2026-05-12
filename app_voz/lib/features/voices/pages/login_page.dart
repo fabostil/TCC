@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/usuario.dart';
-import '../../../services/database_service.dart';
+import '../../../repositories/usuario_repository.dart';
 import '../../home/pages/home_page.dart';
 import 'cadastro_page.dart';
 
@@ -31,7 +31,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final Usuario? usuario = await DatabaseService.instance.autenticarUsuario(
+      final Usuario? usuario = await UsuarioRepository.instance.autenticarUsuario(
         email: _emailController.text,
         senha: _senhaController.text,
       );

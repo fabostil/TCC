@@ -2,15 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../models/gravacao.dart';
+import '../../../models/projeto.dart';
 import '../../../models/usuario.dart';
-import '../../../services/audio_player_service.dart';
-import '../../../services/audio_recording_service.dart';
+import '../../../repositories/gravacao_repository.dart';
 import '../../voices/services/speech_service.dart';
+import '../services/audio_player_service.dart';
+import '../services/audio_recording_service.dart';
 
 class EditorPage extends StatefulWidget {
   final Usuario usuario;
+  final Projeto? projeto;
 
-  const EditorPage({super.key, required this.usuario});
+  const EditorPage({super.key, required this.usuario, this.projeto});
 
   @override
   State<EditorPage> createState() => _EditorPageState();
@@ -20,6 +24,7 @@ class _EditorPageState extends State<EditorPage> {
   final SpeechService speech = SpeechService();
   final AudioRecordingService audioService = AudioRecordingService();
   final AudioPlayerService playerService = AudioPlayerService();
+  StreamSubscription? playerStateSubscription;
 
   bool ouvindo = false;
   bool gravando = false;
@@ -49,9 +54,68 @@ class _EditorPageState extends State<EditorPage> {
   String statusProjeto = 'Sessão pronta para capturar ideias.';
   String nomeProjeto = 'Sessão de captura';
   String? caminhoGravacaoAtual;
+  DateTime? inicioGravacaoEm;
 
-  final List<Map<String, String>> faixas = [];
+  final List<Gravacao> faixas = [];
   final List<String> historicoComandos = [];
+
+  @override
+  void initState() {
+    super.initState();
+    nomeProjeto = widget.projeto?.nome ?? nomeProjeto;
+    playerStateSubscription = playerService.playerStateStream.listen((state) {
+      if (!mounted) {
+        return;
+      }
+
+      if (!state.playing && reproduzindo) {
+        setState(() {
+          reproduzindo = false;
+          if (!carregandoAudio) {
+            statusProjeto = 'Reprodução finalizada.';
+          }
+        });
+      }
+    });
+    _carregarGravacoes();
+  }
+
+  Future<void> _carregarGravacoes() async {
+    final usuarioId = widget.usuario.id;
+
+    if (usuarioId == null) {
+      return;
+    }
+
+    try {
+      final projetoId = widget.projeto?.id;
+      final gravacoes = projetoId != null
+          ? await GravacaoRepository.instance.listarGravacoesPorProjeto(
+              projetoId,
+            )
+          : await GravacaoRepository.instance.listarGravacoesPorUsuario(
+              usuarioId,
+            );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        faixas
+          ..clear()
+          ..addAll(gravacoes);
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        statusProjeto = 'Erro ao carregar gravações: $e';
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -340,6 +404,7 @@ class _EditorPageState extends State<EditorPage> {
 
       setState(() {
         caminhoGravacaoAtual = path;
+        inicioGravacaoEm = DateTime.now();
         gravando = true;
         pausado = false;
         reproduzindo = false;
@@ -465,6 +530,7 @@ class _EditorPageState extends State<EditorPage> {
           gravando = false;
           pausado = false;
           carregandoAudio = false;
+          inicioGravacaoEm = null;
           statusProjeto = 'Não foi possível salvar a gravação.';
         });
 
@@ -475,8 +541,48 @@ class _EditorPageState extends State<EditorPage> {
         return;
       }
 
+      final usuarioId = widget.usuario.id;
+
+      if (usuarioId == null) {
+        setState(() {
+          gravando = false;
+          pausado = false;
+          carregandoAudio = false;
+          caminhoGravacaoAtual = null;
+          inicioGravacaoEm = null;
+          tempoSilencioMs = 0;
+          nivelAudioAtual = -160.0;
+          statusProjeto = 'Usuário sem identificação para salvar a gravação.';
+        });
+        return;
+      }
+
       final numeroFaixa = faixas.length + 1;
       final nomeFaixa = 'Gravação $numeroFaixa';
+      final agora = DateTime.now();
+      final duracaoSegundos = inicioGravacaoEm == null
+          ? 0
+          : agora.difference(inicioGravacaoEm!).inSeconds;
+      final novaGravacao = Gravacao(
+        usuarioId: usuarioId,
+        projetoId: widget.projeto?.id,
+        nome: nomeFaixa,
+        caminhoArquivo: path,
+        dataCriacao: agora.toIso8601String(),
+        duracaoSegundos: duracaoSegundos,
+      );
+      final gravacaoId = await GravacaoRepository.instance.criarGravacao(
+        novaGravacao,
+      );
+      final gravacaoSalva = Gravacao(
+        id: gravacaoId,
+        usuarioId: novaGravacao.usuarioId,
+        projetoId: novaGravacao.projetoId,
+        nome: novaGravacao.nome,
+        caminhoArquivo: novaGravacao.caminhoArquivo,
+        dataCriacao: novaGravacao.dataCriacao,
+        duracaoSegundos: novaGravacao.duracaoSegundos,
+      );
 
       final foiParadaAutomatica = comando == 'parada automática por silêncio';
 
@@ -485,9 +591,10 @@ class _EditorPageState extends State<EditorPage> {
         pausado = false;
         carregandoAudio = false;
         caminhoGravacaoAtual = null;
+        inicioGravacaoEm = null;
         tempoSilencioMs = 0;
         nivelAudioAtual = -160.0;
-        faixas.add({'nome': nomeFaixa, 'caminho': path});
+        faixas.insert(0, gravacaoSalva);
         statusProjeto = foiParadaAutomatica
             ? '$nomeFaixa salva automaticamente após silêncio.'
             : '$nomeFaixa salva na sessão.';
@@ -508,6 +615,8 @@ class _EditorPageState extends State<EditorPage> {
         gravando = false;
         pausado = false;
         carregandoAudio = false;
+        caminhoGravacaoAtual = null;
+        inicioGravacaoEm = null;
         statusProjeto = 'Erro ao encerrar gravação: $e';
       });
 
@@ -634,17 +743,10 @@ class _EditorPageState extends State<EditorPage> {
     }
 
     final ultimaFaixa = faixas.last;
-    await reproduzirFaixa(ultimaFaixa, comandoOriginal: comando);
-  }
+    final caminho = ultimaFaixa['caminho'];
+    final nome = ultimaFaixa['nome'] ?? 'gravação';
 
-  Future<void> reproduzirFaixa(
-    Map<String, String> faixa, {
-    String comandoOriginal = 'botão play da faixa',
-  }) async {
-    final caminho = faixa['caminho'];
-    final nome = faixa['nome'] ?? 'Gravação';
-
-    if (caminho == null || caminho.isEmpty) {
+    if (caminho.isEmpty) {
       setState(() {
         statusProjeto = 'Arquivo da gravação não encontrado.';
       });
@@ -662,8 +764,40 @@ class _EditorPageState extends State<EditorPage> {
       await speech.stopListening();
 
       setState(() {
-        ouvindo = false;
+        reproduzindo = true;
+        carregandoAudio = false;
+        statusProjeto = 'Reproduzindo $nome.';
       });
+
+      adicionarHistorico(
+        comandoOriginal: comando,
+        acao: 'Reproduziu gravação real',
+      );
+    } catch (e) {
+      setState(() {
+        reproduzindo = false;
+        carregandoAudio = false;
+        statusProjeto = 'Erro ao reproduzir áudio: $e';
+      });
+    }
+  }
+
+  Future<void> reproduzirFaixa(Map<String, String> faixa) async {
+    final caminho = faixa['caminho'];
+    final nome = faixa['nome'] ?? 'Gravação';
+
+    if (caminho == null || caminho.isEmpty) {
+      setState(() {
+        statusProjeto = 'Arquivo da gravação não encontrado.';
+      });
+      return;
+    }
+
+    if (gravando) {
+      setState(() {
+        statusProjeto = 'Pare a gravação antes de reproduzir áudio.';
+      });
+      return;
     }
 
     setState(() {
@@ -777,7 +911,7 @@ class _EditorPageState extends State<EditorPage> {
     required String comandoOriginal,
     required String acao,
   }) {
-    final registro = '$acao — "$comandoOriginal"';
+    final registro = '$acao - "$comandoOriginal"';
 
     setState(() {
       historicoComandos.insert(0, registro);
@@ -830,7 +964,6 @@ class _EditorPageState extends State<EditorPage> {
 
   @override
   void dispose() {
-    reiniciarEscutaTimer?.cancel();
     pararMonitoramentoSilencio();
     speech.stopListening();
     audioService.dispose();
@@ -1171,16 +1304,15 @@ class _EditorPageState extends State<EditorPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            if (faixas.isEmpty)
-              const Text('Nenhuma gravação adicionada ainda.'),
+            if (faixas.isEmpty) const Text('Nenhuma gravação adicionada ainda.'),
             if (faixas.isNotEmpty)
               ...faixas.map(
                 (faixa) => ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.audiotrack),
-                  title: Text(faixa['nome'] ?? 'Gravação'),
+                  title: Text(faixa.nome),
                   subtitle: Text(
-                    faixa['caminho'] ?? 'Arquivo de áudio',
+                    faixa.caminhoArquivo,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1216,9 +1348,7 @@ class _EditorPageState extends State<EditorPage> {
             if (historicoComandos.isEmpty)
               const Text('Nenhum comando executado ainda.'),
             if (historicoComandos.isNotEmpty)
-              ...historicoComandos
-                  .take(6)
-                  .map(
+              ...historicoComandos.take(6).map(
                     (item) => ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.history),
