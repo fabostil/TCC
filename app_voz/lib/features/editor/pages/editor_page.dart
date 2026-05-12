@@ -39,9 +39,9 @@ class _EditorPageState extends State<EditorPage> {
   double nivelAudioAtual = -160.0;
   int tempoSilencioMs = 0;
 
-  final int limiteSilencioMs = 7000;
+  final int limiteSilencioMs = 6000;
   final int intervaloMonitoramentoMs = 500;
-  final double limiteSilencioDb = -55.0;
+  final double limiteSilencioDb = -36.0;
 
   bool paradaAutomaticaPorSilencio = true;
 
@@ -69,7 +69,7 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    if (gravando || carregandoAudio || ouvindo) {
+    if (carregandoAudio || ouvindo) {
       return;
     }
 
@@ -141,22 +141,21 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    if (gravando || carregandoAudio) {
-      return;
-    }
+    // REMOVEMOS a trava "if (gravando) return;" para que ele volte a ouvir
+    // mesmo durante a captura da música.
 
     if (reiniciandoEscuta) {
       return;
     }
 
     reiniciandoEscuta = true;
-
     reiniciarEscutaTimer?.cancel();
 
     reiniciarEscutaTimer = Timer(const Duration(milliseconds: 800), () {
       reiniciandoEscuta = false;
 
-      if (mounted && modoAssistenteAtivo && !gravando && !carregandoAudio) {
+      // Se não estiver carregando áudio (troca de estado), tenta ouvir
+      if (mounted && modoAssistenteAtivo && !carregandoAudio) {
         iniciarEscutaAutomatica();
       }
     });
@@ -324,20 +323,8 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    reiniciarEscutaTimer?.cancel();
-    reiniciandoEscuta = false;
-
-    if (ouvindo) {
-      await speech.stopListening();
-
-      setState(() {
-        ouvindo = false;
-      });
-    }
-
     if (reproduzindo) {
       await playerService.stop();
-
       setState(() {
         reproduzindo = false;
       });
@@ -369,6 +356,9 @@ class _EditorPageState extends State<EditorPage> {
         comandoOriginal: comando,
         acao: 'Iniciou gravação real',
       );
+
+      // ESSENCIAL: Força o assistente a continuar ouvindo logo após o início do áudio
+      agendarReinicioEscuta();
     } catch (e) {
       setState(() {
         carregandoAudio = false;
@@ -992,7 +982,7 @@ class _EditorPageState extends State<EditorPage> {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Parada automática por silêncio'),
-              subtitle: const Text('Encerra após 7 segundos em silêncio.'),
+              subtitle: const Text('Encerra após 6 segundos em silêncio.'),
               value: paradaAutomaticaPorSilencio,
               onChanged: carregandoAudio
                   ? null
