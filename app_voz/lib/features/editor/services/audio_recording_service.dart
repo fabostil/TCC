@@ -9,7 +9,7 @@ class AudioRecordingService {
   String? _currentPath;
 
   Future<bool> hasPermission() async {
-    return await _recorder.hasPermission();
+    return _recorder.hasPermission();
   }
 
   Future<String> startRecording() async {
@@ -39,7 +39,6 @@ class AudioRecordingService {
     );
 
     _currentPath = filePath;
-
     return filePath;
   }
 
@@ -76,15 +75,15 @@ class AudioRecordingService {
   }
 
   Future<Amplitude> getAmplitude() async {
-    return await _recorder.getAmplitude();
+    return _recorder.getAmplitude();
   }
 
   Future<bool> isRecording() async {
-    return await _recorder.isRecording();
+    return _recorder.isRecording();
   }
 
   Future<bool> isPaused() async {
-    return await _recorder.isPaused();
+    return _recorder.isPaused();
   }
 
   Future<void> dispose() async {

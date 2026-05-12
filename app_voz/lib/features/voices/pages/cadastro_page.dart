@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../services/database_service.dart';
+import '../../../repositories/usuario_repository.dart';
 import 'login_page.dart';
 
 class CadastroPage extends StatefulWidget {
@@ -31,7 +31,7 @@ class _CadastroPageState extends State<CadastroPage> {
     });
 
     try {
-      final sucesso = await DatabaseService.instance.cadastrarUsuario(
+      final sucesso = await UsuarioRepository.instance.cadastrarUsuario(
         nome: _nomeController.text,
         email: _emailController.text,
         senha: _senhaController.text,

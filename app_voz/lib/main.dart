@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'core/theme/app_theme.dart';
 import 'features/voices/pages/login_page.dart';
 
 void main() {
@@ -14,7 +15,7 @@ class VoiceApp extends StatelessWidget {
     return MaterialApp(
       title: 'Assistente Musical',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.deepPurple, useMaterial3: true),
+      theme: AppTheme.light(),
       home: const LoginPage(),
     );
   }
