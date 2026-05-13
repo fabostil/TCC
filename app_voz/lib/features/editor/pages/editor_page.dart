@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/projeto.dart';
 import '../../../models/usuario.dart';
+import '../../../repositories/comando_voz_repository.dart';
 import '../../../repositories/gravacao_repository.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../voices/services/speech_service.dart';
@@ -197,17 +198,32 @@ class _EditorPageState extends State<EditorPage> {
     if (cmd.contains('iniciar gravação') ||
         cmd.contains('começar gravação') ||
         cmd.contains('gravar')) {
+      registrarComandoVoz(
+        comando,
+        tipoComando: 'iniciar_gravacao',
+        acaoExecutada: 'Iniciar gravação',
+      );
       iniciarGravacao(comando);
       return;
     }
 
     if (cmd.contains('pausar gravação') || cmd == 'pausar') {
+      registrarComandoVoz(
+        comando,
+        tipoComando: 'pausar_gravacao',
+        acaoExecutada: 'Pausar gravação',
+      );
       pausarGravacao(comando);
       return;
     }
 
     if (cmd.contains('retomar gravação') ||
         cmd.contains('continuar gravação')) {
+      registrarComandoVoz(
+        comando,
+        tipoComando: 'retomar_gravacao',
+        acaoExecutada: 'Retomar gravação',
+      );
       retomarGravacao(comando);
       return;
     }
@@ -215,29 +231,60 @@ class _EditorPageState extends State<EditorPage> {
     if (cmd.contains('encerrar gravação') ||
         cmd.contains('parar gravação') ||
         cmd.contains('finalizar gravação')) {
+      registrarComandoVoz(
+        comando,
+        tipoComando: 'encerrar_gravacao',
+        acaoExecutada: 'Encerrar gravação',
+      );
       encerrarGravacao(comando);
       return;
     }
 
     if (cmd.contains('parar reprodução')) {
+      registrarComandoVoz(
+        comando,
+        tipoComando: 'parar_reproducao',
+        acaoExecutada: 'Parar reprodução',
+      );
       pararReproducao(comando);
       return;
     }
 
     if (cmd.contains('reproduzir') || cmd.contains('tocar')) {
+      registrarComandoVoz(
+        comando,
+        tipoComando: 'reproduzir_gravacao',
+        acaoExecutada: 'Reproduzir gravação',
+      );
       reproduzirProjeto(comando);
       return;
     }
 
     if (cmd.contains('criar marcador') || cmd.contains('marcar')) {
+      registrarComandoVoz(
+        comando,
+        tipoComando: 'criar_marcador',
+        acaoExecutada: 'Criar marcador',
+      );
       criarMarcador(comando);
       return;
     }
 
     if (cmd.contains('limpar')) {
+      registrarComandoVoz(
+        comando,
+        tipoComando: 'limpar_texto',
+        acaoExecutada: 'Limpar texto reconhecido',
+      );
       limparTexto(comando);
       return;
     }
+
+    registrarComandoVoz(
+      comando,
+      tipoComando: 'desconhecido',
+      statusReconhecimento: 'nao_reconhecido',
+    );
 
     adicionarHistorico(
       comandoOriginal: comando,
@@ -751,6 +798,47 @@ class _EditorPageState extends State<EditorPage> {
       );
     } catch (e) {
       debugPrint('Erro ao registrar histÃ³rico persistente: $e');
+    }
+  }
+
+  void registrarComandoVoz(
+    String comando, {
+    required String tipoComando,
+    String statusReconhecimento = 'reconhecido',
+    String? acaoExecutada,
+  }) {
+    unawaited(
+      _registrarComandoVozPersistente(
+        comando,
+        tipoComando: tipoComando,
+        statusReconhecimento: statusReconhecimento,
+        acaoExecutada: acaoExecutada,
+      ),
+    );
+  }
+
+  Future<void> _registrarComandoVozPersistente(
+    String comando, {
+    required String tipoComando,
+    required String statusReconhecimento,
+    String? acaoExecutada,
+  }) async {
+    final usuarioId = widget.usuario.id;
+
+    if (usuarioId == null) {
+      return;
+    }
+
+    try {
+      await ComandoVozRepository.instance.registrar(
+        usuarioId: usuarioId,
+        textoReconhecido: comando,
+        tipoComando: tipoComando,
+        statusReconhecimento: statusReconhecimento,
+        acaoExecutada: acaoExecutada,
+      );
+    } catch (e) {
+      debugPrint('Erro ao registrar comando de voz: $e');
     }
   }
 

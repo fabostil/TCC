@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../models/usuario.dart';
+import '../../../repositories/comando_voz_repository.dart';
 import 'login_page.dart';
 import '../services/speech_service.dart';
 
@@ -101,6 +104,11 @@ class _VoicePageState extends State<VoicePage> {
     }
 
     if (cmd.contains('limpar')) {
+      registrarComandoVoz(
+        command,
+        tipoComando: 'limpar_texto',
+        acaoExecutada: 'Limpar texto reconhecido',
+      );
       clearText();
       return;
     }
@@ -108,6 +116,11 @@ class _VoicePageState extends State<VoicePage> {
     if (cmd.contains('iniciar gravação') ||
         cmd.contains('começar gravação') ||
         cmd.contains('gravar')) {
+      registrarComandoVoz(
+        command,
+        tipoComando: 'iniciar_gravacao',
+        acaoExecutada: 'Reconhecer comando iniciar gravacao',
+      );
       setState(() {
         ultimoComando = 'Comando reconhecido: iniciar gravação';
       });
@@ -115,6 +128,11 @@ class _VoicePageState extends State<VoicePage> {
     }
 
     if (cmd.contains('pausar gravação') || cmd.contains('pausar')) {
+      registrarComandoVoz(
+        command,
+        tipoComando: 'pausar_gravacao',
+        acaoExecutada: 'Reconhecer comando pausar gravacao',
+      );
       setState(() {
         ultimoComando = 'Comando reconhecido: pausar gravação';
       });
@@ -123,6 +141,11 @@ class _VoicePageState extends State<VoicePage> {
 
     if (cmd.contains('retomar gravação') ||
         cmd.contains('continuar gravação')) {
+      registrarComandoVoz(
+        command,
+        tipoComando: 'retomar_gravacao',
+        acaoExecutada: 'Reconhecer comando retomar gravacao',
+      );
       setState(() {
         ultimoComando = 'Comando reconhecido: retomar gravação';
       });
@@ -132,6 +155,11 @@ class _VoicePageState extends State<VoicePage> {
     if (cmd.contains('encerrar gravação') ||
         cmd.contains('parar gravação') ||
         cmd.contains('finalizar gravação')) {
+      registrarComandoVoz(
+        command,
+        tipoComando: 'encerrar_gravacao',
+        acaoExecutada: 'Reconhecer comando encerrar gravacao',
+      );
       setState(() {
         ultimoComando = 'Comando reconhecido: encerrar gravação';
       });
@@ -139,6 +167,11 @@ class _VoicePageState extends State<VoicePage> {
     }
 
     if (cmd.contains('listar gravações') || cmd.contains('mostrar gravações')) {
+      registrarComandoVoz(
+        command,
+        tipoComando: 'listar_gravacoes',
+        acaoExecutada: 'Reconhecer comando listar gravacoes',
+      );
       setState(() {
         ultimoComando = 'Comando reconhecido: listar gravações';
       });
@@ -146,15 +179,67 @@ class _VoicePageState extends State<VoicePage> {
     }
 
     if (cmd.contains('criar marcador') || cmd.contains('marcar')) {
+      registrarComandoVoz(
+        command,
+        tipoComando: 'criar_marcador',
+        acaoExecutada: 'Reconhecer comando criar marcador',
+      );
       setState(() {
         ultimoComando = 'Comando reconhecido: criar marcador';
       });
       return;
     }
 
+    registrarComandoVoz(
+      command,
+      tipoComando: 'desconhecido',
+      statusReconhecimento: 'nao_reconhecido',
+    );
+
     setState(() {
       ultimoComando = 'Comando não reconhecido.';
     });
+  }
+
+  void registrarComandoVoz(
+    String comando, {
+    required String tipoComando,
+    String statusReconhecimento = 'reconhecido',
+    String? acaoExecutada,
+  }) {
+    unawaited(
+      _registrarComandoVozPersistente(
+        comando,
+        tipoComando: tipoComando,
+        statusReconhecimento: statusReconhecimento,
+        acaoExecutada: acaoExecutada,
+      ),
+    );
+  }
+
+  Future<void> _registrarComandoVozPersistente(
+    String comando, {
+    required String tipoComando,
+    required String statusReconhecimento,
+    String? acaoExecutada,
+  }) async {
+    final usuarioId = widget.usuario.id;
+
+    if (usuarioId == null) {
+      return;
+    }
+
+    try {
+      await ComandoVozRepository.instance.registrar(
+        usuarioId: usuarioId,
+        textoReconhecido: comando,
+        tipoComando: tipoComando,
+        statusReconhecimento: statusReconhecimento,
+        acaoExecutada: acaoExecutada,
+      );
+    } catch (e) {
+      debugPrint('Erro ao registrar comando de voz: $e');
+    }
   }
 
   @override
