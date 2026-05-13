@@ -32,20 +32,18 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
   @override
   void initState() {
     super.initState();
-    _inicializarPlayer();
-    _carregarGravacoes();
+    _inicializar();
   }
 
-  Future<void> _inicializarPlayer() async {
-    await _player.openPlayer();
-
-    if (!mounted) {
-      return;
+  Future<void> _inicializar() async {
+    try {
+      await _player.openPlayer();
+      _playerAberto = true;
+    } catch (e) {
+      _erro = 'Erro ao inicializar player: $e';
     }
 
-    setState(() {
-      _playerAberto = true;
-    });
+    await _carregarGravacoes();
   }
 
   Future<void> _carregarGravacoes() async {
@@ -122,11 +120,11 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
   }
 
   Future<void> _alternarReproducao(Gravacao gravacao) async {
-    if (!_playerAberto) {
-      return;
-    }
-
     try {
+      if (!_playerAberto) {
+        throw Exception('Player ainda não está pronto.');
+      }
+
       if (_gravacaoReproduzindoId == gravacao.id) {
         await _player.stopPlayer();
 
@@ -140,23 +138,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
         return;
       }
 
-      if (_gravacaoReproduzindoId != null) {
-        await _player.stopPlayer();
-      }
-
       final arquivo = File(gravacao.caminhoArquivo);
-
       if (!await arquivo.exists()) {
-        if (!mounted) {
-          return;
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Arquivo de áudio não encontrado.')),
-        );
-        return;
+        throw Exception('Arquivo não encontrado no aparelho.');
       }
 
+      await _player.stopPlayer();
       await _player.startPlayer(
         fromURI: gravacao.caminhoArquivo,
         codec: Codec.aacMP4,
@@ -292,15 +279,13 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Minhas gravações'), centerTitle: true),
+      appBar: AppBar(title: const Text('Minhas Gravações'), centerTitle: true),
       body: RefreshIndicator(
         onRefresh: _carregarGravacoes,
         child: Builder(
           builder: (context) {
             if (_carregando) {
-              return const AppLoadingView(
-                message: 'Carregando suas gravações...',
-              );
+              return const AppLoadingView(message: 'Carregando suas gravações...');
             }
 
             if (_erro != null) {
@@ -331,7 +316,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                     icon: Icons.library_music_outlined,
                     title: 'Nenhuma gravação encontrada',
                     subtitle:
-                        'Grave um áudio na tela de gravação e ele aparecerá aqui automaticamente.',
+                        'Grave um áudio na tela Gravar áudio e ele aparecerá aqui automaticamente.',
                   ),
                 ],
               );
@@ -346,6 +331,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                 final reproduzindo = _gravacaoReproduzindoId == gravacao.id;
 
                 return Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
                     leading: IconButton(
@@ -370,17 +358,13 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                         children: [
                           Text('Data: ${_formatarData(gravacao.dataCriacao)}'),
                           const SizedBox(height: 4),
-                          Text(
-                            'Duração: ${_formatarDuracao(gravacao.duracaoSegundos)}',
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Maior pico: ${gravacao.maiorPico.toStringAsFixed(1)} dB',
-                          ),
+                          Text('Duração: ${_formatarDuracao(gravacao.duracaoSegundos)}'),
                           if (gravacao.motivoParada != null) ...[
                             const SizedBox(height: 4),
                             Text('Parada: ${gravacao.motivoParada}'),
                           ],
+                          const SizedBox(height: 4),
+                          Text('Maior pico: ${gravacao.maiorPico.toStringAsFixed(1)} dB'),
                         ],
                       ),
                     ),
@@ -394,14 +378,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                         }
                       },
                       itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'rename',
-                          child: Text('Renomear'),
-                        ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Excluir'),
-                        ),
+                        PopupMenuItem(value: 'rename', child: Text('Renomear')),
+                        PopupMenuItem(value: 'delete', child: Text('Excluir')),
                       ],
                     ),
                   ),

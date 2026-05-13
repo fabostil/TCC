@@ -90,7 +90,7 @@ class HomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Grave ideias musicais, use comandos de voz e acompanhe suas gravações pelo dashboard.',
+                    'Controle gravações por voz, salve ideias musicais e acompanhe seus áudios em um só lugar.',
                     style: theme.textTheme.bodyLarge,
                   ),
                 ],
@@ -102,14 +102,14 @@ class HomePage extends StatelessWidget {
             _HomeCard(
               icon: Icons.mic_none_rounded,
               title: 'Assistente de voz',
-              subtitle: 'Teste comandos como iniciar, pausar, retomar e encerrar gravação.',
+              subtitle: 'Teste comandos como iniciar, pausar, retomar e encerrar.',
               onTap: () => _abrirAssistente(context),
             ),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(
               icon: Icons.fiber_manual_record_rounded,
               title: 'Gravar áudio',
-              subtitle: 'Grave, pause, retome, encerre e salve um áudio com Flutter Sound.',
+              subtitle: 'Use Flutter Sound para gravar, pausar, retomar e salvar.',
               onTap: () => _abrirGravacao(context),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -123,7 +123,7 @@ class HomePage extends StatelessWidget {
             _HomeCard(
               icon: Icons.insights_outlined,
               title: 'Dashboard',
-              subtitle: 'Visualize métricas e resumos de uso do sistema.',
+              subtitle: 'Visualize métricas simples sobre as gravações.',
               onTap: () => _abrirDashboard(context),
             ),
           ],
@@ -174,10 +174,7 @@ class _HomeCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: theme.colorScheme.primary,
-              ),
+              Icon(Icons.chevron_right_rounded, color: theme.colorScheme.primary),
             ],
           ),
         ),

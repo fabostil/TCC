@@ -71,8 +71,6 @@ class _DashboardPageState extends State<DashboardPage> {
   int get _duracaoTotalSegundos =>
       _gravacoes.fold(0, (total, item) => total + item.duracaoSegundos);
 
-  Gravacao? get _ultimaGravacao => _gravacoes.isEmpty ? null : _gravacoes.first;
-
   int get _paradasPorSilencio => _gravacoes
       .where((item) => item.motivoParada == 'silêncio prolongado')
       .length;
@@ -86,6 +84,8 @@ class _DashboardPageState extends State<DashboardPage> {
         .map((item) => item.maiorPico)
         .reduce((a, b) => a > b ? a : b);
   }
+
+  Gravacao? get _ultimaGravacao => _gravacoes.isEmpty ? null : _gravacoes.first;
 
   String _formatarDuracao(int segundos) {
     final horas = segundos ~/ 3600;
@@ -123,9 +123,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-      ),
+      appBar: AppBar(title: const Text('Dashboard')),
       body: RefreshIndicator(
         onRefresh: _carregarDashboard,
         child: Builder(
@@ -164,7 +162,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     icon: Icons.insights_outlined,
                     title: 'Sem dados suficientes ainda',
                     subtitle:
-                        'Grave áudios para começar a visualizar indicadores aqui.',
+                        'Grave alguns áudios para começar a visualizar indicadores aqui.',
                   ),
                 ],
               );
@@ -211,58 +209,47 @@ class _DashboardPageState extends State<DashboardPage> {
                 const SizedBox(height: AppSpacing.xl),
                 Text('Última gravação', style: theme.textTheme.titleLarge),
                 const SizedBox(height: AppSpacing.md),
-                if (_ultimaGravacao != null)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: theme.colorScheme.primary
-                                    .withOpacity(0.12),
-                                child: Icon(
-                                  Icons.mic_rounded,
-                                  color: theme.colorScheme.primary,
-                                ),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor:
+                                  theme.colorScheme.primary.withOpacity(0.12),
+                              child: Icon(
+                                Icons.mic_rounded,
+                                color: theme.colorScheme.primary,
                               ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: Text(
-                                  _ultimaGravacao!.nome,
-                                  style: theme.textTheme.titleMedium,
-                                ),
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Text(
+                                _ultimaGravacao!.nome,
+                                style: theme.textTheme.titleMedium,
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          Text(
-                            'Gravada em: ${_formatarData(_ultimaGravacao!.dataCriacao)}',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Duração: ${_formatarDuracao(_ultimaGravacao!.duracaoSegundos)}',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Maior pico: ${_ultimaGravacao!.maiorPico.toStringAsFixed(1)} dB',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                          if (_ultimaGravacao!.motivoParada != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'Parada: ${_ultimaGravacao!.motivoParada}',
-                              style: theme.textTheme.bodyMedium,
                             ),
                           ],
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          'Gravada em: ${_formatarData(_ultimaGravacao!.dataCriacao)}',
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Duração: ${_formatarDuracao(_ultimaGravacao!.duracaoSegundos)}',
+                        ),
+                        if (_ultimaGravacao!.motivoParada != null) ...[
+                          const SizedBox(height: 4),
+                          Text('Parada: ${_ultimaGravacao!.motivoParada}'),
                         ],
-                      ),
+                      ],
                     ),
                   ),
+                ),
               ],
             );
           },

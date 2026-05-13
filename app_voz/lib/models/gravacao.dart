@@ -33,6 +33,8 @@ class Gravacao {
   }
 
   factory Gravacao.fromMap(Map<String, dynamic> map) {
+    final pico = map['maior_pico'];
+
     return Gravacao(
       id: map['id'] as int?,
       usuarioId: map['usuario_id'] as int,
@@ -41,7 +43,7 @@ class Gravacao {
       dataCriacao: map['data_criacao'] as String,
       duracaoSegundos: (map['duracao_segundos'] as int?) ?? 0,
       motivoParada: map['motivo_parada'] as String?,
-      maiorPico: (map['maior_pico'] as num?)?.toDouble() ?? -160.0,
+      maiorPico: pico is int ? pico.toDouble() : (pico as double?) ?? -160.0,
     );
   }
 }

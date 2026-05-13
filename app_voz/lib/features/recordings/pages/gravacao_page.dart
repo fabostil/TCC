@@ -6,6 +6,7 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../core/ui/app_feedback.dart';
 import '../../../core/ui/app_spacing.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/usuario.dart';
@@ -29,6 +30,7 @@ class _GravacaoPageState extends State<GravacaoPage> {
 
   bool _recorderAberto = false;
   bool _playerAberto = false;
+
   bool _gravando = false;
   bool _pausado = false;
   bool _tocando = false;
@@ -142,6 +144,13 @@ class _GravacaoPageState extends State<GravacaoPage> {
   }
 
   Future<void> iniciarGravacao() async {
+    if (widget.usuario.id == null) {
+      setState(() {
+        _status = 'Usuário sem identificação para salvar gravação.';
+      });
+      return;
+    }
+
     if (!_recorderAberto) {
       setState(() {
         _status = 'Recorder ainda não está pronto.';
@@ -250,11 +259,29 @@ class _GravacaoPageState extends State<GravacaoPage> {
         _caminhoArquivo = caminhoSalvo;
         _motivoParada = motivo;
         _tempoSilencioMs = 0;
+        _status = 'Gravação salva. Salvando no banco...';
         _salvandoBanco = true;
-        _status = 'Salvando gravação...';
       });
 
-      await _salvarGravacaoNoBanco(motivo: motivo);
+      if (caminhoSalvo != null && widget.usuario.id != null) {
+        final agora = DateTime.now();
+        final nome = 'Gravação ${agora.day.toString().padLeft(2, '0')}/'
+            '${agora.month.toString().padLeft(2, '0')} '
+            '${agora.hour.toString().padLeft(2, '0')}:'
+            '${agora.minute.toString().padLeft(2, '0')}';
+
+        await GravacaoRepository.instance.criarGravacao(
+          Gravacao(
+            usuarioId: widget.usuario.id!,
+            nome: nome,
+            caminhoArquivo: caminhoSalvo,
+            dataCriacao: agora.toIso8601String(),
+            duracaoSegundos: _duracaoSegundos,
+            motivoParada: motivo,
+            maiorPico: _maiorPico,
+          ),
+        );
+      }
 
       if (!mounted) {
         return;
@@ -265,34 +292,17 @@ class _GravacaoPageState extends State<GravacaoPage> {
         _status = 'Gravação salva. Motivo da parada: $motivo.';
       });
     } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
+        _gravando = false;
+        _pausado = false;
         _salvandoBanco = false;
         _status = 'Erro ao parar gravação: $e';
       });
     }
-  }
-
-  Future<void> _salvarGravacaoNoBanco({required String motivo}) async {
-    final usuarioId = widget.usuario.id;
-    final caminho = _caminhoArquivo;
-
-    if (usuarioId == null || caminho == null) {
-      return;
-    }
-
-    final nome = 'Gravação ${DateTime.now().millisecondsSinceEpoch}';
-
-    final gravacao = Gravacao(
-      usuarioId: usuarioId,
-      nome: nome,
-      caminhoArquivo: caminho,
-      dataCriacao: DateTime.now().toIso8601String(),
-      duracaoSegundos: _duracaoSegundos,
-      motivoParada: motivo,
-      maiorPico: _maiorPico,
-    );
-
-    await GravacaoRepository.instance.criarGravacao(gravacao);
   }
 
   Future<void> tocarAudio() async {
@@ -398,8 +408,10 @@ class _GravacaoPageState extends State<GravacaoPage> {
   String _formatarDuracao(int segundos) {
     final minutos = segundos ~/ 60;
     final restoSegundos = segundos % 60;
+
     final min = minutos.toString().padLeft(2, '0');
     final sec = restoSegundos.toString().padLeft(2, '0');
+
     return '$min:$sec';
   }
 
@@ -414,7 +426,12 @@ class _GravacaoPageState extends State<GravacaoPage> {
   int get _segundosSilencioRestantes {
     final restanteMs = _limiteSilencioMs - _tempoSilencioMs;
     final restante = (restanteMs / 1000).ceil();
-    return restante < 0 ? 0 : restante;
+
+    if (restante < 0) {
+      return 0;
+    }
+
+    return restante;
   }
 
   @override
@@ -466,24 +483,19 @@ class _GravacaoPageState extends State<GravacaoPage> {
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _cardStatus(),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: 18),
             _cardAnaliseAudio(),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: 18),
             _cardControles(),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: 18),
             _cardConfiguracoes(),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: 18),
             _cardArquivo(),
-            const SizedBox(height: AppSpacing.lg),
-            const Text(
-              'Esta tela grava áudio, analisa volume em tempo real, para automaticamente por silêncio ou pico e salva a gravação no banco local.',
-              textAlign: TextAlign.center,
-            ),
           ],
         ),
       ),
@@ -492,12 +504,13 @@ class _GravacaoPageState extends State<GravacaoPage> {
 
   Widget _cardStatus() {
     return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.all(18),
         child: Column(
           children: [
             Icon(Icons.graphic_eq, size: 64, color: corStatus),
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: 12),
             Text(
               textoEstado,
               style: TextStyle(
@@ -511,12 +524,8 @@ class _GravacaoPageState extends State<GravacaoPage> {
               _formatarDuracao(_duracaoSegundos),
               style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              _status,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
-            ),
+            const SizedBox(height: 12),
+            Text(_status, textAlign: TextAlign.center),
             if (_motivoParada != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -532,15 +541,16 @@ class _GravacaoPageState extends State<GravacaoPage> {
 
   Widget _cardAnaliseAudio() {
     return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.all(18),
         child: Column(
           children: [
             const Text(
               'Análise em tempo real',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: 18),
             Text(
               '${_decibeis.toStringAsFixed(1)} dB',
               style: const TextStyle(fontSize: 34, fontWeight: FontWeight.bold),
@@ -551,12 +561,9 @@ class _GravacaoPageState extends State<GravacaoPage> {
               minHeight: 10,
               borderRadius: BorderRadius.circular(20),
             ),
-            const SizedBox(height: AppSpacing.lg),
-            Text(
-              'Maior pico: ${_maiorPico.toStringAsFixed(1)} dB',
-              style: const TextStyle(fontSize: 14),
-            ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: 18),
+            Text('Maior pico: ${_maiorPico.toStringAsFixed(1)} dB'),
+            const SizedBox(height: 18),
             if (_pararPorSilencio && _gravando && !_pausado) ...[
               Text(
                 _tempoSilencioMs > 0
@@ -579,28 +586,29 @@ class _GravacaoPageState extends State<GravacaoPage> {
 
   Widget _cardControles() {
     return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
+        padding: const EdgeInsets.all(18),
+        child: Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          alignment: WrapAlignment.center,
           children: [
             ElevatedButton.icon(
-              onPressed: _gravando || _salvandoBanco ? null : iniciarGravacao,
+              onPressed: _gravando ? null : iniciarGravacao,
               icon: const Icon(Icons.fiber_manual_record),
               label: const Text('Gravar'),
             ),
-            const SizedBox(height: AppSpacing.sm),
             ElevatedButton.icon(
               onPressed: _gravando && !_pausado ? pausarGravacao : null,
               icon: const Icon(Icons.pause),
               label: const Text('Pausar'),
             ),
-            const SizedBox(height: AppSpacing.sm),
             ElevatedButton.icon(
               onPressed: _gravando && _pausado ? retomarGravacao : null,
               icon: const Icon(Icons.play_arrow),
               label: const Text('Retomar'),
             ),
-            const SizedBox(height: AppSpacing.sm),
             ElevatedButton.icon(
               onPressed: _gravando
                   ? () => pararGravacao(motivo: 'botão manual')
@@ -608,7 +616,6 @@ class _GravacaoPageState extends State<GravacaoPage> {
               icon: const Icon(Icons.stop),
               label: const Text('Parar'),
             ),
-            const SizedBox(height: AppSpacing.sm),
             ElevatedButton.icon(
               onPressed: !_gravando && _caminhoArquivo != null && !_tocando
                   ? tocarAudio
@@ -616,7 +623,6 @@ class _GravacaoPageState extends State<GravacaoPage> {
               icon: const Icon(Icons.volume_up),
               label: const Text('Tocar'),
             ),
-            const SizedBox(height: AppSpacing.sm),
             ElevatedButton.icon(
               onPressed: _tocando ? pararAudio : null,
               icon: const Icon(Icons.stop_circle),
@@ -630,8 +636,9 @@ class _GravacaoPageState extends State<GravacaoPage> {
 
   Widget _cardConfiguracoes() {
     return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.all(18),
         child: Column(
           children: [
             const Text(
@@ -675,13 +682,40 @@ class _GravacaoPageState extends State<GravacaoPage> {
 
   Widget _cardArquivo() {
     return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Text(
-          _caminhoArquivo == null
-              ? 'Nenhum arquivo salvo ainda.'
-              : 'Arquivo salvo em:\n$_caminhoArquivo',
-          style: const TextStyle(fontSize: 14),
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Arquivo',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              _caminhoArquivo == null
+                  ? 'Nenhum arquivo salvo ainda.'
+                  : 'Arquivo salvo em:\n$_caminhoArquivo',
+            ),
+            if (_salvandoBanco) ...[
+              const SizedBox(height: AppSpacing.sm),
+              const LinearProgressIndicator(),
+            ],
+            if (_caminhoArquivo != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              OutlinedButton.icon(
+                onPressed: () {
+                  AppFeedback.showMessage(
+                    context,
+                    'Agora abra Minhas gravações para ver o arquivo salvo.',
+                  );
+                },
+                icon: const Icon(Icons.info_outline),
+                label: const Text('Salvo no banco ao parar'),
+              ),
+            ],
+          ],
         ),
       ),
     );

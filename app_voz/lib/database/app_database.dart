@@ -64,17 +64,31 @@ class AppDatabase {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 3) {
-      final columns = await db.rawQuery('PRAGMA table_info(gravacao)');
-      final columnNames = columns.map((column) => column['name']).toSet();
+      await db.execute('DROP TABLE IF EXISTS projeto');
 
-      if (!columnNames.contains('motivo_parada')) {
-        await db.execute('ALTER TABLE gravacao ADD COLUMN motivo_parada TEXT');
+      final tabelas = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='gravacao'",
+      );
+
+      if (tabelas.isEmpty) {
+        await db.execute(GravacaoTable.createTable);
+      } else {
+        final colunas = await db.rawQuery('PRAGMA table_info(gravacao)');
+        final nomesColunas = colunas.map((item) => item['name']).toSet();
+
+        if (!nomesColunas.contains('motivo_parada')) {
+          await db.execute('ALTER TABLE gravacao ADD COLUMN motivo_parada TEXT');
+        }
+
+        if (!nomesColunas.contains('maior_pico')) {
+          await db.execute(
+            'ALTER TABLE gravacao ADD COLUMN maior_pico REAL DEFAULT -160.0',
+          );
+        }
       }
 
-      if (!columnNames.contains('maior_pico')) {
-        await db.execute(
-          'ALTER TABLE gravacao ADD COLUMN maior_pico REAL DEFAULT -160.0',
-        );
+      for (final index in GravacaoTable.indexes) {
+        await db.execute(index.replaceFirst('CREATE INDEX', 'CREATE INDEX IF NOT EXISTS'));
       }
     }
   }
