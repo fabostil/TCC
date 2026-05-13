@@ -4,10 +4,8 @@ import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
 import '../../../models/gravacao.dart';
-import '../../../models/projeto.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/gravacao_repository.dart';
-import '../../../repositories/projeto_repository.dart';
 
 class DashboardPage extends StatefulWidget {
   final Usuario usuario;
@@ -22,7 +20,6 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _carregando = true;
   String? _erro;
 
-  List<Projeto> _projetos = [];
   List<Gravacao> _gravacoes = [];
 
   @override
@@ -48,18 +45,15 @@ class _DashboardPageState extends State<DashboardPage> {
     });
 
     try {
-      final resultados = await Future.wait([
-        ProjetoRepository.instance.listarProjetosPorUsuario(usuarioId),
-        GravacaoRepository.instance.listarGravacoesPorUsuario(usuarioId),
-      ]);
+      final gravacoes = await GravacaoRepository.instance
+          .listarGravacoesPorUsuario(usuarioId);
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _projetos = resultados[0] as List<Projeto>;
-        _gravacoes = resultados[1] as List<Gravacao>;
+        _gravacoes = gravacoes;
         _carregando = false;
       });
     } catch (e) {
@@ -78,6 +72,20 @@ class _DashboardPageState extends State<DashboardPage> {
       _gravacoes.fold(0, (total, item) => total + item.duracaoSegundos);
 
   Gravacao? get _ultimaGravacao => _gravacoes.isEmpty ? null : _gravacoes.first;
+
+  int get _paradasPorSilencio => _gravacoes
+      .where((item) => item.motivoParada == 'silêncio prolongado')
+      .length;
+
+  double get _maiorPicoGeral {
+    if (_gravacoes.isEmpty) {
+      return -160.0;
+    }
+
+    return _gravacoes
+        .map((item) => item.maiorPico)
+        .reduce((a, b) => a > b ? a : b);
+  }
 
   String _formatarDuracao(int segundos) {
     final horas = segundos ~/ 3600;
@@ -147,7 +155,7 @@ class _DashboardPageState extends State<DashboardPage> {
               );
             }
 
-            if (_projetos.isEmpty && _gravacoes.isEmpty) {
+            if (_gravacoes.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
@@ -156,7 +164,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     icon: Icons.insights_outlined,
                     title: 'Sem dados suficientes ainda',
                     subtitle:
-                        'Crie projetos e grave áudios para começar a visualizar indicadores aqui.',
+                        'Grave áudios para começar a visualizar indicadores aqui.',
                   ),
                 ],
               );
@@ -165,26 +173,23 @@ class _DashboardPageState extends State<DashboardPage> {
             return ListView(
               padding: const EdgeInsets.all(AppSpacing.xl),
               children: [
-                Text(
-                  'Resumo geral',
-                  style: theme.textTheme.titleLarge,
-                ),
+                Text('Resumo geral', style: theme.textTheme.titleLarge),
                 const SizedBox(height: AppSpacing.md),
                 Row(
                   children: [
                     Expanded(
                       child: _MetricCard(
-                        icon: Icons.folder_outlined,
-                        title: 'Projetos',
-                        value: _projetos.length.toString(),
+                        icon: Icons.library_music_outlined,
+                        title: 'Gravações',
+                        value: _gravacoes.length.toString(),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: _MetricCard(
-                        icon: Icons.library_music_outlined,
-                        title: 'Gravações',
-                        value: _gravacoes.length.toString(),
+                        icon: Icons.volume_up_outlined,
+                        title: 'Maior pico',
+                        value: '${_maiorPicoGeral.toStringAsFixed(1)} dB',
                       ),
                     ),
                   ],
@@ -196,19 +201,16 @@ class _DashboardPageState extends State<DashboardPage> {
                   value: _formatarDuracao(_duracaoTotalSegundos),
                   wide: true,
                 ),
-                const SizedBox(height: AppSpacing.xl),
-                Text(
-                  'Última gravação',
-                  style: theme.textTheme.titleLarge,
+                const SizedBox(height: AppSpacing.sm),
+                _MetricCard(
+                  icon: Icons.hearing_disabled_outlined,
+                  title: 'Paradas por silêncio',
+                  value: _paradasPorSilencio.toString(),
+                  wide: true,
                 ),
+                const SizedBox(height: AppSpacing.xl),
+                Text('Última gravação', style: theme.textTheme.titleLarge),
                 const SizedBox(height: AppSpacing.md),
-                if (_ultimaGravacao == null)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(AppSpacing.lg),
-                      child: Text('Nenhuma gravação encontrada até o momento.'),
-                    ),
-                  ),
                 if (_ultimaGravacao != null)
                   Card(
                     child: Padding(
@@ -245,6 +247,18 @@ class _DashboardPageState extends State<DashboardPage> {
                             'Duração: ${_formatarDuracao(_ultimaGravacao!.duracaoSegundos)}',
                             style: theme.textTheme.bodyMedium,
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Maior pico: ${_ultimaGravacao!.maiorPico.toStringAsFixed(1)} dB',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                          if (_ultimaGravacao!.motivoParada != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Parada: ${_ultimaGravacao!.motivoParada}',
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -281,7 +295,6 @@ class _MetricCard extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              radius: wide ? 24 : 22,
               backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
               child: Icon(icon, color: theme.colorScheme.primary),
             ),

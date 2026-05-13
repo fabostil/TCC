@@ -2,7 +2,6 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'tables/gravacao_table.dart';
-import 'tables/projeto_table.dart';
 
 class AppDatabase {
   AppDatabase._internal();
@@ -26,7 +25,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -45,12 +44,7 @@ class AppDatabase {
       )
     ''');
 
-    await db.execute(ProjetoTable.createTable);
     await db.execute(GravacaoTable.createTable);
-
-    for (final index in ProjetoTable.indexes) {
-      await db.execute(index);
-    }
 
     for (final index in GravacaoTable.indexes) {
       await db.execute(index);
@@ -69,41 +63,18 @@ class AppDatabase {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      await db.execute(ProjetoTable.createTable);
+    if (oldVersion < 3) {
+      final columns = await db.rawQuery('PRAGMA table_info(gravacao)');
+      final columnNames = columns.map((column) => column['name']).toSet();
 
-      await db.execute('ALTER TABLE gravacao RENAME TO gravacao_legacy');
-      await db.execute(GravacaoTable.createTable);
-
-      await db.execute('''
-        INSERT INTO gravacao (
-          id,
-          usuario_id,
-          projeto_id,
-          nome,
-          caminho_arquivo,
-          data_criacao,
-          duracao_segundos
-        )
-        SELECT
-          id,
-          usuario_id,
-          NULL,
-          nome,
-          caminho_arquivo,
-          data_criacao,
-          duracao_segundos
-        FROM gravacao_legacy
-      ''');
-
-      await db.execute('DROP TABLE gravacao_legacy');
-
-      for (final index in ProjetoTable.indexes) {
-        await db.execute(index);
+      if (!columnNames.contains('motivo_parada')) {
+        await db.execute('ALTER TABLE gravacao ADD COLUMN motivo_parada TEXT');
       }
 
-      for (final index in GravacaoTable.indexes) {
-        await db.execute(index);
+      if (!columnNames.contains('maior_pico')) {
+        await db.execute(
+          'ALTER TABLE gravacao ADD COLUMN maior_pico REAL DEFAULT -160.0',
+        );
       }
     }
   }

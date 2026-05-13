@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/ui/app_spacing.dart';
 import '../../../models/usuario.dart';
 import '../../dashboard/pages/dashboard_page.dart';
-import '../../projects/pages/meus_projetos_page.dart';
+import '../../recordings/pages/gravacao_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../voices/pages/login_page.dart';
 import '../../voices/pages/voice_page.dart';
@@ -21,27 +21,6 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  void _abrirNovoProjeto(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MeusProjetosPage(
-          usuario: usuario,
-          abrirCriacaoAoEntrar: true,
-        ),
-      ),
-    );
-  }
-
-  void _abrirProjetos(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MeusProjetosPage(usuario: usuario),
-      ),
-    );
-  }
-
   void _abrirAssistente(BuildContext context) {
     Navigator.push(
       context,
@@ -49,21 +28,24 @@ class HomePage extends StatelessWidget {
     );
   }
 
+  void _abrirGravacao(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => GravacaoPage(usuario: usuario)),
+    );
+  }
+
   void _abrirGravacoes(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => MinhasGravacoesPage(usuario: usuario),
-      ),
+      MaterialPageRoute(builder: (_) => MinhasGravacoesPage(usuario: usuario)),
     );
   }
 
   void _abrirDashboard(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => DashboardPage(usuario: usuario),
-      ),
+      MaterialPageRoute(builder: (_) => DashboardPage(usuario: usuario)),
     );
   }
 
@@ -108,7 +90,7 @@ class HomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Organize ideias musicais, grave com rapidez e acompanhe seus projetos com uma experiência mais fluida.',
+                    'Grave ideias musicais, use comandos de voz e acompanhe suas gravações pelo dashboard.',
                     style: theme.textTheme.bodyLarge,
                   ),
                 ],
@@ -118,24 +100,17 @@ class HomePage extends StatelessWidget {
             Text('Atalhos', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(
-              icon: Icons.add_circle_outline_rounded,
-              title: 'Novo projeto',
-              subtitle: 'Crie um projeto musical e vá direto para o editor.',
-              onTap: () => _abrirNovoProjeto(context),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _HomeCard(
               icon: Icons.mic_none_rounded,
               title: 'Assistente de voz',
-              subtitle: 'Use comandos para iniciar, pausar e encerrar gravações.',
+              subtitle: 'Teste comandos como iniciar, pausar, retomar e encerrar gravação.',
               onTap: () => _abrirAssistente(context),
             ),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(
-              icon: Icons.folder_outlined,
-              title: 'Meus projetos',
-              subtitle: 'Acompanhe os projetos criados e seus detalhes.',
-              onTap: () => _abrirProjetos(context),
+              icon: Icons.fiber_manual_record_rounded,
+              title: 'Gravar áudio',
+              subtitle: 'Grave, pause, retome, encerre e salve um áudio com Flutter Sound.',
+              onTap: () => _abrirGravacao(context),
             ),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(

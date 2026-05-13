@@ -1,7 +1,7 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_sound/flutter_sound.dart';
 
 import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_feedback.dart';
@@ -10,7 +10,6 @@ import '../../../core/ui/app_spacing.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/gravacao_repository.dart';
-import '../../editor/services/audio_player_service.dart';
 
 class MinhasGravacoesPage extends StatefulWidget {
   final Usuario usuario;
@@ -23,28 +22,30 @@ class MinhasGravacoesPage extends StatefulWidget {
 
 class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
   final List<Gravacao> _gravacoes = [];
-  final AudioPlayerService _playerService = AudioPlayerService();
+  final FlutterSoundPlayer _player = FlutterSoundPlayer();
 
   bool _carregando = true;
+  bool _playerAberto = false;
   String? _erro;
   int? _gravacaoReproduzindoId;
-  StreamSubscription? _playerStateSubscription;
 
   @override
   void initState() {
     super.initState();
-    _playerStateSubscription = _playerService.playerStateStream.listen((state) {
-      if (!mounted) {
-        return;
-      }
-
-      if (!state.playing) {
-        setState(() {
-          _gravacaoReproduzindoId = null;
-        });
-      }
-    });
+    _inicializarPlayer();
     _carregarGravacoes();
+  }
+
+  Future<void> _inicializarPlayer() async {
+    await _player.openPlayer();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _playerAberto = true;
+    });
   }
 
   Future<void> _carregarGravacoes() async {
@@ -121,9 +122,13 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
   }
 
   Future<void> _alternarReproducao(Gravacao gravacao) async {
+    if (!_playerAberto) {
+      return;
+    }
+
     try {
-      if (_gravacaoReproduzindoId == gravacao.id && _playerService.isPlaying) {
-        await _playerService.stop();
+      if (_gravacaoReproduzindoId == gravacao.id) {
+        await _player.stopPlayer();
 
         if (!mounted) {
           return;
@@ -135,7 +140,36 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
         return;
       }
 
-      await _playerService.play(gravacao.caminhoArquivo);
+      if (_gravacaoReproduzindoId != null) {
+        await _player.stopPlayer();
+      }
+
+      final arquivo = File(gravacao.caminhoArquivo);
+
+      if (!await arquivo.exists()) {
+        if (!mounted) {
+          return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Arquivo de áudio não encontrado.')),
+        );
+        return;
+      }
+
+      await _player.startPlayer(
+        fromURI: gravacao.caminhoArquivo,
+        codec: Codec.aacMP4,
+        whenFinished: () {
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            _gravacaoReproduzindoId = null;
+          });
+        },
+      );
 
       if (!mounted) {
         return;
@@ -168,11 +202,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
     final gravacaoAtualizada = Gravacao(
       id: gravacao.id,
       usuarioId: gravacao.usuarioId,
-      projetoId: gravacao.projetoId,
       nome: novoNome,
       caminhoArquivo: gravacao.caminhoArquivo,
       dataCriacao: gravacao.dataCriacao,
       duracaoSegundos: gravacao.duracaoSegundos,
+      motivoParada: gravacao.motivoParada,
+      maiorPico: gravacao.maiorPico,
     );
 
     try {
@@ -215,7 +250,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
 
     try {
       if (_gravacaoReproduzindoId == gravacao.id) {
-        await _playerService.stop();
+        await _player.stopPlayer();
       }
 
       await GravacaoRepository.instance.removerGravacao(gravacao.id!);
@@ -236,10 +271,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
         }
       });
 
-      AppFeedback.showMessage(
-        context,
-        'Gravação excluída com sucesso.',
-      );
+      AppFeedback.showMessage(context, 'Gravação excluída com sucesso.');
     } catch (e) {
       if (!mounted) {
         return;
@@ -253,15 +285,14 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
 
   @override
   void dispose() {
-    _playerStateSubscription?.cancel();
-    _playerService.dispose();
+    _player.closePlayer();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Minhas Gravações'), centerTitle: true),
+      appBar: AppBar(title: const Text('Minhas gravações'), centerTitle: true),
       body: RefreshIndicator(
         onRefresh: _carregarGravacoes,
         child: Builder(
@@ -300,7 +331,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                     icon: Icons.library_music_outlined,
                     title: 'Nenhuma gravação encontrada',
                     subtitle:
-                        'Grave um áudio no editor e ele aparecerá aqui automaticamente.',
+                        'Grave um áudio na tela de gravação e ele aparecerá aqui automaticamente.',
                   ),
                 ],
               );
@@ -315,9 +346,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                 final reproduzindo = _gravacaoReproduzindoId == gravacao.id;
 
                 return Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
                     leading: IconButton(
@@ -345,6 +373,14 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                           Text(
                             'Duração: ${_formatarDuracao(gravacao.duracaoSegundos)}',
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Maior pico: ${gravacao.maiorPico.toStringAsFixed(1)} dB',
+                          ),
+                          if (gravacao.motivoParada != null) ...[
+                            const SizedBox(height: 4),
+                            Text('Parada: ${gravacao.motivoParada}'),
+                          ],
                         ],
                       ),
                     ),

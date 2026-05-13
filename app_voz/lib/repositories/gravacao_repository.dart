@@ -33,19 +33,6 @@ class GravacaoRepository {
     return resultado.map(Gravacao.fromMap).toList();
   }
 
-  Future<List<Gravacao>> listarGravacoesPorProjeto(int projetoId) async {
-    final db = await _database;
-
-    final resultado = await db.query(
-      GravacaoTable.tableName,
-      where: 'projeto_id = ?',
-      whereArgs: [projetoId],
-      orderBy: 'data_criacao DESC',
-    );
-
-    return resultado.map(Gravacao.fromMap).toList();
-  }
-
   Future<Gravacao?> buscarGravacaoPorId(int id) async {
     final db = await _database;
 
