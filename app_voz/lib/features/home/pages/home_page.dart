@@ -7,6 +7,7 @@ import '../../../models/configuracao_app.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/configuracao_app_repository.dart';
 import '../../dashboard/pages/dashboard_page.dart';
+import '../../history/pages/historico_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
@@ -160,6 +161,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _abrirHistorico(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => HistoricoPage(usuario: widget.usuario)),
+    );
+  }
+
   Future<void> _abrirConfiguracoes(BuildContext context) async {
     await Navigator.push(
       context,
@@ -275,6 +283,13 @@ class _HomePageState extends State<HomePage> {
               title: 'Dashboard',
               subtitle: 'Visualize métricas e resumos de uso do sistema.',
               onTap: () => _abrirDashboard(context),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _HomeCard(
+              icon: Icons.history_rounded,
+              title: 'Histórico',
+              subtitle: 'Consulte comandos, gravações e ações registradas.',
+              onTap: () => _abrirHistorico(context),
             ),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(

@@ -6,6 +6,7 @@ import '../../../models/usuario.dart';
 import '../../../repositories/comando_voz_repository.dart';
 import '../../../repositories/configuracao_app_repository.dart';
 import '../../dashboard/pages/dashboard_page.dart';
+import '../../history/pages/historico_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
@@ -191,9 +192,7 @@ class _VoicePageState extends State<VoicePage> {
         });
         return;
       case VoiceCommandType.abrirHistorico:
-        setState(() {
-          ultimoComando = 'Tela de historico ainda nao implementada.';
-        });
+        _abrirHistorico();
         return;
       case VoiceCommandType.voltar:
         _voltar();
@@ -261,6 +260,17 @@ class _VoicePageState extends State<VoicePage> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ConfiguracoesPage()),
+    );
+  }
+
+  void _abrirHistorico() {
+    setState(() {
+      ultimoComando = 'Abrindo historico...';
+    });
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => HistoricoPage(usuario: widget.usuario)),
     );
   }
 
