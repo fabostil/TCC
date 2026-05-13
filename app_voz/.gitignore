@@ -34,6 +34,18 @@ coverage/
 # Generated docs
 **/doc/api/
 
+# Local AI project memory / technical context
+AGENTS.md
+SESSION_SUMMARY.md
+TASKS.md
+ARCHITECTURE.md
+DATABASE.md
+VOICE_SYSTEM.md
+UI_UX.md
+ROADMAP.md
+TCC_ALIGNMENT.md
+DEVELOPMENT_RULES.md
+
 # Android build outputs
 /android/app/debug
 /android/app/profile
