@@ -8,6 +8,14 @@ enum VoiceCommandType {
   listarGravacoes,
   criarMarcador,
   limparTexto,
+  abrirDashboard,
+  abrirProjetos,
+  abrirGravacoes,
+  abrirConfiguracoes,
+  abrirAssistente,
+  abrirHistorico,
+  voltar,
+  sair,
   desconhecido,
 }
 
@@ -146,6 +154,112 @@ class CommandService {
         VoiceCommandType.limparTexto,
         tipoComando: 'limpar_texto',
         acaoExecutada: 'Limpar texto reconhecido',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'abrir dashboard',
+      'mostrar dashboard',
+      'ir para dashboard',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirDashboard,
+        tipoComando: 'abrir_dashboard',
+        acaoExecutada: 'Abrir dashboard',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'abrir projetos',
+      'mostrar projetos',
+      'ir para projetos',
+      'meus projetos',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirProjetos,
+        tipoComando: 'abrir_projetos',
+        acaoExecutada: 'Abrir projetos',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'abrir gravacoes',
+      'mostrar gravacoes',
+      'minhas gravacoes',
+      'ir para gravacoes',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirGravacoes,
+        tipoComando: 'abrir_gravacoes',
+        acaoExecutada: 'Abrir gravacoes',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'abrir configuracoes',
+      'mostrar configuracoes',
+      'ir para configuracoes',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirConfiguracoes,
+        tipoComando: 'abrir_configuracoes',
+        acaoExecutada: 'Abrir configuracoes',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'abrir assistente',
+      'abrir assistente de voz',
+      'ir para assistente',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirAssistente,
+        tipoComando: 'abrir_assistente',
+        acaoExecutada: 'Abrir assistente',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'abrir historico',
+      'mostrar historico',
+      'ir para historico',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirHistorico,
+        tipoComando: 'abrir_historico',
+        acaoExecutada: 'Abrir historico',
+      );
+    }
+
+    if (_containsAny(normalizedText, const ['voltar', 'voltar tela'])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.voltar,
+        tipoComando: 'voltar',
+        acaoExecutada: 'Voltar tela',
+      );
+    }
+
+    if (_containsAny(normalizedText, const ['sair', 'fazer logout'])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.sair,
+        tipoComando: 'sair',
+        acaoExecutada: 'Sair',
       );
     }
 

@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/comando_voz_repository.dart';
 import '../../../repositories/configuracao_app_repository.dart';
+import '../../dashboard/pages/dashboard_page.dart';
+import '../../projects/pages/meus_projetos_page.dart';
+import '../../recordings/pages/minhas_gravacoes_page.dart';
+import '../../settings/pages/configuracoes_page.dart';
 import 'login_page.dart';
 import '../services/command_service.dart';
 import '../services/speech_service.dart';
@@ -152,9 +156,7 @@ class _VoicePageState extends State<VoicePage> {
         });
         return;
       case VoiceCommandType.listarGravacoes:
-        setState(() {
-          ultimoComando = 'Comando reconhecido: listar gravacoes';
-        });
+        _abrirGravacoes();
         return;
       case VoiceCommandType.criarMarcador:
         setState(() {
@@ -171,6 +173,34 @@ class _VoicePageState extends State<VoicePage> {
           ultimoComando = 'Comando reconhecido: reproduzir gravacao';
         });
         return;
+      case VoiceCommandType.abrirDashboard:
+        _abrirDashboard();
+        return;
+      case VoiceCommandType.abrirProjetos:
+        _abrirProjetos();
+        return;
+      case VoiceCommandType.abrirGravacoes:
+        _abrirGravacoes();
+        return;
+      case VoiceCommandType.abrirConfiguracoes:
+        _abrirConfiguracoes();
+        return;
+      case VoiceCommandType.abrirAssistente:
+        setState(() {
+          ultimoComando = 'Assistente de voz ja esta aberto.';
+        });
+        return;
+      case VoiceCommandType.abrirHistorico:
+        setState(() {
+          ultimoComando = 'Tela de historico ainda nao implementada.';
+        });
+        return;
+      case VoiceCommandType.voltar:
+        _voltar();
+        return;
+      case VoiceCommandType.sair:
+        sair();
+        return;
       case VoiceCommandType.desconhecido:
         break;
     }
@@ -184,6 +214,62 @@ class _VoicePageState extends State<VoicePage> {
     setState(() {
       ultimoComando = 'Comando nao reconhecido.';
     });
+  }
+
+  void _abrirDashboard() {
+    setState(() {
+      ultimoComando = 'Abrindo dashboard...';
+    });
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DashboardPage(usuario: widget.usuario)),
+    );
+  }
+
+  void _abrirProjetos() {
+    setState(() {
+      ultimoComando = 'Abrindo projetos...';
+    });
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MeusProjetosPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  void _abrirGravacoes() {
+    setState(() {
+      ultimoComando = 'Abrindo gravacoes...';
+    });
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MinhasGravacoesPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  void _abrirConfiguracoes() {
+    setState(() {
+      ultimoComando = 'Abrindo configuracoes...';
+    });
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ConfiguracoesPage()),
+    );
+  }
+
+  void _voltar() {
+    setState(() {
+      ultimoComando = 'Voltando...';
+    });
+
+    Navigator.maybePop(context);
   }
 
   void registrarComandoVoz(

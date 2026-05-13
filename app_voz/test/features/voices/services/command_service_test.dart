@@ -51,6 +51,31 @@ void main() {
       );
     });
 
+    test('reconhece comandos de navegacao', () {
+      expect(
+        service.interpret('abrir dashboard').type,
+        VoiceCommandType.abrirDashboard,
+      );
+      expect(
+        service.interpret('meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('minhas grava\u00e7\u00f5es').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
+        service.interpret('abrir configura\u00e7\u00f5es').type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
+        service.interpret('abrir hist\u00f3rico').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(service.interpret('voltar').type, VoiceCommandType.voltar);
+      expect(service.interpret('sair').type, VoiceCommandType.sair);
+    });
+
     test('retorna desconhecido para comando nao mapeado', () {
       final result = service.interpret('abrir afinador');
 

@@ -249,6 +249,19 @@ class _EditorPageState extends State<EditorPage> {
           statusProjeto = 'Lista de gravacoes disponivel nesta tela.';
         });
         return;
+      case VoiceCommandType.abrirDashboard:
+      case VoiceCommandType.abrirProjetos:
+      case VoiceCommandType.abrirGravacoes:
+      case VoiceCommandType.abrirConfiguracoes:
+      case VoiceCommandType.abrirAssistente:
+      case VoiceCommandType.abrirHistorico:
+      case VoiceCommandType.voltar:
+      case VoiceCommandType.sair:
+        setState(() {
+          statusProjeto =
+              'Comando de navegacao reconhecido. Use o assistente de voz para navegar.';
+        });
+        return;
       case VoiceCommandType.desconhecido:
         break;
     }
