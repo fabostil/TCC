@@ -15,7 +15,7 @@ import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/pages/login_page.dart';
 import '../../voices/pages/voice_page.dart';
-import '../../voices/services/ai_command_service.dart';
+import '../../voices/controllers/voice_command_controller.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/speech_service.dart';
 
@@ -30,8 +30,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final SpeechService _speechService = SpeechService();
-  final CommandService _commandService = const CommandService();
-  final AiCommandService _aiCommandService = AiCommandService();
+  final VoiceCommandController _commandController = VoiceCommandController();
 
   ConfiguracaoApp? _configuracao;
   bool _verificandoPrimeiraExecucao = true;
@@ -291,27 +290,33 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _executarComandoHome(String comando) async {
-    var resultado = _commandService.interpret(comando);
+    final resultadoController = await _commandController.interpret(
+      comando,
+      onAiStarted: () {
+        if (!mounted) {
+          return;
+        }
 
-    if (resultado.normalizedText.isEmpty) {
+        setState(() {
+          _iaPensando = true;
+          _statusVoz = 'IA pensando...';
+        });
+      },
+    );
+    final resultado = resultadoController.commandResult;
+
+    if (!mounted) {
       return;
     }
 
-    if (!resultado.recognized && _aiCommandService.isConfigured) {
-      setState(() {
-        _iaPensando = true;
-        _statusVoz = 'IA pensando...';
-      });
-
-      resultado = await _aiCommandService.interpretUnknown(comando);
-
-      if (!mounted) {
-        return;
-      }
-
+    if (_iaPensando) {
       setState(() {
         _iaPensando = false;
       });
+    }
+
+    if (resultado.normalizedText.isEmpty) {
+      return;
     }
 
     switch (resultado.type) {
@@ -351,7 +356,7 @@ class _HomePageState extends State<HomePage> {
       case VoiceCommandType.desconhecido:
         setState(() {
           _iaPensando = false;
-          _statusVoz = _aiCommandService.isConfigured
+          _statusVoz = _commandController.aiConfigured
               ? 'Comando nao executavel nesta tela.'
               : 'Comando nao reconhecido. Configure GEMINI_API_KEY para NLU.';
         });

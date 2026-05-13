@@ -11,7 +11,7 @@ import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
 import 'login_page.dart';
-import '../services/ai_command_service.dart';
+import '../controllers/voice_command_controller.dart';
 import '../services/command_service.dart';
 import '../services/speech_service.dart';
 
@@ -26,8 +26,7 @@ class VoicePage extends StatefulWidget {
 
 class _VoicePageState extends State<VoicePage> {
   final SpeechService speech = SpeechService();
-  final CommandService commandService = const CommandService();
-  final AiCommandService aiCommandService = AiCommandService();
+  final VoiceCommandController commandController = VoiceCommandController();
 
   bool listening = false;
   bool iaPensando = false;
@@ -121,27 +120,33 @@ class _VoicePageState extends State<VoicePage> {
   }
 
   Future<void> handleVoiceCommand(String command) async {
-    var resultado = commandService.interpret(command);
+    final resultadoController = await commandController.interpret(
+      command,
+      onAiStarted: () {
+        if (!mounted) {
+          return;
+        }
 
-    if (resultado.normalizedText.isEmpty) {
+        setState(() {
+          iaPensando = true;
+          ultimoComando = 'IA pensando...';
+        });
+      },
+    );
+    final resultado = resultadoController.commandResult;
+
+    if (!mounted) {
       return;
     }
 
-    if (!resultado.recognized && aiCommandService.isConfigured) {
-      setState(() {
-        iaPensando = true;
-        ultimoComando = 'IA pensando...';
-      });
-
-      resultado = await aiCommandService.interpretUnknown(command);
-
-      if (!mounted) {
-        return;
-      }
-
+    if (iaPensando) {
       setState(() {
         iaPensando = false;
       });
+    }
+
+    if (resultado.normalizedText.isEmpty) {
+      return;
     }
 
     if (resultado.recognized) {
@@ -232,7 +237,7 @@ class _VoicePageState extends State<VoicePage> {
 
     setState(() {
       iaPensando = false;
-      ultimoComando = aiCommandService.isConfigured
+      ultimoComando = commandController.aiConfigured
           ? 'Comando nao reconhecido pela IA.'
           : 'Comando nao reconhecido. Configure GEMINI_API_KEY para NLU.';
     });
