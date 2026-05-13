@@ -9,6 +9,7 @@ import '../../../repositories/comando_voz_repository.dart';
 import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/gravacao_repository.dart';
 import '../../../repositories/historico_repository.dart';
+import '../../voices/services/command_service.dart';
 import '../../voices/services/speech_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/audio_recording_service.dart';
@@ -25,6 +26,7 @@ class EditorPage extends StatefulWidget {
 
 class _EditorPageState extends State<EditorPage> {
   final SpeechService speech = SpeechService();
+  final CommandService commandService = const CommandService();
   final AudioRecordingService audioService = AudioRecordingService();
   final AudioPlayerService playerService = AudioPlayerService();
   StreamSubscription? playerStateSubscription;
@@ -203,111 +205,68 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   void interpretarComando(String comando) {
-    final cmd = comando.toLowerCase().trim();
+    final resultado = commandService.interpret(comando);
 
-    if (cmd.isEmpty) {
+    if (resultado.normalizedText.isEmpty) {
       return;
     }
 
-    if (cmd.contains('iniciar gravação') ||
-        cmd.contains('começar gravação') ||
-        cmd.contains('gravar')) {
+    if (resultado.recognized) {
       registrarComandoVoz(
         comando,
-        tipoComando: 'iniciar_gravacao',
-        acaoExecutada: 'Iniciar gravação',
+        tipoComando: resultado.tipoComando,
+        acaoExecutada: resultado.acaoExecutada,
       );
-      iniciarGravacao(comando);
-      return;
     }
 
-    if (cmd.contains('pausar gravação') || cmd == 'pausar') {
-      registrarComandoVoz(
-        comando,
-        tipoComando: 'pausar_gravacao',
-        acaoExecutada: 'Pausar gravação',
-      );
-      pausarGravacao(comando);
-      return;
-    }
-
-    if (cmd.contains('retomar gravação') ||
-        cmd.contains('continuar gravação')) {
-      registrarComandoVoz(
-        comando,
-        tipoComando: 'retomar_gravacao',
-        acaoExecutada: 'Retomar gravação',
-      );
-      retomarGravacao(comando);
-      return;
-    }
-
-    if (cmd.contains('encerrar gravação') ||
-        cmd.contains('parar gravação') ||
-        cmd.contains('finalizar gravação')) {
-      registrarComandoVoz(
-        comando,
-        tipoComando: 'encerrar_gravacao',
-        acaoExecutada: 'Encerrar gravação',
-      );
-      encerrarGravacao(comando);
-      return;
-    }
-
-    if (cmd.contains('parar reprodução')) {
-      registrarComandoVoz(
-        comando,
-        tipoComando: 'parar_reproducao',
-        acaoExecutada: 'Parar reprodução',
-      );
-      pararReproducao(comando);
-      return;
-    }
-
-    if (cmd.contains('reproduzir') || cmd.contains('tocar')) {
-      registrarComandoVoz(
-        comando,
-        tipoComando: 'reproduzir_gravacao',
-        acaoExecutada: 'Reproduzir gravação',
-      );
-      reproduzirProjeto(comando);
-      return;
-    }
-
-    if (cmd.contains('criar marcador') || cmd.contains('marcar')) {
-      registrarComandoVoz(
-        comando,
-        tipoComando: 'criar_marcador',
-        acaoExecutada: 'Criar marcador',
-      );
-      criarMarcador(comando);
-      return;
-    }
-
-    if (cmd.contains('limpar')) {
-      registrarComandoVoz(
-        comando,
-        tipoComando: 'limpar_texto',
-        acaoExecutada: 'Limpar texto reconhecido',
-      );
-      limparTexto(comando);
-      return;
+    switch (resultado.type) {
+      case VoiceCommandType.iniciarGravacao:
+        iniciarGravacao(comando);
+        return;
+      case VoiceCommandType.pausarGravacao:
+        pausarGravacao(comando);
+        return;
+      case VoiceCommandType.retomarGravacao:
+        retomarGravacao(comando);
+        return;
+      case VoiceCommandType.encerrarGravacao:
+        encerrarGravacao(comando);
+        return;
+      case VoiceCommandType.pararReproducao:
+        pararReproducao(comando);
+        return;
+      case VoiceCommandType.reproduzirGravacao:
+        reproduzirProjeto(comando);
+        return;
+      case VoiceCommandType.criarMarcador:
+        criarMarcador(comando);
+        return;
+      case VoiceCommandType.limparTexto:
+        limparTexto(comando);
+        return;
+      case VoiceCommandType.listarGravacoes:
+        setState(() {
+          statusProjeto = 'Lista de gravacoes disponivel nesta tela.';
+        });
+        return;
+      case VoiceCommandType.desconhecido:
+        break;
     }
 
     registrarComandoVoz(
       comando,
-      tipoComando: 'desconhecido',
-      statusReconhecimento: 'nao_reconhecido',
+      tipoComando: resultado.tipoComando,
+      statusReconhecimento: resultado.statusReconhecimento,
     );
 
     adicionarHistorico(
       comandoOriginal: comando,
-      acao: 'Comando não reconhecido',
+      acao: 'Comando nao reconhecido',
       tipo: 'comando_nao_reconhecido',
     );
 
     setState(() {
-      statusProjeto = 'Comando não reconhecido.';
+      statusProjeto = 'Comando nao reconhecido.';
     });
   }
 
