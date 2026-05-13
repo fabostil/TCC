@@ -1,7 +1,9 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'tables/comando_voz_table.dart';
 import 'tables/gravacao_table.dart';
+import 'tables/historico_acao_table.dart';
 import 'tables/projeto_table.dart';
 
 class AppDatabase {
@@ -26,7 +28,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -47,6 +49,8 @@ class AppDatabase {
 
     await db.execute(ProjetoTable.createTable);
     await db.execute(GravacaoTable.createTable);
+    await db.execute(ComandoVozTable.createTable);
+    await db.execute(HistoricoAcaoTable.createTable);
 
     for (final index in ProjetoTable.indexes) {
       await db.execute(index);
@@ -56,16 +60,13 @@ class AppDatabase {
       await db.execute(index);
     }
 
-    await db.execute('''
-      CREATE TABLE comando_voz (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        usuario_id INTEGER NOT NULL,
-        comando TEXT NOT NULL,
-        acao_executada TEXT NOT NULL,
-        data_execucao TEXT NOT NULL,
-        FOREIGN KEY (usuario_id) REFERENCES usuario(id) ON DELETE CASCADE
-      )
-    ''');
+    for (final index in ComandoVozTable.indexes) {
+      await db.execute(index);
+    }
+
+    for (final index in HistoricoAcaoTable.indexes) {
+      await db.execute(index);
+    }
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -106,6 +107,67 @@ class AppDatabase {
         await db.execute(index);
       }
     }
+
+    if (oldVersion < 3) {
+      await _migrateComandoVozToVersion3(db);
+      await db.execute(HistoricoAcaoTable.createTable);
+
+      for (final index in ComandoVozTable.indexes) {
+        await db.execute(index);
+      }
+
+      for (final index in HistoricoAcaoTable.indexes) {
+        await db.execute(index);
+      }
+    }
+  }
+
+  Future<void> _migrateComandoVozToVersion3(Database db) async {
+    final tables = await db.query(
+      'sqlite_master',
+      columns: ['name'],
+      where: 'type = ? AND name = ?',
+      whereArgs: ['table', ComandoVozTable.tableName],
+      limit: 1,
+    );
+
+    if (tables.isEmpty) {
+      await db.execute(ComandoVozTable.createTable);
+      return;
+    }
+
+    final columns = await db.rawQuery(
+      'PRAGMA table_info(${ComandoVozTable.tableName})',
+    );
+    final columnNames = columns.map((column) => column['name']).toSet();
+
+    if (columnNames.contains('texto_reconhecido')) {
+      return;
+    }
+
+    await db.execute('ALTER TABLE comando_voz RENAME TO comando_voz_legacy');
+    await db.execute(ComandoVozTable.createTable);
+    await db.execute('''
+      INSERT INTO comando_voz (
+        id,
+        usuario_id,
+        texto_reconhecido,
+        tipo_comando,
+        status_reconhecimento,
+        acao_executada,
+        data_hora
+      )
+      SELECT
+        id,
+        usuario_id,
+        comando,
+        'legacy',
+        'reconhecido',
+        acao_executada,
+        data_execucao
+      FROM comando_voz_legacy
+    ''');
+    await db.execute('DROP TABLE comando_voz_legacy');
   }
 
   Future<void> close() async {

@@ -11,6 +11,7 @@ import '../../../models/gravacao.dart';
 import '../../../models/projeto.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/gravacao_repository.dart';
+import '../../../repositories/historico_repository.dart';
 import '../../editor/pages/editor_page.dart';
 import '../../editor/services/audio_player_service.dart';
 
@@ -154,6 +155,16 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       setState(() {
         _gravacaoReproduzindoId = gravacao.id;
       });
+
+      unawaited(
+        _registrarHistorico(
+          tipo: 'gravacao_reproduzida',
+          descricao:
+              'Reproduziu a gravação "${gravacao.nome}" no projeto "${widget.projeto.nome}"',
+          gravacaoId: gravacao.id,
+          projetoId: gravacao.projetoId,
+        ),
+      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -198,6 +209,16 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
           _gravacoes[index] = gravacaoAtualizada;
         }
       });
+
+      unawaited(
+        _registrarHistorico(
+          tipo: 'gravacao_renomeada',
+          descricao:
+              'Renomeou "${gravacao.nome}" para "$novoNome" no projeto "${widget.projeto.nome}"',
+          gravacaoId: gravacao.id,
+          projetoId: gravacao.projetoId,
+        ),
+      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -250,6 +271,15 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
         context,
         'Gravação removida deste projeto com sucesso.',
       );
+
+      unawaited(
+        _registrarHistorico(
+          tipo: 'gravacao_excluida',
+          descricao:
+              'Excluiu a gravação "${gravacao.nome}" do projeto "${widget.projeto.nome}"',
+          projetoId: gravacao.projetoId ?? widget.projeto.id,
+        ),
+      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -265,10 +295,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => EditorPage(
-          usuario: widget.usuario,
-          projeto: widget.projeto,
-        ),
+        builder: (_) =>
+            EditorPage(usuario: widget.usuario, projeto: widget.projeto),
       ),
     );
 
@@ -284,13 +312,35 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
     super.dispose();
   }
 
+  Future<void> _registrarHistorico({
+    required String tipo,
+    required String descricao,
+    int? gravacaoId,
+    int? projetoId,
+  }) async {
+    final usuarioId = widget.usuario.id;
+
+    if (usuarioId == null) {
+      return;
+    }
+
+    try {
+      await HistoricoRepository.instance.registrar(
+        usuarioId: usuarioId,
+        tipo: tipo,
+        descricao: descricao,
+        gravacaoId: gravacaoId,
+        projetoId: projetoId,
+      );
+    } catch (e) {
+      debugPrint('Erro ao registrar histórico persistente: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.projeto.nome),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text(widget.projeto.nome), centerTitle: true),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _abrirEditor,
         icon: const Icon(Icons.graphic_eq),
@@ -392,76 +442,73 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
                     ),
                   ),
                 if (_gravacoes.isNotEmpty)
-                  ..._gravacoes.map(
-                    (gravacao) {
-                      final reproduzindo =
-                          _gravacaoReproduzindoId == gravacao.id;
+                  ..._gravacoes.map((gravacao) {
+                    final reproduzindo = _gravacaoReproduzindoId == gravacao.id;
 
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: Card(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.all(16),
+                          leading: IconButton(
+                            onPressed: () => _alternarReproducao(gravacao),
+                            icon: Icon(
+                              reproduzindo
+                                  ? Icons.stop_circle
+                                  : Icons.play_circle,
+                              color: Colors.deepPurple,
+                              size: 34,
+                            ),
                           ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.all(16),
-                            leading: IconButton(
-                              onPressed: () => _alternarReproducao(gravacao),
-                              icon: Icon(
-                                reproduzindo
-                                    ? Icons.stop_circle
-                                    : Icons.play_circle,
-                                color: Colors.deepPurple,
-                                size: 34,
-                              ),
+                          title: Text(
+                            gravacao.nome,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                             ),
-                            title: Text(
-                              gravacao.nome,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Data: ${_formatarData(gravacao.dataCriacao)}',
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Duração: ${_formatarDuracao(gravacao.duracaoSegundos)}',
-                                  ),
-                                ],
-                              ),
-                            ),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'rename') {
-                                  _renomearGravacao(gravacao);
-                                }
-                                if (value == 'delete') {
-                                  _excluirGravacao(gravacao);
-                                }
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                  value: 'rename',
-                                  child: Text('Renomear'),
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Data: ${_formatarData(gravacao.dataCriacao)}',
                                 ),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: Text('Excluir'),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Duração: ${_formatarDuracao(gravacao.duracaoSegundos)}',
                                 ),
                               ],
                             ),
                           ),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'rename') {
+                                _renomearGravacao(gravacao);
+                              }
+                              if (value == 'delete') {
+                                _excluirGravacao(gravacao);
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: 'rename',
+                                child: Text('Renomear'),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Excluir'),
+                              ),
+                            ],
+                          ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  }),
               ],
             );
           },

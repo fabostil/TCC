@@ -6,6 +6,7 @@ import '../../../models/gravacao.dart';
 import '../../../models/projeto.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/gravacao_repository.dart';
+import '../../../repositories/historico_repository.dart';
 import '../../voices/services/speech_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/audio_recording_service.dart';
@@ -241,6 +242,7 @@ class _EditorPageState extends State<EditorPage> {
     adicionarHistorico(
       comandoOriginal: comando,
       acao: 'Comando não reconhecido',
+      tipo: 'comando_nao_reconhecido',
     );
 
     setState(() {
@@ -298,6 +300,7 @@ class _EditorPageState extends State<EditorPage> {
       adicionarHistorico(
         comandoOriginal: comando,
         acao: 'Iniciou gravação real',
+        tipo: 'gravacao_iniciada',
       );
     } catch (e) {
       setState(() {
@@ -337,7 +340,11 @@ class _EditorPageState extends State<EditorPage> {
         statusProjeto = 'Gravação pausada.';
       });
 
-      adicionarHistorico(comandoOriginal: comando, acao: 'Pausou gravação');
+      adicionarHistorico(
+        comandoOriginal: comando,
+        acao: 'Pausou gravação',
+        tipo: 'gravacao_pausada',
+      );
     } catch (e) {
       setState(() {
         carregandoAudio = false;
@@ -369,7 +376,11 @@ class _EditorPageState extends State<EditorPage> {
         statusProjeto = 'Gravação retomada.';
       });
 
-      adicionarHistorico(comandoOriginal: comando, acao: 'Retomou gravação');
+      adicionarHistorico(
+        comandoOriginal: comando,
+        acao: 'Retomou gravação',
+        tipo: 'gravacao_retomada',
+      );
     } catch (e) {
       setState(() {
         carregandoAudio = false;
@@ -471,6 +482,11 @@ class _EditorPageState extends State<EditorPage> {
         acao: foiParadaAutomatica
             ? 'Encerrou gravação por silêncio'
             : 'Encerrou gravação real e criou $nomeFaixa',
+        tipo: foiParadaAutomatica
+            ? 'gravacao_finalizada_por_silencio'
+            : 'gravacao_finalizada',
+        gravacaoId: gravacaoId,
+        projetoId: gravacaoSalva.projetoId,
       );
     } catch (e) {
       setState(() {
@@ -583,6 +599,9 @@ class _EditorPageState extends State<EditorPage> {
       adicionarHistorico(
         comandoOriginal: comando,
         acao: 'Reproduziu gravação real',
+        tipo: 'gravacao_reproduzida',
+        gravacaoId: ultimaFaixa.id,
+        projetoId: ultimaFaixa.projetoId,
       );
     } catch (e) {
       setState(() {
@@ -628,6 +647,9 @@ class _EditorPageState extends State<EditorPage> {
       adicionarHistorico(
         comandoOriginal: 'botão play da faixa',
         acao: 'Reproduziu $nome',
+        tipo: 'gravacao_reproduzida',
+        gravacaoId: faixa.id,
+        projetoId: faixa.projetoId,
       );
     } catch (e) {
       setState(() {
@@ -647,7 +669,11 @@ class _EditorPageState extends State<EditorPage> {
         statusProjeto = 'Reprodução parada.';
       });
 
-      adicionarHistorico(comandoOriginal: comando, acao: 'Parou reprodução');
+      adicionarHistorico(
+        comandoOriginal: comando,
+        acao: 'Parou reprodução',
+        tipo: 'reproducao_parada',
+      );
     } catch (e) {
       setState(() {
         statusProjeto = 'Erro ao parar reprodução: $e';
@@ -659,6 +685,7 @@ class _EditorPageState extends State<EditorPage> {
     adicionarHistorico(
       comandoOriginal: comando,
       acao: 'Criou marcador no projeto',
+      tipo: 'marcador_criado',
     );
 
     setState(() {
@@ -675,18 +702,56 @@ class _EditorPageState extends State<EditorPage> {
     adicionarHistorico(
       comandoOriginal: comando,
       acao: 'Limpou texto reconhecido',
+      tipo: 'texto_limpo',
     );
   }
 
   void adicionarHistorico({
     required String comandoOriginal,
     required String acao,
+    String tipo = 'acao_executada',
+    int? gravacaoId,
+    int? projetoId,
   }) {
     final registro = '$acao - "$comandoOriginal"';
 
     setState(() {
       historicoComandos.insert(0, registro);
     });
+
+    unawaited(
+      _registrarHistoricoPersistente(
+        tipo: tipo,
+        descricao: registro,
+        gravacaoId: gravacaoId,
+        projetoId: projetoId ?? widget.projeto?.id,
+      ),
+    );
+  }
+
+  Future<void> _registrarHistoricoPersistente({
+    required String tipo,
+    required String descricao,
+    int? gravacaoId,
+    int? projetoId,
+  }) async {
+    final usuarioId = widget.usuario.id;
+
+    if (usuarioId == null) {
+      return;
+    }
+
+    try {
+      await HistoricoRepository.instance.registrar(
+        usuarioId: usuarioId,
+        tipo: tipo,
+        descricao: descricao,
+        gravacaoId: gravacaoId,
+        projetoId: projetoId,
+      );
+    } catch (e) {
+      debugPrint('Erro ao registrar histÃ³rico persistente: $e');
+    }
   }
 
   Color get corStatus {
@@ -1060,7 +1125,8 @@ class _EditorPageState extends State<EditorPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            if (faixas.isEmpty) const Text('Nenhuma gravação adicionada ainda.'),
+            if (faixas.isEmpty)
+              const Text('Nenhuma gravação adicionada ainda.'),
             if (faixas.isNotEmpty)
               ...faixas.map(
                 (faixa) => ListTile(
@@ -1104,7 +1170,9 @@ class _EditorPageState extends State<EditorPage> {
             if (historicoComandos.isEmpty)
               const Text('Nenhum comando executado ainda.'),
             if (historicoComandos.isNotEmpty)
-              ...historicoComandos.take(6).map(
+              ...historicoComandos
+                  .take(6)
+                  .map(
                     (item) => ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.history),

@@ -10,6 +10,7 @@ import '../../../core/ui/app_spacing.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/gravacao_repository.dart';
+import '../../../repositories/historico_repository.dart';
 import '../../editor/services/audio_player_service.dart';
 
 class MinhasGravacoesPage extends StatefulWidget {
@@ -144,6 +145,15 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       setState(() {
         _gravacaoReproduzindoId = gravacao.id;
       });
+
+      unawaited(
+        _registrarHistorico(
+          tipo: 'gravacao_reproduzida',
+          descricao: 'Reproduziu a gravação "${gravacao.nome}"',
+          gravacaoId: gravacao.id,
+          projetoId: gravacao.projetoId,
+        ),
+      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -188,6 +198,15 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
           _gravacoes[index] = gravacaoAtualizada;
         }
       });
+
+      unawaited(
+        _registrarHistorico(
+          tipo: 'gravacao_renomeada',
+          descricao: 'Renomeou "${gravacao.nome}" para "$novoNome"',
+          gravacaoId: gravacao.id,
+          projetoId: gravacao.projetoId,
+        ),
+      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -236,9 +255,14 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
         }
       });
 
-      AppFeedback.showMessage(
-        context,
-        'Gravação excluída com sucesso.',
+      AppFeedback.showMessage(context, 'Gravação excluída com sucesso.');
+
+      unawaited(
+        _registrarHistorico(
+          tipo: 'gravacao_excluida',
+          descricao: 'Excluiu a gravação "${gravacao.nome}"',
+          projetoId: gravacao.projetoId,
+        ),
       );
     } catch (e) {
       if (!mounted) {
@@ -256,6 +280,31 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
     _playerStateSubscription?.cancel();
     _playerService.dispose();
     super.dispose();
+  }
+
+  Future<void> _registrarHistorico({
+    required String tipo,
+    required String descricao,
+    int? gravacaoId,
+    int? projetoId,
+  }) async {
+    final usuarioId = widget.usuario.id;
+
+    if (usuarioId == null) {
+      return;
+    }
+
+    try {
+      await HistoricoRepository.instance.registrar(
+        usuarioId: usuarioId,
+        tipo: tipo,
+        descricao: descricao,
+        gravacaoId: gravacaoId,
+        projetoId: projetoId,
+      );
+    } catch (e) {
+      debugPrint('Erro ao registrar histórico persistente: $e');
+    }
   }
 
   @override
@@ -309,7 +358,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.lg),
               itemCount: _gravacoes.length,
-              separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+              separatorBuilder: (_, __) =>
+                  const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
                 final gravacao = _gravacoes[index];
                 final reproduzindo = _gravacaoReproduzindoId == gravacao.id;
@@ -358,14 +408,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                         }
                       },
                       itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'rename',
-                          child: Text('Renomear'),
-                        ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Excluir'),
-                        ),
+                        PopupMenuItem(value: 'rename', child: Text('Renomear')),
+                        PopupMenuItem(value: 'delete', child: Text('Excluir')),
                       ],
                     ),
                   ),
