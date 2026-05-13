@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../database/app_database.dart';
 import '../database/tables/historico_acao_table.dart';
+import '../models/dashboard_action_metric.dart';
 import '../models/historico_acao.dart';
 
 class HistoricoRepository {
@@ -99,5 +100,26 @@ class HistoricoRepository {
     );
 
     return Sqflite.firstIntValue(resultado) ?? 0;
+  }
+
+  Future<List<DashboardActionMetric>> contarAcoesPorTipo(int usuarioId) async {
+    final db = await _database;
+    final resultado = await db.rawQuery(
+      '''
+        SELECT tipo, COUNT(*) AS total
+        FROM ${HistoricoAcaoTable.tableName}
+        WHERE usuario_id = ?
+        GROUP BY tipo
+        ORDER BY total DESC, tipo ASC
+      ''',
+      [usuarioId],
+    );
+
+    return resultado.map((linha) {
+      return DashboardActionMetric(
+        tipo: linha['tipo'] as String,
+        total: linha['total'] as int,
+      );
+    }).toList();
   }
 }

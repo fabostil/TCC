@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../models/dashboard_action_metric.dart';
 import '../../../models/gravacao.dart';
-import '../../../models/projeto.dart';
+import '../../../models/historico_acao.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/gravacao_repository.dart';
-import '../../../repositories/projeto_repository.dart';
+import '../services/dashboard_service.dart';
 
 class DashboardPage extends StatefulWidget {
   final Usuario usuario;
@@ -19,11 +19,11 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  final DashboardService _dashboardService = DashboardService();
+
   bool _carregando = true;
   String? _erro;
-
-  List<Projeto> _projetos = [];
-  List<Gravacao> _gravacoes = [];
+  DashboardData? _dashboard;
 
   @override
   void initState() {
@@ -37,7 +37,7 @@ class _DashboardPageState extends State<DashboardPage> {
     if (usuarioId == null) {
       setState(() {
         _carregando = false;
-        _erro = 'Usuário sem identificação para carregar o dashboard.';
+        _erro = 'Usuario sem identificacao para carregar o dashboard.';
       });
       return;
     }
@@ -48,18 +48,14 @@ class _DashboardPageState extends State<DashboardPage> {
     });
 
     try {
-      final resultados = await Future.wait([
-        ProjetoRepository.instance.listarProjetosPorUsuario(usuarioId),
-        GravacaoRepository.instance.listarGravacoesPorUsuario(usuarioId),
-      ]);
+      final dashboard = await _dashboardService.carregar(usuarioId);
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _projetos = resultados[0] as List<Projeto>;
-        _gravacoes = resultados[1] as List<Gravacao>;
+        _dashboard = dashboard;
         _carregando = false;
       });
     } catch (e) {
@@ -69,15 +65,10 @@ class _DashboardPageState extends State<DashboardPage> {
 
       setState(() {
         _carregando = false;
-        _erro = 'Não foi possível carregar o dashboard: $e';
+        _erro = 'Nao foi possivel carregar o dashboard: $e';
       });
     }
   }
-
-  int get _duracaoTotalSegundos =>
-      _gravacoes.fold(0, (total, item) => total + item.duracaoSegundos);
-
-  Gravacao? get _ultimaGravacao => _gravacoes.isEmpty ? null : _gravacoes.first;
 
   String _formatarDuracao(int segundos) {
     final horas = segundos ~/ 3600;
@@ -98,7 +89,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final data = DateTime.tryParse(dataIso);
 
     if (data == null) {
-      return 'Data inválida';
+      return 'Data invalida';
     }
 
     final dia = data.day.toString().padLeft(2, '0');
@@ -107,7 +98,53 @@ class _DashboardPageState extends State<DashboardPage> {
     final hora = data.hour.toString().padLeft(2, '0');
     final minuto = data.minute.toString().padLeft(2, '0');
 
-    return '$dia/$mes/$ano às $hora:$minuto';
+    return '$dia/$mes/$ano $hora:$minuto';
+  }
+
+  String _formatarTipo(String tipo) {
+    return tipo.replaceAll('_', ' ');
+  }
+
+  IconData _iconePorTipo(String tipo) {
+    if (tipo.contains('gravacao')) {
+      return Icons.mic_none_rounded;
+    }
+
+    if (tipo.contains('reproducao')) {
+      return Icons.play_circle_outline_rounded;
+    }
+
+    if (tipo.contains('comando')) {
+      return Icons.record_voice_over_outlined;
+    }
+
+    if (tipo.contains('marcador')) {
+      return Icons.bookmark_border_rounded;
+    }
+
+    if (tipo.contains('texto')) {
+      return Icons.notes_rounded;
+    }
+
+    return Icons.history_rounded;
+  }
+
+  Color _corPorTipo(BuildContext context, String tipo) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (tipo.contains('excluida') || tipo.contains('nao_reconhecido')) {
+      return colorScheme.error;
+    }
+
+    if (tipo.contains('pausada')) {
+      return Colors.orange.shade700;
+    }
+
+    if (tipo.contains('reproduzida') || tipo.contains('retomada')) {
+      return Colors.green.shade700;
+    }
+
+    return colorScheme.primary;
   }
 
   @override
@@ -115,9 +152,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-      ),
+      appBar: AppBar(title: const Text('Dashboard')),
       body: RefreshIndicator(
         onRefresh: _carregarDashboard,
         child: Builder(
@@ -147,7 +182,9 @@ class _DashboardPageState extends State<DashboardPage> {
               );
             }
 
-            if (_projetos.isEmpty && _gravacoes.isEmpty) {
+            final dashboard = _dashboard;
+
+            if (dashboard == null || dashboard.estaVazio) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
@@ -156,99 +193,84 @@ class _DashboardPageState extends State<DashboardPage> {
                     icon: Icons.insights_outlined,
                     title: 'Sem dados suficientes ainda',
                     subtitle:
-                        'Crie projetos e grave áudios para começar a visualizar indicadores aqui.',
+                        'Crie projetos, grave audios ou use comandos de voz para visualizar indicadores aqui.',
                   ),
                 ],
               );
             }
 
             return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(AppSpacing.xl),
               children: [
-                Text(
-                  'Resumo geral',
-                  style: theme.textTheme.titleLarge,
-                ),
+                Text('Resumo geral', style: theme.textTheme.titleLarge),
                 const SizedBox(height: AppSpacing.md),
-                Row(
+                _MetricGrid(
                   children: [
-                    Expanded(
-                      child: _MetricCard(
-                        icon: Icons.folder_outlined,
-                        title: 'Projetos',
-                        value: _projetos.length.toString(),
-                      ),
+                    _MetricCard(
+                      icon: Icons.folder_outlined,
+                      title: 'Projetos',
+                      value: dashboard.totalProjetos.toString(),
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: _MetricCard(
-                        icon: Icons.library_music_outlined,
-                        title: 'Gravações',
-                        value: _gravacoes.length.toString(),
-                      ),
+                    _MetricCard(
+                      icon: Icons.library_music_outlined,
+                      title: 'Gravacoes',
+                      value: dashboard.totalGravacoes.toString(),
+                    ),
+                    _MetricCard(
+                      icon: Icons.timer_outlined,
+                      title: 'Duracao total',
+                      value: _formatarDuracao(dashboard.duracaoTotalSegundos),
+                    ),
+                    _MetricCard(
+                      icon: Icons.record_voice_over_outlined,
+                      title: 'Comandos',
+                      value: dashboard.totalComandos.toString(),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                _MetricCard(
-                  icon: Icons.timer_outlined,
-                  title: 'Duração total',
-                  value: _formatarDuracao(_duracaoTotalSegundos),
-                  wide: true,
+                const SizedBox(height: AppSpacing.xl),
+                Text('Comandos de voz', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.md),
+                _MetricGrid(
+                  children: [
+                    _MetricCard(
+                      icon: Icons.check_circle_outline_rounded,
+                      title: 'Reconhecidos',
+                      value: dashboard.comandosReconhecidos.toString(),
+                      color: Colors.green.shade700,
+                    ),
+                    _MetricCard(
+                      icon: Icons.help_outline_rounded,
+                      title: 'Nao reconhecidos',
+                      value: dashboard.comandosNaoReconhecidos.toString(),
+                      color: theme.colorScheme.error,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.xl),
-                Text(
-                  'Última gravação',
-                  style: theme.textTheme.titleLarge,
+                _UltimaGravacaoCard(
+                  gravacao: dashboard.ultimaGravacao,
+                  formatarData: _formatarData,
+                  formatarDuracao: _formatarDuracao,
                 ),
-                const SizedBox(height: AppSpacing.md),
-                if (_ultimaGravacao == null)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(AppSpacing.lg),
-                      child: Text('Nenhuma gravação encontrada até o momento.'),
-                    ),
-                  ),
-                if (_ultimaGravacao != null)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: theme.colorScheme.primary
-                                    .withOpacity(0.12),
-                                child: Icon(
-                                  Icons.mic_rounded,
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: Text(
-                                  _ultimaGravacao!.nome,
-                                  style: theme.textTheme.titleMedium,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          Text(
-                            'Gravada em: ${_formatarData(_ultimaGravacao!.dataCriacao)}',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Duração: ${_formatarDuracao(_ultimaGravacao!.duracaoSegundos)}',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                const SizedBox(height: AppSpacing.xl),
+                _AcoesPorTipoCard(
+                  metricas: dashboard.acoesPorTipo,
+                  formatarTipo: _formatarTipo,
+                  iconePorTipo: _iconePorTipo,
+                  corPorTipo: (tipo) => _corPorTipo(context, tipo),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _EventosRecentesCard(
+                  eventos: dashboard.eventosRecentes,
+                  formatarData: _formatarData,
+                  formatarTipo: _formatarTipo,
+                  iconePorTipo: _iconePorTipo,
+                  corPorTipo: (tipo) => _corPorTipo(context, tipo),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                const _InsightsPlaceholder(),
               ],
             );
           },
@@ -258,18 +280,325 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
+class _MetricGrid extends StatelessWidget {
+  final List<Widget> children;
+
+  const _MetricGrid({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final largura = constraints.maxWidth;
+        final colunas = largura >= 560 ? 4 : 2;
+        final itemWidth = (largura - (AppSpacing.sm * (colunas - 1))) / colunas;
+
+        return Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: children
+              .map((child) => SizedBox(width: itemWidth, child: child))
+              .toList(),
+        );
+      },
+    );
+  }
+}
+
 class _MetricCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String value;
-  final bool wide;
+  final Color? color;
 
   const _MetricCard({
     required this.icon,
     required this.title,
     required this.value,
-    this.wide = false,
+    this.color,
   });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final metricColor = color ?? theme.colorScheme.primary;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: metricColor.withAlpha(28),
+              child: Icon(icon, color: metricColor),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(title, style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 4),
+            Text(value, style: theme.textTheme.titleLarge),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UltimaGravacaoCard extends StatelessWidget {
+  final Gravacao? gravacao;
+  final String Function(String dataIso) formatarData;
+  final String Function(int segundos) formatarDuracao;
+
+  const _UltimaGravacaoCard({
+    required this.gravacao,
+    required this.formatarData,
+    required this.formatarDuracao,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final item = gravacao;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Ultima gravacao', style: theme.textTheme.titleLarge),
+        const SizedBox(height: AppSpacing.md),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: item == null
+                ? const Text('Nenhuma gravacao encontrada ate o momento.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: theme.colorScheme.primary
+                                .withAlpha(28),
+                            child: Icon(
+                              Icons.mic_rounded,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Text(
+                              item.nome,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Gravada em: ${formatarData(item.dataCriacao)}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Duracao: ${formatarDuracao(item.duracaoSegundos)}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AcoesPorTipoCard extends StatelessWidget {
+  final List<DashboardActionMetric> metricas;
+  final String Function(String tipo) formatarTipo;
+  final IconData Function(String tipo) iconePorTipo;
+  final Color Function(String tipo) corPorTipo;
+
+  const _AcoesPorTipoCard({
+    required this.metricas,
+    required this.formatarTipo,
+    required this.iconePorTipo,
+    required this.corPorTipo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Acoes por tipo', style: theme.textTheme.titleLarge),
+        const SizedBox(height: AppSpacing.md),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: metricas.isEmpty
+                ? const Text('Nenhuma acao registrada ainda.')
+                : Column(
+                    children: metricas
+                        .map(
+                          (metrica) => _ActionMetricTile(
+                            icon: iconePorTipo(metrica.tipo),
+                            color: corPorTipo(metrica.tipo),
+                            title: formatarTipo(metrica.tipo),
+                            value: metrica.total.toString(),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EventosRecentesCard extends StatelessWidget {
+  final List<HistoricoAcao> eventos;
+  final String Function(String dataIso) formatarData;
+  final String Function(String tipo) formatarTipo;
+  final IconData Function(String tipo) iconePorTipo;
+  final Color Function(String tipo) corPorTipo;
+
+  const _EventosRecentesCard({
+    required this.eventos,
+    required this.formatarData,
+    required this.formatarTipo,
+    required this.iconePorTipo,
+    required this.corPorTipo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Eventos recentes', style: theme.textTheme.titleLarge),
+        const SizedBox(height: AppSpacing.md),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: eventos.isEmpty
+                ? const Text('Nenhum evento recente registrado.')
+                : Column(
+                    children: eventos
+                        .map(
+                          (evento) => _EventTile(
+                            icon: iconePorTipo(evento.tipo),
+                            color: corPorTipo(evento.tipo),
+                            title: formatarTipo(evento.tipo),
+                            subtitle: evento.descricao,
+                            trailing: formatarData(evento.dataHora),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionMetricTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String value;
+
+  const _ActionMetricTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: color.withAlpha(28),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(child: Text(title, style: theme.textTheme.bodyLarge)),
+          Text(value, style: theme.textTheme.titleMedium),
+        ],
+      ),
+    );
+  }
+}
+
+class _EventTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final String trailing;
+
+  const _EventTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: color.withAlpha(28),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(title, style: theme.textTheme.titleMedium),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(trailing, style: theme.textTheme.bodySmall),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(subtitle, style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightsPlaceholder extends StatelessWidget {
+  const _InsightsPlaceholder();
 
   @override
   Widget build(BuildContext context) {
@@ -279,20 +608,29 @@ class _MetricCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             CircleAvatar(
-              radius: wide ? 24 : 22,
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
-              child: Icon(icon, color: theme.colorScheme.primary),
+              backgroundColor: theme.colorScheme.secondary.withAlpha(28),
+              child: Icon(
+                Icons.auto_awesome_outlined,
+                color: theme.colorScheme.secondary,
+              ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 4),
-                  Text(value, style: theme.textTheme.titleLarge),
+                  Text(
+                    'Insights inteligentes',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Estrutura pronta para gerar recomendacoes futuras a partir das metricas, sem acoplar Gemini diretamente a UI.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
                 ],
               ),
             ),
