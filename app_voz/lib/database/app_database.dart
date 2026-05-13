@@ -2,6 +2,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'tables/comando_voz_table.dart';
+import 'tables/configuracao_app_table.dart';
 import 'tables/gravacao_table.dart';
 import 'tables/historico_acao_table.dart';
 import 'tables/projeto_table.dart';
@@ -28,7 +29,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -51,6 +52,8 @@ class AppDatabase {
     await db.execute(GravacaoTable.createTable);
     await db.execute(ComandoVozTable.createTable);
     await db.execute(HistoricoAcaoTable.createTable);
+    await db.execute(ConfiguracaoAppTable.createTable);
+    await db.execute(ConfiguracaoAppTable.insertDefault);
 
     for (final index in ProjetoTable.indexes) {
       await db.execute(index);
@@ -119,6 +122,11 @@ class AppDatabase {
       for (final index in HistoricoAcaoTable.indexes) {
         await db.execute(index);
       }
+    }
+
+    if (oldVersion < 4) {
+      await db.execute(ConfiguracaoAppTable.createTable);
+      await db.execute(ConfiguracaoAppTable.insertDefault);
     }
   }
 

@@ -1,17 +1,112 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
+import '../../../core/ui/app_feedback.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../models/configuracao_app.dart';
 import '../../../models/usuario.dart';
+import '../../../repositories/configuracao_app_repository.dart';
 import '../../dashboard/pages/dashboard_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
+import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/pages/login_page.dart';
 import '../../voices/pages/voice_page.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   final Usuario usuario;
 
   const HomePage({super.key, required this.usuario});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  ConfiguracaoApp? _configuracao;
+  bool _verificandoPrimeiraExecucao = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarConfiguracaoInicial();
+  }
+
+  Future<void> _carregarConfiguracaoInicial() async {
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _configuracao = configuracao;
+      _verificandoPrimeiraExecucao = false;
+    });
+
+    if (!configuracao.primeiraExecucaoConcluida) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _mostrarConfiguracaoInicialVoz();
+        }
+      });
+    }
+  }
+
+  Future<void> _mostrarConfiguracaoInicialVoz() async {
+    final habilitarVoz = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Habilitar comandos de voz?'),
+        content: const Text(
+          'Com essa opção ativa, você poderá controlar gravações, reprodução e navegação por comandos de voz. Você ainda poderá usar os botões normalmente e alterar isso depois em Configurações.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Usar modo manual'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.mic_rounded),
+            label: const Text('Habilitar voz'),
+          ),
+        ],
+      ),
+    );
+
+    final deveHabilitar = habilitarVoz ?? false;
+    var comandosAtivos = deveHabilitar;
+
+    if (deveHabilitar) {
+      final permissao = await Permission.microphone.request();
+      comandosAtivos = permissao.isGranted;
+
+      if (!permissao.isGranted && mounted) {
+        AppFeedback.showMessage(
+          context,
+          'Permissão de microfone negada. O app continuará em modo manual.',
+        );
+      }
+    }
+
+    await ConfiguracaoAppRepository.instance.concluirPrimeiraExecucao(
+      comandosVozAtivos: comandosAtivos,
+    );
+
+    final atualizada = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _configuracao = atualizada;
+    });
+  }
 
   void _sair(BuildContext context) {
     Navigator.pushAndRemoveUntil(
@@ -26,7 +121,7 @@ class HomePage extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (_) => MeusProjetosPage(
-          usuario: usuario,
+          usuario: widget.usuario,
           abrirCriacaoAoEntrar: true,
         ),
       ),
@@ -37,7 +132,7 @@ class HomePage extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MeusProjetosPage(usuario: usuario),
+        builder: (_) => MeusProjetosPage(usuario: widget.usuario),
       ),
     );
   }
@@ -45,7 +140,7 @@ class HomePage extends StatelessWidget {
   void _abrirAssistente(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => VoicePage(usuario: usuario)),
+      MaterialPageRoute(builder: (_) => VoicePage(usuario: widget.usuario)),
     );
   }
 
@@ -53,7 +148,7 @@ class HomePage extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MinhasGravacoesPage(usuario: usuario),
+        builder: (_) => MinhasGravacoesPage(usuario: widget.usuario),
       ),
     );
   }
@@ -61,20 +156,42 @@ class HomePage extends StatelessWidget {
   void _abrirDashboard(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => DashboardPage(usuario: usuario),
-      ),
+      MaterialPageRoute(builder: (_) => DashboardPage(usuario: widget.usuario)),
     );
+  }
+
+  Future<void> _abrirConfiguracoes(BuildContext context) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ConfiguracoesPage()),
+    );
+
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _configuracao = configuracao;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final comandosAtivos = _configuracao?.comandosVozAtivos == true;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Assistente Musical'),
         actions: [
+          IconButton(
+            tooltip: 'Configurações',
+            onPressed: () => _abrirConfiguracoes(context),
+            icon: const Icon(Icons.settings_rounded),
+          ),
           IconButton(
             tooltip: 'Sair',
             onPressed: () => _sair(context),
@@ -103,18 +220,24 @@ class HomePage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Olá, ${usuario.nome}',
+                    'Olá, ${widget.usuario.nome}',
                     style: theme.textTheme.headlineMedium,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Organize ideias musicais, grave com rapidez e acompanhe seus projetos com uma experiência mais fluida.',
+                    comandosAtivos
+                        ? 'Comandos de voz ativos. Você ainda pode usar os botões sempre que quiser.'
+                        : 'Modo manual ativo. Você pode habilitar comandos de voz em Configurações.',
                     style: theme.textTheme.bodyLarge,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: AppSpacing.xxl),
+            if (_verificandoPrimeiraExecucao)
+              const LinearProgressIndicator(minHeight: 2),
+            if (_verificandoPrimeiraExecucao)
+              const SizedBox(height: AppSpacing.md),
             Text('Atalhos', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(
@@ -127,7 +250,9 @@ class HomePage extends StatelessWidget {
             _HomeCard(
               icon: Icons.mic_none_rounded,
               title: 'Assistente de voz',
-              subtitle: 'Use comandos para iniciar, pausar e encerrar gravações.',
+              subtitle: comandosAtivos
+                  ? 'Use comandos para iniciar, pausar e encerrar gravações.'
+                  : 'Comandos de voz desativados. Ative em Configurações.',
               onTap: () => _abrirAssistente(context),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -150,6 +275,13 @@ class HomePage extends StatelessWidget {
               title: 'Dashboard',
               subtitle: 'Visualize métricas e resumos de uso do sistema.',
               onTap: () => _abrirDashboard(context),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _HomeCard(
+              icon: Icons.settings_outlined,
+              title: 'Configurações',
+              subtitle: 'Ajuste comandos de voz, escuta e opções de gravação.',
+              onTap: () => _abrirConfiguracoes(context),
             ),
           ],
         ),

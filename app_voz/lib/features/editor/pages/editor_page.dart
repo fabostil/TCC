@@ -6,6 +6,7 @@ import '../../../models/gravacao.dart';
 import '../../../models/projeto.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/comando_voz_repository.dart';
+import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/gravacao_repository.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../voices/services/speech_service.dart';
@@ -113,6 +114,19 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   Future<void> alternarMicrofone() async {
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!configuracao.comandosVozAtivos) {
+      setState(() {
+        ouvindo = false;
+        textoReconhecido = 'Comandos de voz desativados.';
+        statusProjeto =
+            'Ative o controle por voz em Configurações para usar comandos.';
+      });
+      return;
+    }
+
     if (gravando) {
       setState(() {
         statusProjeto =

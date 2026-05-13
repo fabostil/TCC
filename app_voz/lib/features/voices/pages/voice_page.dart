@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../models/usuario.dart';
 import '../../../repositories/comando_voz_repository.dart';
+import '../../../repositories/configuracao_app_repository.dart';
 import 'login_page.dart';
 import '../services/speech_service.dart';
 
@@ -24,6 +25,19 @@ class _VoicePageState extends State<VoicePage> {
   String ultimoComando = 'Nenhum comando executado ainda.';
 
   Future<void> toggleListening() async {
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!configuracao.comandosVozAtivos) {
+      setState(() {
+        listening = false;
+        text = 'Comandos de voz desativados.';
+        ultimoComando =
+            'Ative o controle por voz em Configurações para usar o assistente.';
+      });
+      return;
+    }
+
     if (!listening) {
       setState(() {
         listening = true;
