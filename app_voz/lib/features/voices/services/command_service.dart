@@ -161,6 +161,10 @@ class CommandService {
       'abrir dashboard',
       'mostrar dashboard',
       'ir para dashboard',
+      'meus numeros',
+      'minhas metricas',
+      'ver metricas',
+      'minha produtividade',
     ])) {
       return _recognized(
         text,
@@ -233,6 +237,10 @@ class CommandService {
       'abrir historico',
       'mostrar historico',
       'ir para historico',
+      'atividade recente',
+      'minha atividade recente',
+      'linha do tempo',
+      'historico de atividades',
     ])) {
       return _recognized(
         text,

@@ -76,6 +76,17 @@ void main() {
       expect(service.interpret('sair').type, VoiceCommandType.sair);
     });
 
+    test('reconhece frases naturais frequentes sem acionar IA', () {
+      expect(
+        service.interpret('quero ver minha atividade recente').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(
+        service.interpret('me mostra meus numeros').type,
+        VoiceCommandType.abrirDashboard,
+      );
+    });
+
     test('retorna desconhecido para comando nao mapeado', () {
       final result = service.interpret('abrir afinador');
 

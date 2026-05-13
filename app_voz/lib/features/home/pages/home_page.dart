@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -13,6 +15,9 @@ import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/pages/login_page.dart';
 import '../../voices/pages/voice_page.dart';
+import '../../voices/services/ai_command_service.dart';
+import '../../voices/services/command_service.dart';
+import '../../voices/services/speech_service.dart';
 
 class HomePage extends StatefulWidget {
   final Usuario usuario;
@@ -24,8 +29,16 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final SpeechService _speechService = SpeechService();
+  final CommandService _commandService = const CommandService();
+  final AiCommandService _aiCommandService = AiCommandService();
+
   ConfiguracaoApp? _configuracao;
   bool _verificandoPrimeiraExecucao = true;
+  bool _ouvindo = false;
+  bool _iaPensando = false;
+  bool _escutaInicialSolicitada = false;
+  String _statusVoz = 'Assistente de voz aguardando.';
 
   @override
   void initState() {
@@ -52,6 +65,8 @@ class _HomePageState extends State<HomePage> {
           _mostrarConfiguracaoInicialVoz();
         }
       });
+    } else if (configuracao.comandosVozAtivos) {
+      _agendarEscutaInicial();
     }
   }
 
@@ -107,6 +122,24 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _configuracao = atualizada;
     });
+
+    if (atualizada.comandosVozAtivos) {
+      _agendarEscutaInicial();
+    }
+  }
+
+  void _agendarEscutaInicial() {
+    if (_escutaInicialSolicitada) {
+      return;
+    }
+
+    _escutaInicialSolicitada = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _iniciarEscutaHome();
+      }
+    });
   }
 
   void _sair(BuildContext context) {
@@ -145,6 +178,95 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _alternarEscutaHome() async {
+    if (_ouvindo) {
+      await _speechService.stopListening();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _ouvindo = false;
+        _statusVoz = 'Escuta encerrada.';
+      });
+      return;
+    }
+
+    await _iniciarEscutaHome();
+  }
+
+  Future<void> _iniciarEscutaHome() async {
+    final configuracao =
+        _configuracao ??
+        await ConfiguracaoAppRepository.instance.buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!configuracao.comandosVozAtivos) {
+      setState(() {
+        _ouvindo = false;
+        _statusVoz = 'Comandos de voz desativados.';
+      });
+      return;
+    }
+
+    setState(() {
+      _ouvindo = true;
+      _statusVoz = 'Ouvindo comando...';
+    });
+
+    await _speechService.startListening(
+      onResult: (texto) {
+        setState(() {
+          _statusVoz = 'Comando detectado: $texto';
+        });
+
+        unawaited(_executarComandoHome(texto));
+      },
+      onStatus: (status) {
+        if (!mounted) {
+          return;
+        }
+
+        if (status == 'listening') {
+          setState(() {
+            _ouvindo = true;
+            _statusVoz = 'Estou ouvindo...';
+          });
+        }
+
+        if (status == 'done' || status == 'notListening') {
+          setState(() {
+            _ouvindo = false;
+          });
+
+          if (_configuracao?.escutaContinua == true) {
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted && !_ouvindo) {
+                _iniciarEscutaHome();
+              }
+            });
+          }
+        }
+      },
+      onError: (error) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _ouvindo = false;
+          _statusVoz = error == 'error_speech_timeout'
+              ? 'Nenhuma fala detectada.'
+              : 'Erro no reconhecimento de voz: $error';
+        });
+      },
+    );
+  }
+
   void _abrirGravacoes(BuildContext context) {
     Navigator.push(
       context,
@@ -168,6 +290,75 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _executarComandoHome(String comando) async {
+    var resultado = _commandService.interpret(comando);
+
+    if (resultado.normalizedText.isEmpty) {
+      return;
+    }
+
+    if (!resultado.recognized && _aiCommandService.isConfigured) {
+      setState(() {
+        _iaPensando = true;
+        _statusVoz = 'IA pensando...';
+      });
+
+      resultado = await _aiCommandService.interpretUnknown(comando);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _iaPensando = false;
+      });
+    }
+
+    switch (resultado.type) {
+      case VoiceCommandType.abrirDashboard:
+        _abrirDashboard(context);
+        return;
+      case VoiceCommandType.abrirProjetos:
+        _abrirProjetos(context);
+        return;
+      case VoiceCommandType.abrirGravacoes:
+      case VoiceCommandType.listarGravacoes:
+        _abrirGravacoes(context);
+        return;
+      case VoiceCommandType.abrirConfiguracoes:
+        await _abrirConfiguracoes(context);
+        return;
+      case VoiceCommandType.abrirAssistente:
+        _abrirAssistente(context);
+        return;
+      case VoiceCommandType.abrirHistorico:
+        _abrirHistorico(context);
+        return;
+      case VoiceCommandType.voltar:
+        Navigator.maybePop(context);
+        return;
+      case VoiceCommandType.sair:
+        _sair(context);
+        return;
+      case VoiceCommandType.iniciarGravacao:
+      case VoiceCommandType.pausarGravacao:
+      case VoiceCommandType.retomarGravacao:
+      case VoiceCommandType.encerrarGravacao:
+      case VoiceCommandType.pararReproducao:
+      case VoiceCommandType.reproduzirGravacao:
+      case VoiceCommandType.criarMarcador:
+      case VoiceCommandType.limparTexto:
+      case VoiceCommandType.desconhecido:
+        setState(() {
+          _iaPensando = false;
+          _statusVoz = _aiCommandService.isConfigured
+              ? 'Comando nao executavel nesta tela.'
+              : 'Comando nao reconhecido. Configure GEMINI_API_KEY para NLU.';
+        });
+        return;
+    }
+  }
+
   Future<void> _abrirConfiguracoes(BuildContext context) async {
     await Navigator.push(
       context,
@@ -184,6 +375,12 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _configuracao = configuracao;
     });
+  }
+
+  @override
+  void dispose() {
+    _speechService.stopListening();
+    super.dispose();
   }
 
   @override
@@ -237,6 +434,33 @@ class _HomePageState extends State<HomePage> {
                         ? 'Comandos de voz ativos. Você ainda pode usar os botões sempre que quiser.'
                         : 'Modo manual ativo. Você pode habilitar comandos de voz em Configurações.',
                     style: theme.textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Row(
+                    children: [
+                      Icon(
+                        _ouvindo ? Icons.mic_rounded : Icons.mic_none_rounded,
+                        color: comandosAtivos
+                            ? theme.colorScheme.primary
+                            : theme.disabledColor,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          _iaPensando ? 'IA pensando...' : _statusVoz,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: _ouvindo ? 'Parar escuta' : 'Ouvir comando',
+                        onPressed: comandosAtivos ? _alternarEscutaHome : null,
+                        icon: Icon(
+                          _ouvindo
+                              ? Icons.stop_circle_outlined
+                              : Icons.mic_none_rounded,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

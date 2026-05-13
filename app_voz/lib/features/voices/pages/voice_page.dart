@@ -11,6 +11,7 @@ import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
 import 'login_page.dart';
+import '../services/ai_command_service.dart';
 import '../services/command_service.dart';
 import '../services/speech_service.dart';
 
@@ -26,8 +27,10 @@ class VoicePage extends StatefulWidget {
 class _VoicePageState extends State<VoicePage> {
   final SpeechService speech = SpeechService();
   final CommandService commandService = const CommandService();
+  final AiCommandService aiCommandService = AiCommandService();
 
   bool listening = false;
+  bool iaPensando = false;
   String text = 'Pressione o microfone e fale';
   String ultimoComando = 'Nenhum comando executado ainda.';
 
@@ -58,7 +61,7 @@ class _VoicePageState extends State<VoicePage> {
             text = result;
           });
 
-          handleVoiceCommand(result);
+          unawaited(handleVoiceCommand(result));
         },
         onStatus: (status) {
           if (!mounted) {
@@ -117,11 +120,28 @@ class _VoicePageState extends State<VoicePage> {
     });
   }
 
-  void handleVoiceCommand(String command) {
-    final resultado = commandService.interpret(command);
+  Future<void> handleVoiceCommand(String command) async {
+    var resultado = commandService.interpret(command);
 
     if (resultado.normalizedText.isEmpty) {
       return;
+    }
+
+    if (!resultado.recognized && aiCommandService.isConfigured) {
+      setState(() {
+        iaPensando = true;
+        ultimoComando = 'IA pensando...';
+      });
+
+      resultado = await aiCommandService.interpretUnknown(command);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        iaPensando = false;
+      });
     }
 
     if (resultado.recognized) {
@@ -211,7 +231,10 @@ class _VoicePageState extends State<VoicePage> {
     );
 
     setState(() {
-      ultimoComando = 'Comando nao reconhecido.';
+      iaPensando = false;
+      ultimoComando = aiCommandService.isConfigured
+          ? 'Comando nao reconhecido pela IA.'
+          : 'Comando nao reconhecido. Configure GEMINI_API_KEY para NLU.';
     });
   }
 
@@ -387,7 +410,7 @@ class _VoicePageState extends State<VoicePage> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                ultimoComando,
+                iaPensando ? 'IA pensando...' : ultimoComando,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 16),
               ),
