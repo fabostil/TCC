@@ -44,6 +44,9 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
 
   bool _carregando = true;
   bool _ouvindo = false;
+  bool _escutaContinuaAtiva = false;
+  bool _paradaManualEscuta = false;
+  bool _executandoComandoVoz = false;
   String? _erro;
   String? _statusVoz;
   int? _gravacaoReproduzindoId;
@@ -64,6 +67,9 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       }
     });
     _carregarGravacoes();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _iniciarEscutaContinuaSeAtiva();
+    });
   }
 
   Future<void> _carregarGravacoes() async {
@@ -303,6 +309,12 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
   }
 
   Future<void> _abrirEditor() async {
+    await _suspenderEscutaParaAcao();
+
+    if (!mounted) {
+      return;
+    }
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -326,6 +338,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
 
   Future<void> _alternarEscutaVoz() async {
     if (_ouvindo) {
+      _paradaManualEscuta = true;
       await _speechService.stopListening();
       if (!mounted) {
         return;
@@ -337,12 +350,36 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       return;
     }
 
+    _paradaManualEscuta = false;
+    await _iniciarEscutaVoz();
+  }
+
+  Future<void> _iniciarEscutaContinuaSeAtiva() async {
     final configuracao = await ConfiguracaoAppRepository.instance
         .buscarConfiguracao();
 
     if (!mounted) {
       return;
     }
+
+    _escutaContinuaAtiva =
+        configuracao.comandosVozAtivos && configuracao.escutaContinua;
+
+    if (_escutaContinuaAtiva && !_ouvindo && !_paradaManualEscuta) {
+      await _iniciarEscutaVoz();
+    }
+  }
+
+  Future<void> _iniciarEscutaVoz() async {
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    _escutaContinuaAtiva =
+        configuracao.comandosVozAtivos && configuracao.escutaContinua;
 
     if (!configuracao.comandosVozAtivos) {
       setState(() {
@@ -368,6 +405,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
           setState(() {
             _ouvindo = false;
           });
+          _reiniciarEscutaContinuaSeNecessario();
         }
       },
       onError: (error) {
@@ -378,26 +416,36 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
           _ouvindo = false;
           _statusVoz = 'Erro no reconhecimento de voz: $error';
         });
+        _reiniciarEscutaContinuaSeNecessario();
       },
     );
   }
 
   Future<void> _executarComandoVoz(String texto) async {
+    if (_executandoComandoVoz) {
+      return;
+    }
+
+    _executandoComandoVoz = true;
     final resultadoController = await _commandController.interpret(texto);
     final resultado = resultadoController.commandResult;
 
     unawaited(_registrarComando(resultado));
 
     if (!mounted || resultado.normalizedText.isEmpty) {
+      _executandoComandoVoz = false;
       return;
     }
 
     switch (resultado.type) {
       case VoiceCommandType.abrirEditor:
         await _abrirEditor();
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.reproduzirGravacao:
         await _reproduzirPorNome(resultado.parametro);
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.pararReproducao:
         await _playerService.stop();
@@ -407,18 +455,30 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
             _statusVoz = 'Reproducao parada.';
           });
         }
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.renomearGravacao:
         await _renomearPorVoz(
           resultado.parametro,
           resultado.parametroSecundario,
         );
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.excluirGravacao:
         await _excluirPorVoz(resultado.parametro);
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.voltar:
+        await _suspenderEscutaParaAcao();
+        if (!mounted) {
+          _executandoComandoVoz = false;
+          return;
+        }
         Navigator.maybePop(context);
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.iniciarGravacao:
       case VoiceCommandType.pausarGravacao:
@@ -453,7 +513,45 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
               ? 'Comando nao disponivel nesta tela.'
               : 'Comando nao reconhecido nesta tela.';
         });
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
+    }
+  }
+
+  void _reiniciarEscutaContinuaSeNecessario() {
+    if (!_escutaContinuaAtiva ||
+        _paradaManualEscuta ||
+        _executandoComandoVoz ||
+        !mounted) {
+      return;
+    }
+
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted ||
+          _ouvindo ||
+          _paradaManualEscuta ||
+          _executandoComandoVoz ||
+          !_escutaContinuaAtiva) {
+        return;
+      }
+
+      unawaited(_iniciarEscutaVoz());
+    });
+  }
+
+  Future<void> _suspenderEscutaParaAcao() async {
+    _paradaManualEscuta = true;
+    _escutaContinuaAtiva = false;
+
+    if (_ouvindo || _speechService.isListening) {
+      await _speechService.cancelListening();
+    }
+
+    if (mounted) {
+      setState(() {
+        _ouvindo = false;
+      });
     }
   }
 

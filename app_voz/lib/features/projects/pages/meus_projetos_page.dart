@@ -37,6 +37,9 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
   final List<Projeto> _projetos = [];
   bool _carregando = true;
   bool _ouvindo = false;
+  bool _escutaContinuaAtiva = false;
+  bool _paradaManualEscuta = false;
+  bool _executandoComandoVoz = false;
   String? _erro;
   String? _statusVoz;
   String? _nomeProjetoVoz;
@@ -51,7 +54,9 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       if (widget.abrirCriacaoAoEntrar && !_abriuCriacaoInicial && mounted) {
         _abriuCriacaoInicial = true;
         _abrirCriacaoProjeto();
+        return;
       }
+      _iniciarEscutaContinuaSeAtiva();
     });
   }
 
@@ -111,6 +116,12 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
   }
 
   Future<void> _abrirCriacaoProjeto() async {
+    await _suspenderEscutaParaAcao();
+
+    if (!mounted) {
+      return;
+    }
+
     final resultado = await showDialog<Projeto>(
       context: context,
       builder: (dialogContext) {
@@ -147,6 +158,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
 
   Future<void> _alternarEscutaVoz() async {
     if (_ouvindo) {
+      _paradaManualEscuta = true;
       await _speechService.stopListening();
 
       if (!mounted) {
@@ -160,12 +172,36 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       return;
     }
 
+    _paradaManualEscuta = false;
+    await _iniciarEscutaVoz();
+  }
+
+  Future<void> _iniciarEscutaContinuaSeAtiva() async {
     final configuracao = await ConfiguracaoAppRepository.instance
         .buscarConfiguracao();
 
     if (!mounted) {
       return;
     }
+
+    _escutaContinuaAtiva =
+        configuracao.comandosVozAtivos && configuracao.escutaContinua;
+
+    if (_escutaContinuaAtiva && !_ouvindo && !_paradaManualEscuta) {
+      await _iniciarEscutaVoz();
+    }
+  }
+
+  Future<void> _iniciarEscutaVoz() async {
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    _escutaContinuaAtiva =
+        configuracao.comandosVozAtivos && configuracao.escutaContinua;
 
     if (!configuracao.comandosVozAtivos) {
       setState(() {
@@ -192,6 +228,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
           setState(() {
             _ouvindo = false;
           });
+          _reiniciarEscutaContinuaSeNecessario();
         }
       },
       onError: (error) {
@@ -203,17 +240,24 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
           _ouvindo = false;
           _statusVoz = 'Erro no reconhecimento de voz: $error';
         });
+        _reiniciarEscutaContinuaSeNecessario();
       },
     );
   }
 
   Future<void> _executarComandoVoz(String texto) async {
+    if (_executandoComandoVoz) {
+      return;
+    }
+
+    _executandoComandoVoz = true;
     final resultadoController = await _commandController.interpret(texto);
     final resultado = resultadoController.commandResult;
 
     unawaited(_registrarComando(resultado));
 
     if (!mounted || resultado.normalizedText.isEmpty) {
+      _executandoComandoVoz = false;
       return;
     }
 
@@ -226,18 +270,29 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
           _nomeProjetoVoz = resultado.parametro;
           _statusVoz = 'Nome do projeto definido: ${resultado.parametro}.';
         });
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.definirDescricaoProjeto:
         setState(() {
           _descricaoProjetoVoz = resultado.parametro;
           _statusVoz = 'Descricao do projeto definida por voz.';
         });
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.abrirProjetoPorNome:
         await _abrirProjetoPorNome(resultado.parametro);
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.voltar:
+        await _suspenderEscutaParaAcao();
+        if (!mounted) {
+          _executandoComandoVoz = false;
+          return;
+        }
         Navigator.maybePop(context);
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.iniciarGravacao:
       case VoiceCommandType.pausarGravacao:
@@ -273,7 +328,45 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
               ? 'Comando nao disponivel nesta tela.'
               : 'Comando nao reconhecido nesta tela.';
         });
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
+    }
+  }
+
+  void _reiniciarEscutaContinuaSeNecessario() {
+    if (!_escutaContinuaAtiva ||
+        _paradaManualEscuta ||
+        _executandoComandoVoz ||
+        !mounted) {
+      return;
+    }
+
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted ||
+          _ouvindo ||
+          _paradaManualEscuta ||
+          _executandoComandoVoz ||
+          !_escutaContinuaAtiva) {
+        return;
+      }
+
+      unawaited(_iniciarEscutaVoz());
+    });
+  }
+
+  Future<void> _suspenderEscutaParaAcao() async {
+    _paradaManualEscuta = true;
+    _escutaContinuaAtiva = false;
+
+    if (_ouvindo || _speechService.isListening) {
+      await _speechService.cancelListening();
+    }
+
+    if (mounted) {
+      setState(() {
+        _ouvindo = false;
+      });
     }
   }
 
@@ -282,6 +375,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
 
     if (nome == null || nome.isEmpty) {
       await _abrirCriacaoProjeto();
+      _executandoComandoVoz = false;
       return;
     }
 
@@ -290,6 +384,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       setState(() {
         _statusVoz = 'Usuario sem identificacao para criar projeto.';
       });
+      _executandoComandoVoz = false;
       return;
     }
 
@@ -324,6 +419,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
         dataCriacao: novoProjeto.dataCriacao,
       ),
     );
+    _executandoComandoVoz = false;
   }
 
   Future<void> _abrirProjetoPorNome(String? nomeFalado) async {
@@ -332,6 +428,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       setState(() {
         _statusVoz = 'Diga o nome do projeto que deseja abrir.';
       });
+      _executandoComandoVoz = false;
       return;
     }
 
@@ -347,9 +444,11 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       setState(() {
         _statusVoz = 'Projeto "$nomeFalado" nao encontrado.';
       });
+      _executandoComandoVoz = false;
       return;
     }
 
+    await _suspenderEscutaParaAcao();
     await _abrirProjeto(projeto);
   }
 

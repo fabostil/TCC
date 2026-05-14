@@ -27,6 +27,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
   final VoiceCommandController _commandController = VoiceCommandController();
   bool _carregando = true;
   bool _ouvindo = false;
+  bool _escutaContinuaAtiva = false;
+  bool _paradaManualEscuta = false;
+  bool _executandoComandoVoz = false;
   ConfiguracaoApp? _configuracao;
   String? _statusVoz;
 
@@ -48,6 +51,12 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
       _configuracao = configuracao;
       _carregando = false;
     });
+
+    _escutaContinuaAtiva =
+        configuracao.comandosVozAtivos && configuracao.escutaContinua;
+    if (_escutaContinuaAtiva && !_ouvindo && !_paradaManualEscuta) {
+      await _iniciarEscutaVoz();
+    }
   }
 
   Future<void> _salvar(ConfiguracaoApp configuracao) async {
@@ -60,6 +69,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
 
   Future<void> _alternarEscutaVoz() async {
     if (_ouvindo) {
+      _paradaManualEscuta = true;
       await _speechService.stopListening();
       if (!mounted) {
         return;
@@ -67,6 +77,29 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
       setState(() {
         _ouvindo = false;
         _statusVoz = 'Escuta encerrada.';
+      });
+      return;
+    }
+
+    _paradaManualEscuta = false;
+    await _iniciarEscutaVoz();
+  }
+
+  Future<void> _iniciarEscutaVoz() async {
+    final configuracao =
+        _configuracao ??
+        await ConfiguracaoAppRepository.instance.buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    _escutaContinuaAtiva =
+        configuracao.comandosVozAtivos && configuracao.escutaContinua;
+
+    if (!configuracao.comandosVozAtivos) {
+      setState(() {
+        _statusVoz = 'Comandos de voz desativados.';
       });
       return;
     }
@@ -88,6 +121,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
           setState(() {
             _ouvindo = false;
           });
+          _reiniciarEscutaContinuaSeNecessario();
         }
       },
       onError: (error) {
@@ -98,22 +132,30 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
           _ouvindo = false;
           _statusVoz = 'Erro no reconhecimento de voz: $error';
         });
+        _reiniciarEscutaContinuaSeNecessario();
       },
     );
   }
 
   Future<void> _executarComandoVoz(String texto) async {
+    if (_executandoComandoVoz) {
+      return;
+    }
+
+    _executandoComandoVoz = true;
     final resultadoController = await _commandController.interpret(texto);
     final resultado = resultadoController.commandResult;
 
     unawaited(_registrarComando(resultado));
 
     if (!mounted || resultado.normalizedText.isEmpty) {
+      _executandoComandoVoz = false;
       return;
     }
 
     final configuracao = _configuracao;
     if (configuracao == null) {
+      _executandoComandoVoz = false;
       return;
     }
 
@@ -121,6 +163,8 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
       case VoiceCommandType.ativarControleVoz:
         await _salvar(configuracao.copyWith(comandosVozAtivos: true));
         _atualizarStatus('Controle por voz ativado.');
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.desativarControleVoz:
         await _salvar(
@@ -130,37 +174,54 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
           ),
         );
         _atualizarStatus('Controle por voz desativado.');
+        await _suspenderEscutaParaAcao();
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.ativarEscutaContinua:
         await _salvar(
           configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
         );
         _atualizarStatus('Escuta continua ativada.');
+        _escutaContinuaAtiva = true;
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.desativarEscutaContinua:
         await _salvar(configuracao.copyWith(escutaContinua: false));
         _atualizarStatus('Escuta continua desativada.');
+        _escutaContinuaAtiva = false;
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.ativarFeedbackSonoro:
         await _salvar(configuracao.copyWith(feedbackSonoro: true));
         _atualizarStatus('Feedback sonoro ativado.');
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.desativarFeedbackSonoro:
         await _salvar(configuracao.copyWith(feedbackSonoro: false));
         _atualizarStatus('Feedback sonoro desativado.');
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.ativarParadaSilencio:
         await _salvar(configuracao.copyWith(paradaSilencio: true));
         _atualizarStatus('Parada por silencio ativada.');
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.desativarParadaSilencio:
         await _salvar(configuracao.copyWith(paradaSilencio: false));
         _atualizarStatus('Parada por silencio desativada.');
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.definirTempoSilencio:
         final segundos = int.tryParse(resultado.parametro ?? '');
         if (segundos == null) {
           _atualizarStatus('Diga o tempo de silencio entre 3 e 12 segundos.');
+          _executandoComandoVoz = false;
+          _reiniciarEscutaContinuaSeNecessario();
           return;
         }
         await _salvar(
@@ -170,9 +231,17 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
           ),
         );
         _atualizarStatus('Tempo de silencio definido para $segundos segundos.');
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.voltar:
+        await _suspenderEscutaParaAcao();
+        if (!mounted) {
+          _executandoComandoVoz = false;
+          return;
+        }
         Navigator.maybePop(context);
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.iniciarGravacao:
       case VoiceCommandType.pausarGravacao:
@@ -203,7 +272,45 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
               ? 'Comando nao disponivel nesta tela.'
               : 'Comando nao reconhecido nesta tela.',
         );
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
+    }
+  }
+
+  void _reiniciarEscutaContinuaSeNecessario() {
+    if (!_escutaContinuaAtiva ||
+        _paradaManualEscuta ||
+        _executandoComandoVoz ||
+        !mounted) {
+      return;
+    }
+
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted ||
+          _ouvindo ||
+          _paradaManualEscuta ||
+          _executandoComandoVoz ||
+          !_escutaContinuaAtiva) {
+        return;
+      }
+
+      unawaited(_iniciarEscutaVoz());
+    });
+  }
+
+  Future<void> _suspenderEscutaParaAcao() async {
+    _paradaManualEscuta = true;
+    _escutaContinuaAtiva = false;
+
+    if (_ouvindo || _speechService.isListening) {
+      await _speechService.cancelListening();
+    }
+
+    if (mounted) {
+      setState(() {
+        _ouvindo = false;
+      });
     }
   }
 
