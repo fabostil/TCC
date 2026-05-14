@@ -49,6 +49,7 @@ class ConfiguracaoAppRepository {
     await salvarConfiguracao(
       configuracao.copyWith(
         comandosVozAtivos: comandosVozAtivos,
+        escutaContinua: comandosVozAtivos,
         primeiraExecucaoConcluida: true,
       ),
     );

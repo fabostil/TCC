@@ -8,12 +8,14 @@ enum VoiceCommandType {
   listarGravacoes,
   criarMarcador,
   limparTexto,
+  abrirNovoProjeto,
   abrirDashboard,
   abrirProjetos,
   abrirGravacoes,
   abrirConfiguracoes,
   abrirAssistente,
   abrirHistorico,
+  abrirEditor,
   voltar,
   sair,
   desconhecido,
@@ -154,6 +156,38 @@ class CommandService {
         VoiceCommandType.limparTexto,
         tipoComando: 'limpar_texto',
         acaoExecutada: 'Limpar texto reconhecido',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'novo projeto',
+      'criar projeto',
+      'criar novo projeto',
+      'abrir novo projeto',
+      'adicionar projeto',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirNovoProjeto,
+        tipoComando: 'abrir_novo_projeto',
+        acaoExecutada: 'Abrir novo projeto',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'abrir editor',
+      'ir para editor',
+      'editor musical',
+      'abrir gravador',
+      'ir para gravador',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirEditor,
+        tipoComando: 'abrir_editor',
+        acaoExecutada: 'Abrir editor',
       );
     }
 

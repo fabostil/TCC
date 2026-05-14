@@ -184,6 +184,9 @@ class _VoicePageState extends State<VoicePage> {
       case VoiceCommandType.listarGravacoes:
         _abrirGravacoes();
         return;
+      case VoiceCommandType.abrirNovoProjeto:
+        _abrirNovoProjeto();
+        return;
       case VoiceCommandType.criarMarcador:
         setState(() {
           ultimoComando = 'Comando reconhecido: criar marcador';
@@ -214,6 +217,11 @@ class _VoicePageState extends State<VoicePage> {
       case VoiceCommandType.abrirAssistente:
         setState(() {
           ultimoComando = 'Assistente de voz ja esta aberto.';
+        });
+        return;
+      case VoiceCommandType.abrirEditor:
+        setState(() {
+          ultimoComando = 'Abra um projeto para acessar o editor.';
         });
         return;
       case VoiceCommandType.abrirHistorico:
@@ -263,6 +271,22 @@ class _VoicePageState extends State<VoicePage> {
       context,
       MaterialPageRoute(
         builder: (_) => MeusProjetosPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  void _abrirNovoProjeto() {
+    setState(() {
+      ultimoComando = 'Abrindo criacao de projeto...';
+    });
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MeusProjetosPage(
+          usuario: widget.usuario,
+          abrirCriacaoAoEntrar: true,
+        ),
       ),
     );
   }

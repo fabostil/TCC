@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../models/configuracao_app.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/projeto.dart';
 import '../../../models/usuario.dart';
@@ -42,11 +43,15 @@ class _EditorPageState extends State<EditorPage> {
   double nivelAudioAtual = -160.0;
   int tempoSilencioMs = 0;
 
-  final int limiteSilencioMs = 6000;
+  int limiteSilencioMs = 6000;
   final int intervaloMonitoramentoMs = 500;
   final double limiteSilencioDb = -36.0;
 
   bool paradaAutomaticaPorSilencio = true;
+  bool escutaContinuaAtiva = false;
+  bool feedbackSonoroAtivo = false;
+  bool _paradaManualEscuta = false;
+  bool _executandoComandoVoz = false;
 
   String textoReconhecido = 'Pressione o microfone e fale um comando.';
   String statusProjeto = 'Projeto pronto para gravar.';
@@ -75,7 +80,33 @@ class _EditorPageState extends State<EditorPage> {
         });
       }
     });
+    _carregarConfiguracoes();
     _carregarGravacoes();
+  }
+
+  Future<void> _carregarConfiguracoes() async {
+    try {
+      final configuracao = await ConfiguracaoAppRepository.instance
+          .buscarConfiguracao();
+
+      if (!mounted) {
+        return;
+      }
+
+      _aplicarConfiguracao(configuracao);
+    } catch (e) {
+      debugPrint('Erro ao carregar configuracoes do editor: $e');
+    }
+  }
+
+  void _aplicarConfiguracao(ConfiguracaoApp configuracao) {
+    setState(() {
+      paradaAutomaticaPorSilencio = configuracao.paradaSilencio;
+      limiteSilencioMs = configuracao.tempoSilencioSegundos * 1000;
+      escutaContinuaAtiva =
+          configuracao.comandosVozAtivos && configuracao.escutaContinua;
+      feedbackSonoroAtivo = configuracao.feedbackSonoro;
+    });
   }
 
   Future<void> _carregarGravacoes() async {
@@ -119,6 +150,10 @@ class _EditorPageState extends State<EditorPage> {
     final configuracao = await ConfiguracaoAppRepository.instance
         .buscarConfiguracao();
 
+    if (!mounted) {
+      return;
+    }
+
     if (!configuracao.comandosVozAtivos) {
       setState(() {
         ouvindo = false;
@@ -138,6 +173,9 @@ class _EditorPageState extends State<EditorPage> {
     }
 
     if (!ouvindo) {
+      _aplicarConfiguracao(configuracao);
+      _paradaManualEscuta = false;
+
       setState(() {
         ouvindo = true;
         textoReconhecido = 'Ouvindo... fale um comando.';
@@ -151,7 +189,7 @@ class _EditorPageState extends State<EditorPage> {
             statusProjeto = 'Comando detectado: $resultado';
           });
 
-          interpretarComando(resultado);
+          unawaited(interpretarComando(resultado));
         },
         onStatus: (status) {
           if (!mounted) {
@@ -169,6 +207,8 @@ class _EditorPageState extends State<EditorPage> {
             setState(() {
               ouvindo = false;
             });
+
+            _reiniciarEscutaContinuaSeNecessario();
           }
         },
         onError: (error) {
@@ -194,6 +234,7 @@ class _EditorPageState extends State<EditorPage> {
         },
       );
     } else {
+      _paradaManualEscuta = true;
       await speech.stopListening();
 
       setState(() {
@@ -204,7 +245,30 @@ class _EditorPageState extends State<EditorPage> {
     }
   }
 
-  void interpretarComando(String comando) {
+  void _reiniciarEscutaContinuaSeNecessario() {
+    if (!escutaContinuaAtiva ||
+        _paradaManualEscuta ||
+        gravando ||
+        carregandoAudio ||
+        !mounted) {
+      return;
+    }
+
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted ||
+          ouvindo ||
+          gravando ||
+          carregandoAudio ||
+          _paradaManualEscuta ||
+          !escutaContinuaAtiva) {
+        return;
+      }
+
+      alternarMicrofone();
+    });
+  }
+
+  Future<void> interpretarComando(String comando) async {
     final resultado = commandService.interpret(comando);
 
     if (resultado.normalizedText.isEmpty) {
@@ -219,24 +283,28 @@ class _EditorPageState extends State<EditorPage> {
       );
     }
 
+    if (_executandoComandoVoz) {
+      return;
+    }
+
     switch (resultado.type) {
       case VoiceCommandType.iniciarGravacao:
-        iniciarGravacao(comando);
+        await iniciarGravacao(comando);
         return;
       case VoiceCommandType.pausarGravacao:
-        pausarGravacao(comando);
+        await pausarGravacao(comando);
         return;
       case VoiceCommandType.retomarGravacao:
-        retomarGravacao(comando);
+        await retomarGravacao(comando);
         return;
       case VoiceCommandType.encerrarGravacao:
-        encerrarGravacao(comando);
+        await encerrarGravacao(comando);
         return;
       case VoiceCommandType.pararReproducao:
-        pararReproducao(comando);
+        await pararReproducao(comando);
         return;
       case VoiceCommandType.reproduzirGravacao:
-        reproduzirProjeto(comando);
+        await reproduzirProjeto(comando);
         return;
       case VoiceCommandType.criarMarcador:
         criarMarcador(comando);
@@ -249,6 +317,12 @@ class _EditorPageState extends State<EditorPage> {
           statusProjeto = 'Lista de gravacoes disponivel nesta tela.';
         });
         return;
+      case VoiceCommandType.abrirEditor:
+        setState(() {
+          statusProjeto = 'Editor ja esta aberto.';
+        });
+        return;
+      case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
@@ -291,8 +365,17 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    if (ouvindo) {
-      await speech.stopListening();
+    _executandoComandoVoz = true;
+
+    if (ouvindo || speech.isListening) {
+      _paradaManualEscuta = true;
+      await speech.cancelListening();
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted) {
+        _executandoComandoVoz = false;
+        return;
+      }
 
       setState(() {
         ouvindo = false;
@@ -301,6 +384,11 @@ class _EditorPageState extends State<EditorPage> {
 
     if (reproduzindo) {
       await playerService.stop();
+
+      if (!mounted) {
+        _executandoComandoVoz = false;
+        return;
+      }
 
       setState(() {
         reproduzindo = false;
@@ -314,6 +402,10 @@ class _EditorPageState extends State<EditorPage> {
 
     try {
       final path = await audioService.startRecording();
+
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         caminhoGravacaoAtual = path;
@@ -336,10 +428,14 @@ class _EditorPageState extends State<EditorPage> {
         tipo: 'gravacao_iniciada',
       );
     } catch (e) {
-      setState(() {
-        carregandoAudio = false;
-        statusProjeto = 'Erro ao iniciar gravação: $e';
-      });
+      if (mounted) {
+        setState(() {
+          carregandoAudio = false;
+          statusProjeto = 'Erro ao iniciar gravação: $e';
+        });
+      }
+    } finally {
+      _executandoComandoVoz = false;
     }
   }
 
@@ -952,6 +1048,7 @@ class _EditorPageState extends State<EditorPage> {
   Widget _modoGravacaoAtivo() {
     final segundosSilencioRestantes =
         ((limiteSilencioMs - tempoSilencioMs) / 1000).ceil();
+    final tempoSilencioSegundos = limiteSilencioMs ~/ 1000;
 
     return Card(
       color: Colors.red.withOpacity(0.08),
@@ -1018,7 +1115,9 @@ class _EditorPageState extends State<EditorPage> {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Parada automática por silêncio'),
-              subtitle: const Text('Encerra após 7 segundos em silêncio.'),
+              subtitle: Text(
+                'Encerra após $tempoSilencioSegundos segundos em silêncio.',
+              ),
               value: paradaAutomaticaPorSilencio,
               onChanged: carregandoAudio
                   ? null
@@ -1027,6 +1126,10 @@ class _EditorPageState extends State<EditorPage> {
                         paradaAutomaticaPorSilencio = value;
                         tempoSilencioMs = 0;
                       });
+                      unawaited(
+                        ConfiguracaoAppRepository.instance
+                            .atualizarParadaSilencio(value),
+                      );
                     },
             ),
           ],
@@ -1158,6 +1261,25 @@ class _EditorPageState extends State<EditorPage> {
               'Comandos: iniciar gravação, pausar gravação, retomar gravação, encerrar gravação, reproduzir, criar marcador.',
             ),
             const SizedBox(height: 16),
+            if (escutaContinuaAtiva || feedbackSonoroAtivo) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (escutaContinuaAtiva)
+                    const Chip(
+                      avatar: Icon(Icons.hearing_outlined, size: 18),
+                      label: Text('Escuta continua ativa'),
+                    ),
+                  if (feedbackSonoroAtivo)
+                    const Chip(
+                      avatar: Icon(Icons.volume_up_outlined, size: 18),
+                      label: Text('Feedback sonoro ativo'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),

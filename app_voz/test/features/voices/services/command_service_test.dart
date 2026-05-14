@@ -72,6 +72,14 @@ void main() {
         service.interpret('abrir hist\u00f3rico').type,
         VoiceCommandType.abrirHistorico,
       );
+      expect(
+        service.interpret('novo projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+      expect(
+        service.interpret('abrir editor').type,
+        VoiceCommandType.abrirEditor,
+      );
       expect(service.interpret('voltar').type, VoiceCommandType.voltar);
       expect(service.interpret('sair').type, VoiceCommandType.sair);
     });

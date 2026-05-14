@@ -23,7 +23,7 @@ class ConfiguracaoApp {
     return ConfiguracaoApp(
       comandosVozAtivos: true,
       primeiraExecucaoConcluida: false,
-      escutaContinua: false,
+      escutaContinua: true,
       feedbackSonoro: false,
       paradaSilencio: true,
       tempoSilencioSegundos: 6,

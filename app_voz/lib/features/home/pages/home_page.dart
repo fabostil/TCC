@@ -37,6 +37,10 @@ class _HomePageState extends State<HomePage> {
   bool _ouvindo = false;
   bool _iaPensando = false;
   bool _escutaInicialSolicitada = false;
+  bool _escutaContinuaSuspensa = false;
+  bool _executandoComandoVoz = false;
+  DateTime? _ultimoComandoExecutadoEm;
+  String? _ultimoComandoNormalizado;
   String _statusVoz = 'Assistente de voz aguardando.';
 
   @override
@@ -141,7 +145,29 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _sair(BuildContext context) {
+  Future<void> _sair(BuildContext context) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sair do app?'),
+        content: const Text('Deseja encerrar a sessao e voltar para o login?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true || !context.mounted) {
+      return;
+    }
+
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -179,6 +205,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _alternarEscutaHome() async {
     if (_ouvindo) {
+      _escutaContinuaSuspensa = true;
       await _speechService.stopListening();
 
       if (!mounted) {
@@ -192,6 +219,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    _escutaContinuaSuspensa = false;
     await _iniciarEscutaHome();
   }
 
@@ -242,9 +270,14 @@ class _HomePageState extends State<HomePage> {
             _ouvindo = false;
           });
 
-          if (_configuracao?.escutaContinua == true) {
+          if (_configuracao?.escutaContinua == true &&
+              !_escutaContinuaSuspensa &&
+              !_executandoComandoVoz) {
             Future.delayed(const Duration(milliseconds: 500), () {
-              if (mounted && !_ouvindo) {
+              if (mounted &&
+                  !_ouvindo &&
+                  !_escutaContinuaSuspensa &&
+                  !_executandoComandoVoz) {
                 _iniciarEscutaHome();
               }
             });
@@ -290,6 +323,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _executarComandoHome(String comando) async {
+    if (_executandoComandoVoz) {
+      return;
+    }
+
+    _executandoComandoVoz = true;
+
     final resultadoController = await _commandController.interpret(
       comando,
       onAiStarted: () {
@@ -306,6 +345,7 @@ class _HomePageState extends State<HomePage> {
     final resultado = resultadoController.commandResult;
 
     if (!mounted) {
+      _executandoComandoVoz = false;
       return;
     }
 
@@ -316,34 +356,97 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (resultado.normalizedText.isEmpty) {
+      _executandoComandoVoz = false;
       return;
     }
 
+    final agora = DateTime.now();
+    final ultimoComandoEm = _ultimoComandoExecutadoEm;
+    final comandoRepetido =
+        _ultimoComandoNormalizado == resultado.normalizedText &&
+        ultimoComandoEm != null &&
+        agora.difference(ultimoComandoEm).inSeconds < 3;
+
+    if (comandoRepetido) {
+      _executandoComandoVoz = false;
+      return;
+    }
+
+    _ultimoComandoNormalizado = resultado.normalizedText;
+    _ultimoComandoExecutadoEm = agora;
+
     switch (resultado.type) {
+      case VoiceCommandType.abrirNovoProjeto:
+        await _pararEscutaAntesDeNavegar();
+        if (!mounted) {
+          _executandoComandoVoz = false;
+          return;
+        }
+        _abrirNovoProjeto(context);
+        _executandoComandoVoz = false;
+        return;
       case VoiceCommandType.abrirDashboard:
+        await _pararEscutaAntesDeNavegar();
+        if (!mounted) {
+          _executandoComandoVoz = false;
+          return;
+        }
         _abrirDashboard(context);
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.abrirProjetos:
+        await _pararEscutaAntesDeNavegar();
+        if (!mounted) {
+          _executandoComandoVoz = false;
+          return;
+        }
         _abrirProjetos(context);
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.abrirGravacoes:
       case VoiceCommandType.listarGravacoes:
+        await _pararEscutaAntesDeNavegar();
+        if (!mounted) {
+          _executandoComandoVoz = false;
+          return;
+        }
         _abrirGravacoes(context);
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.abrirConfiguracoes:
-        await _abrirConfiguracoes(context);
+        await _pararEscutaAntesDeNavegar();
+        if (!context.mounted) {
+          _executandoComandoVoz = false;
+          return;
+        }
+        await _abrirConfiguracoes();
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.abrirAssistente:
-        _abrirAssistente(context);
+        setState(() {
+          _statusVoz = 'Assistente de voz ja esta ativo na tela inicial.';
+        });
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.abrirHistorico:
+        await _pararEscutaAntesDeNavegar();
+        if (!mounted) {
+          _executandoComandoVoz = false;
+          return;
+        }
         _abrirHistorico(context);
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.voltar:
         Navigator.maybePop(context);
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.sair:
-        _sair(context);
+        await _pararEscutaAntesDeNavegar();
+        if (mounted) {
+          await _sair(context);
+        }
+        _executandoComandoVoz = false;
         return;
       case VoiceCommandType.iniciarGravacao:
       case VoiceCommandType.pausarGravacao:
@@ -353,6 +456,7 @@ class _HomePageState extends State<HomePage> {
       case VoiceCommandType.reproduzirGravacao:
       case VoiceCommandType.criarMarcador:
       case VoiceCommandType.limparTexto:
+      case VoiceCommandType.abrirEditor:
       case VoiceCommandType.desconhecido:
         setState(() {
           _iaPensando = false;
@@ -360,11 +464,28 @@ class _HomePageState extends State<HomePage> {
               ? 'Comando nao executavel nesta tela.'
               : 'Comando nao reconhecido. Configure GEMINI_API_KEY para NLU.';
         });
+        _executandoComandoVoz = false;
         return;
     }
   }
 
-  Future<void> _abrirConfiguracoes(BuildContext context) async {
+  Future<void> _pararEscutaAntesDeNavegar() async {
+    _escutaContinuaSuspensa = true;
+
+    if (_ouvindo || _speechService.isListening) {
+      await _speechService.cancelListening();
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _ouvindo = false;
+    });
+  }
+
+  Future<void> _abrirConfiguracoes() async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ConfiguracoesPage()),
@@ -399,7 +520,7 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             tooltip: 'Configurações',
-            onPressed: () => _abrirConfiguracoes(context),
+            onPressed: _abrirConfiguracoes,
             icon: const Icon(Icons.settings_rounded),
           ),
           IconButton(
@@ -525,7 +646,7 @@ class _HomePageState extends State<HomePage> {
               icon: Icons.settings_outlined,
               title: 'Configurações',
               subtitle: 'Ajuste comandos de voz, escuta e opções de gravação.',
-              onTap: () => _abrirConfiguracoes(context),
+              onTap: _abrirConfiguracoes,
             ),
           ],
         ),

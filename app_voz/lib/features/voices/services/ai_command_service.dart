@@ -231,6 +231,22 @@ class AiCommandService {
           tipoComando: 'limpar_texto',
           acaoExecutada: 'Limpar texto reconhecido',
         );
+      case 'nav_new_project':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.abrirNovoProjeto,
+          tipoComando: 'abrir_novo_projeto',
+          acaoExecutada: 'Abrir novo projeto',
+        );
+      case 'nav_editor':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.abrirEditor,
+          tipoComando: 'abrir_editor',
+          acaoExecutada: 'Abrir editor',
+        );
       case 'nav_dashboard':
         return _recognized(
           originalText,
@@ -377,6 +393,8 @@ Intents permitidas:
 - playback_stop: parar reproducao.
 - marker_create: criar marcador.
 - clear_text: limpar texto reconhecido.
+- nav_new_project: criar novo projeto ou abrir formulario de novo projeto.
+- nav_editor: abrir editor, gravador ou tela de edicao de um projeto.
 - nav_dashboard: abrir dashboard.
 - nav_dashboard: ver metricas, numeros, resumo, produtividade ou desempenho.
 - nav_projects: abrir projetos.
