@@ -8,6 +8,9 @@ enum VoiceCommandType {
   listarGravacoes,
   criarMarcador,
   limparTexto,
+  definirNomeProjeto,
+  definirDescricaoProjeto,
+  abrirProjetoPorNome,
   abrirNovoProjeto,
   abrirDashboard,
   abrirProjetos,
@@ -16,6 +19,17 @@ enum VoiceCommandType {
   abrirAssistente,
   abrirHistorico,
   abrirEditor,
+  renomearGravacao,
+  excluirGravacao,
+  ativarControleVoz,
+  desativarControleVoz,
+  ativarEscutaContinua,
+  desativarEscutaContinua,
+  ativarFeedbackSonoro,
+  desativarFeedbackSonoro,
+  ativarParadaSilencio,
+  desativarParadaSilencio,
+  definirTempoSilencio,
   voltar,
   sair,
   desconhecido,
@@ -29,6 +43,8 @@ class CommandResult {
     required this.recognized,
     required this.tipoComando,
     this.acaoExecutada,
+    this.parametro,
+    this.parametroSecundario,
   });
 
   final String originalText;
@@ -37,6 +53,8 @@ class CommandResult {
   final bool recognized;
   final String tipoComando;
   final String? acaoExecutada;
+  final String? parametro;
+  final String? parametroSecundario;
 
   String get statusReconhecimento =>
       recognized ? 'reconhecido' : 'nao_reconhecido';
@@ -104,7 +122,11 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const ['parar reproducao'])) {
+    if (_containsAny(normalizedText, const [
+      'parar reproducao',
+      'parar audio',
+      'parar som',
+    ])) {
       return _recognized(
         text,
         normalizedText,
@@ -116,12 +138,20 @@ class CommandService {
 
     if (_containsAny(normalizedText, const ['reproduzir']) ||
         _containsWord(normalizedText, 'tocar')) {
+      final gravacao = _extractAfterAny(normalizedText, const [
+        'reproduzir gravacao',
+        'tocar gravacao',
+        'reproduzir audio',
+        'tocar audio',
+      ]);
+
       return _recognized(
         text,
         normalizedText,
         VoiceCommandType.reproduzirGravacao,
         tipoComando: 'reproduzir_gravacao',
         acaoExecutada: 'Reproduzir gravacao',
+        parametro: gravacao,
       );
     }
 
@@ -159,6 +189,56 @@ class CommandService {
       );
     }
 
+    final nomeProjeto = _extractAfterAny(normalizedText, const [
+      'nome do projeto',
+      'nome projeto',
+      'definir nome do projeto',
+      'preencher nome do projeto',
+    ]);
+    if (nomeProjeto != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.definirNomeProjeto,
+        tipoComando: 'definir_nome_projeto',
+        acaoExecutada: 'Definir nome do projeto',
+        parametro: nomeProjeto,
+      );
+    }
+
+    final descricaoProjeto = _extractAfterAny(normalizedText, const [
+      'descricao do projeto',
+      'descricao projeto',
+      'definir descricao do projeto',
+      'preencher descricao do projeto',
+    ]);
+    if (descricaoProjeto != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.definirDescricaoProjeto,
+        tipoComando: 'definir_descricao_projeto',
+        acaoExecutada: 'Definir descricao do projeto',
+        parametro: descricaoProjeto,
+      );
+    }
+
+    final projetoParaAbrir = _extractAfterAny(normalizedText, const [
+      'abrir projeto',
+      'entrar no projeto',
+      'acessar projeto',
+    ]);
+    if (projetoParaAbrir != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirProjetoPorNome,
+        tipoComando: 'abrir_projeto_por_nome',
+        acaoExecutada: 'Abrir projeto por nome',
+        parametro: projetoParaAbrir,
+      );
+    }
+
     if (_containsAny(normalizedText, const [
       'novo projeto',
       'criar projeto',
@@ -172,6 +252,174 @@ class CommandService {
         VoiceCommandType.abrirNovoProjeto,
         tipoComando: 'abrir_novo_projeto',
         acaoExecutada: 'Abrir novo projeto',
+      );
+    }
+
+    final renomearGravacao = _extractRenameRecording(normalizedText);
+    if (renomearGravacao != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.renomearGravacao,
+        tipoComando: 'renomear_gravacao',
+        acaoExecutada: 'Renomear gravacao',
+        parametro: renomearGravacao.$1,
+        parametroSecundario: renomearGravacao.$2,
+      );
+    }
+
+    final gravacaoParaExcluir = _extractAfterAny(normalizedText, const [
+      'excluir gravacao',
+      'apagar gravacao',
+      'remover gravacao',
+    ]);
+    if (gravacaoParaExcluir != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.excluirGravacao,
+        tipoComando: 'excluir_gravacao',
+        acaoExecutada: 'Excluir gravacao',
+        parametro: gravacaoParaExcluir,
+      );
+    }
+
+    final gravacaoParaReproduzir = _extractAfterAny(normalizedText, const [
+      'reproduzir gravacao',
+      'tocar gravacao',
+      'reproduzir audio',
+      'tocar audio',
+    ]);
+    if (gravacaoParaReproduzir != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.reproduzirGravacao,
+        tipoComando: 'reproduzir_gravacao',
+        acaoExecutada: 'Reproduzir gravacao',
+        parametro: gravacaoParaReproduzir,
+      );
+    }
+
+    final tempoSilencio = _extractTempoSilencio(normalizedText);
+    if (tempoSilencio != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.definirTempoSilencio,
+        tipoComando: 'definir_tempo_silencio',
+        acaoExecutada: 'Definir tempo de silencio',
+        parametro: tempoSilencio.toString(),
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'ativar controle por voz',
+      'ligar controle por voz',
+      'ativar comandos de voz',
+      'ligar comandos de voz',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.ativarControleVoz,
+        tipoComando: 'ativar_controle_voz',
+        acaoExecutada: 'Ativar controle por voz',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'desativar controle por voz',
+      'desligar controle por voz',
+      'desativar comandos de voz',
+      'desligar comandos de voz',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.desativarControleVoz,
+        tipoComando: 'desativar_controle_voz',
+        acaoExecutada: 'Desativar controle por voz',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'ativar escuta continua',
+      'ligar escuta continua',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.ativarEscutaContinua,
+        tipoComando: 'ativar_escuta_continua',
+        acaoExecutada: 'Ativar escuta continua',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'desativar escuta continua',
+      'desligar escuta continua',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.desativarEscutaContinua,
+        tipoComando: 'desativar_escuta_continua',
+        acaoExecutada: 'Desativar escuta continua',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'ativar feedback sonoro',
+      'ligar feedback sonoro',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.ativarFeedbackSonoro,
+        tipoComando: 'ativar_feedback_sonoro',
+        acaoExecutada: 'Ativar feedback sonoro',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'desativar feedback sonoro',
+      'desligar feedback sonoro',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.desativarFeedbackSonoro,
+        tipoComando: 'desativar_feedback_sonoro',
+        acaoExecutada: 'Desativar feedback sonoro',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'ativar parada por silencio',
+      'ligar parada por silencio',
+      'ativar parada automatica',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.ativarParadaSilencio,
+        tipoComando: 'ativar_parada_silencio',
+        acaoExecutada: 'Ativar parada por silencio',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'desativar parada por silencio',
+      'desligar parada por silencio',
+      'desativar parada automatica',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.desativarParadaSilencio,
+        tipoComando: 'desativar_parada_silencio',
+        acaoExecutada: 'Desativar parada por silencio',
       );
     }
 
@@ -327,6 +575,8 @@ class CommandService {
     VoiceCommandType type, {
     required String tipoComando,
     required String acaoExecutada,
+    String? parametro,
+    String? parametroSecundario,
   }) {
     return CommandResult(
       originalText: originalText,
@@ -335,6 +585,8 @@ class CommandService {
       recognized: true,
       tipoComando: tipoComando,
       acaoExecutada: acaoExecutada,
+      parametro: parametro,
+      parametroSecundario: parametroSecundario,
     );
   }
 
@@ -354,5 +606,56 @@ class CommandService {
 
   bool _containsWord(String text, String word) {
     return RegExp('(^| )$word( |\$)').hasMatch(text);
+  }
+
+  String? _extractAfterAny(String text, List<String> prefixes) {
+    for (final prefix in prefixes) {
+      if (text == prefix) {
+        return null;
+      }
+
+      if (text.startsWith('$prefix ')) {
+        final value = text.substring(prefix.length).trim();
+        return value.isEmpty ? null : value;
+      }
+    }
+
+    return null;
+  }
+
+  (String, String)? _extractRenameRecording(String text) {
+    final match = RegExp(
+      r'^(renomear|nomear) gravacao (.+) para (.+)$',
+    ).firstMatch(text);
+
+    if (match == null) {
+      return null;
+    }
+
+    final atual = match.group(2)?.trim();
+    final novo = match.group(3)?.trim();
+
+    if (atual == null || atual.isEmpty || novo == null || novo.isEmpty) {
+      return null;
+    }
+
+    return (atual, novo);
+  }
+
+  int? _extractTempoSilencio(String text) {
+    final match = RegExp(
+      r'^(definir |ajustar |alterar )?tempo de silencio (para )?(\d{1,2})( segundos?)?$',
+    ).firstMatch(text);
+
+    if (match == null) {
+      return null;
+    }
+
+    final value = int.tryParse(match.group(3) ?? '');
+    if (value == null) {
+      return null;
+    }
+
+    return value.clamp(3, 12).toInt();
   }
 }

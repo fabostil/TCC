@@ -7,11 +7,17 @@ import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_feedback.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../models/comando_voz.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/usuario.dart';
+import '../../../repositories/comando_voz_repository.dart';
+import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/gravacao_repository.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../editor/services/audio_player_service.dart';
+import '../../voices/controllers/voice_command_controller.dart';
+import '../../voices/services/command_service.dart';
+import '../../voices/services/speech_service.dart';
 
 class MinhasGravacoesPage extends StatefulWidget {
   final Usuario usuario;
@@ -23,11 +29,16 @@ class MinhasGravacoesPage extends StatefulWidget {
 }
 
 class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
+  final SpeechService _speechService = SpeechService();
+  final VoiceCommandController _commandController = VoiceCommandController();
+  final CommandService _commandService = const CommandService();
   final List<Gravacao> _gravacoes = [];
   final AudioPlayerService _playerService = AudioPlayerService();
 
   bool _carregando = true;
+  bool _ouvindo = false;
   String? _erro;
+  String? _statusVoz;
   int? _gravacaoReproduzindoId;
   StreamSubscription? _playerStateSubscription;
 
@@ -218,6 +229,48 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
     }
   }
 
+  Future<void> _salvarNovoNomeGravacao(
+    Gravacao gravacao,
+    String novoNome,
+  ) async {
+    if (novoNome.isEmpty || gravacao.id == null) {
+      return;
+    }
+
+    final gravacaoAtualizada = Gravacao(
+      id: gravacao.id,
+      usuarioId: gravacao.usuarioId,
+      projetoId: gravacao.projetoId,
+      nome: novoNome,
+      caminhoArquivo: gravacao.caminhoArquivo,
+      dataCriacao: gravacao.dataCriacao,
+      duracaoSegundos: gravacao.duracaoSegundos,
+    );
+
+    await GravacaoRepository.instance.atualizarGravacao(gravacaoAtualizada);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      final index = _gravacoes.indexWhere((item) => item.id == gravacao.id);
+      if (index != -1) {
+        _gravacoes[index] = gravacaoAtualizada;
+      }
+      _statusVoz = 'Gravacao renomeada para $novoNome.';
+    });
+
+    unawaited(
+      _registrarHistorico(
+        tipo: 'gravacao_renomeada',
+        descricao: 'Renomeou "${gravacao.nome}" para "$novoNome" por voz',
+        gravacaoId: gravacao.id,
+        projetoId: gravacao.projetoId,
+      ),
+    );
+  }
+
   Future<void> _excluirGravacao(Gravacao gravacao) async {
     final confirmar = await AppFeedback.confirm(
       context,
@@ -277,9 +330,219 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
 
   @override
   void dispose() {
+    _speechService.stopListening();
     _playerStateSubscription?.cancel();
     _playerService.dispose();
     super.dispose();
+  }
+
+  Future<void> _alternarEscutaVoz() async {
+    if (_ouvindo) {
+      await _speechService.stopListening();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _ouvindo = false;
+        _statusVoz = 'Escuta encerrada.';
+      });
+      return;
+    }
+
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!configuracao.comandosVozAtivos) {
+      setState(() {
+        _statusVoz = 'Comandos de voz desativados.';
+      });
+      return;
+    }
+
+    setState(() {
+      _ouvindo = true;
+      _statusVoz = 'Ouvindo comando de gravacao...';
+    });
+
+    await _speechService.startListening(
+      onResult: (texto) {
+        unawaited(_executarComandoVoz(texto));
+      },
+      onStatus: (status) {
+        if (!mounted) {
+          return;
+        }
+        if (status == 'done' || status == 'notListening') {
+          setState(() {
+            _ouvindo = false;
+          });
+        }
+      },
+      onError: (error) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _ouvindo = false;
+          _statusVoz = 'Erro no reconhecimento de voz: $error';
+        });
+      },
+    );
+  }
+
+  Future<void> _executarComandoVoz(String texto) async {
+    final resultadoController = await _commandController.interpret(texto);
+    final resultado = resultadoController.commandResult;
+
+    unawaited(_registrarComando(resultado));
+
+    if (!mounted || resultado.normalizedText.isEmpty) {
+      return;
+    }
+
+    switch (resultado.type) {
+      case VoiceCommandType.reproduzirGravacao:
+        await _reproduzirPorNome(resultado.parametro);
+        return;
+      case VoiceCommandType.pararReproducao:
+        await _playerService.stop();
+        if (mounted) {
+          setState(() {
+            _gravacaoReproduzindoId = null;
+            _statusVoz = 'Reproducao parada.';
+          });
+        }
+        return;
+      case VoiceCommandType.renomearGravacao:
+        await _renomearPorVoz(
+          resultado.parametro,
+          resultado.parametroSecundario,
+        );
+        return;
+      case VoiceCommandType.excluirGravacao:
+        await _excluirPorVoz(resultado.parametro);
+        return;
+      case VoiceCommandType.voltar:
+        Navigator.maybePop(context);
+        return;
+      case VoiceCommandType.iniciarGravacao:
+      case VoiceCommandType.pausarGravacao:
+      case VoiceCommandType.retomarGravacao:
+      case VoiceCommandType.encerrarGravacao:
+      case VoiceCommandType.listarGravacoes:
+      case VoiceCommandType.criarMarcador:
+      case VoiceCommandType.limparTexto:
+      case VoiceCommandType.definirNomeProjeto:
+      case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.abrirNovoProjeto:
+      case VoiceCommandType.abrirDashboard:
+      case VoiceCommandType.abrirProjetos:
+      case VoiceCommandType.abrirGravacoes:
+      case VoiceCommandType.abrirConfiguracoes:
+      case VoiceCommandType.abrirAssistente:
+      case VoiceCommandType.abrirHistorico:
+      case VoiceCommandType.abrirEditor:
+      case VoiceCommandType.ativarControleVoz:
+      case VoiceCommandType.desativarControleVoz:
+      case VoiceCommandType.ativarEscutaContinua:
+      case VoiceCommandType.desativarEscutaContinua:
+      case VoiceCommandType.ativarFeedbackSonoro:
+      case VoiceCommandType.desativarFeedbackSonoro:
+      case VoiceCommandType.ativarParadaSilencio:
+      case VoiceCommandType.desativarParadaSilencio:
+      case VoiceCommandType.definirTempoSilencio:
+      case VoiceCommandType.sair:
+      case VoiceCommandType.desconhecido:
+        setState(() {
+          _statusVoz = resultado.recognized
+              ? 'Comando nao disponivel nesta tela.'
+              : 'Comando nao reconhecido nesta tela.';
+        });
+        return;
+    }
+  }
+
+  Future<void> _reproduzirPorNome(String? nome) async {
+    final gravacao =
+        _buscarGravacaoPorNome(nome) ??
+        (_gravacoes.isNotEmpty ? _gravacoes.first : null);
+
+    if (gravacao == null) {
+      setState(() {
+        _statusVoz = 'Nenhuma gravacao encontrada para reproduzir.';
+      });
+      return;
+    }
+
+    await _alternarReproducao(gravacao);
+  }
+
+  Future<void> _renomearPorVoz(String? nomeAtual, String? novoNome) async {
+    final gravacao = _buscarGravacaoPorNome(nomeAtual);
+
+    if (gravacao == null || novoNome == null || novoNome.trim().isEmpty) {
+      setState(() {
+        _statusVoz = 'Diga: renomear gravacao nome atual para novo nome.';
+      });
+      return;
+    }
+
+    await _salvarNovoNomeGravacao(gravacao, novoNome.trim());
+  }
+
+  Future<void> _excluirPorVoz(String? nome) async {
+    final gravacao = _buscarGravacaoPorNome(nome);
+
+    if (gravacao == null) {
+      setState(() {
+        _statusVoz = 'Gravacao nao encontrada para exclusao.';
+      });
+      return;
+    }
+
+    await _excluirGravacao(gravacao);
+  }
+
+  Gravacao? _buscarGravacaoPorNome(String? nome) {
+    final nomeNormalizado = _commandService.normalize(nome ?? '');
+    if (nomeNormalizado.isEmpty) {
+      return null;
+    }
+
+    for (final gravacao in _gravacoes) {
+      if (_commandService.normalize(gravacao.nome).contains(nomeNormalizado)) {
+        return gravacao;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _registrarComando(CommandResult resultado) async {
+    final usuarioId = widget.usuario.id;
+    if (usuarioId == null || resultado.normalizedText.isEmpty) {
+      return;
+    }
+
+    try {
+      await ComandoVozRepository.instance.registrarComando(
+        ComandoVoz(
+          usuarioId: usuarioId,
+          textoReconhecido: resultado.originalText,
+          tipoComando: resultado.tipoComando,
+          statusReconhecimento: resultado.statusReconhecimento,
+          acaoExecutada: resultado.acaoExecutada,
+          dataHora: DateTime.now().toIso8601String(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao registrar comando de voz: $e');
+    }
   }
 
   Future<void> _registrarHistorico({
@@ -310,7 +573,17 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Minhas Gravações'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Minhas Gravações'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: _ouvindo ? 'Parar escuta' : 'Comando de voz',
+            onPressed: _alternarEscutaVoz,
+            icon: Icon(_ouvindo ? Icons.mic : Icons.mic_none),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _carregarGravacoes,
         child: Builder(
@@ -419,6 +692,18 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
           },
         ),
       ),
+      bottomNavigationBar: _statusVoz == null
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Text(
+                  _statusVoz!,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
     );
   }
 }

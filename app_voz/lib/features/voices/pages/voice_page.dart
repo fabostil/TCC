@@ -187,6 +187,24 @@ class _VoicePageState extends State<VoicePage> {
       case VoiceCommandType.abrirNovoProjeto:
         _abrirNovoProjeto();
         return;
+      case VoiceCommandType.definirNomeProjeto:
+      case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.renomearGravacao:
+      case VoiceCommandType.excluirGravacao:
+      case VoiceCommandType.ativarControleVoz:
+      case VoiceCommandType.desativarControleVoz:
+      case VoiceCommandType.ativarEscutaContinua:
+      case VoiceCommandType.desativarEscutaContinua:
+      case VoiceCommandType.ativarFeedbackSonoro:
+      case VoiceCommandType.desativarFeedbackSonoro:
+      case VoiceCommandType.ativarParadaSilencio:
+      case VoiceCommandType.desativarParadaSilencio:
+      case VoiceCommandType.definirTempoSilencio:
+        setState(() {
+          ultimoComando = 'Comando contextual. Abra a tela correspondente.';
+        });
+        return;
       case VoiceCommandType.criarMarcador:
         setState(() {
           ultimoComando = 'Comando reconhecido: criar marcador';
@@ -311,7 +329,9 @@ class _VoicePageState extends State<VoicePage> {
 
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ConfiguracoesPage()),
+      MaterialPageRoute(
+        builder: (_) => ConfiguracoesPage(usuario: widget.usuario),
+      ),
     );
   }
 

@@ -322,6 +322,9 @@ class _EditorPageState extends State<EditorPage> {
           statusProjeto = 'Editor ja esta aberto.';
         });
         return;
+      case VoiceCommandType.definirNomeProjeto:
+      case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.abrirProjetoPorNome:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
@@ -331,6 +334,17 @@ class _EditorPageState extends State<EditorPage> {
       case VoiceCommandType.abrirHistorico:
       case VoiceCommandType.voltar:
       case VoiceCommandType.sair:
+      case VoiceCommandType.renomearGravacao:
+      case VoiceCommandType.excluirGravacao:
+      case VoiceCommandType.ativarControleVoz:
+      case VoiceCommandType.desativarControleVoz:
+      case VoiceCommandType.ativarEscutaContinua:
+      case VoiceCommandType.desativarEscutaContinua:
+      case VoiceCommandType.ativarFeedbackSonoro:
+      case VoiceCommandType.desativarFeedbackSonoro:
+      case VoiceCommandType.ativarParadaSilencio:
+      case VoiceCommandType.desativarParadaSilencio:
+      case VoiceCommandType.definirTempoSilencio:
         setState(() {
           statusProjeto =
               'Comando de navegacao reconhecido. Use o assistente de voz para navegar.';

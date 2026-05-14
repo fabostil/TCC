@@ -1,11 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../models/comando_voz.dart';
 import '../../../models/projeto.dart';
 import '../../../models/usuario.dart';
+import '../../../repositories/comando_voz_repository.dart';
+import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/projeto_repository.dart';
+import '../../voices/controllers/voice_command_controller.dart';
+import '../../voices/services/command_service.dart';
+import '../../voices/services/speech_service.dart';
 import 'projeto_detalhes_page.dart';
 
 class MeusProjetosPage extends StatefulWidget {
@@ -23,9 +31,16 @@ class MeusProjetosPage extends StatefulWidget {
 }
 
 class _MeusProjetosPageState extends State<MeusProjetosPage> {
+  final SpeechService _speechService = SpeechService();
+  final VoiceCommandController _commandController = VoiceCommandController();
+  final CommandService _commandService = const CommandService();
   final List<Projeto> _projetos = [];
   bool _carregando = true;
+  bool _ouvindo = false;
   String? _erro;
+  String? _statusVoz;
+  String? _nomeProjetoVoz;
+  String? _descricaoProjetoVoz;
   bool _abriuCriacaoInicial = false;
 
   @override
@@ -99,7 +114,11 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
     final resultado = await showDialog<Projeto>(
       context: context,
       builder: (dialogContext) {
-        return _CriarProjetoDialog(usuario: widget.usuario);
+        return _CriarProjetoDialog(
+          usuario: widget.usuario,
+          nomeInicial: _nomeProjetoVoz,
+          descricaoInicial: _descricaoProjetoVoz,
+        );
       },
     );
 
@@ -116,10 +135,8 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ProjetoDetalhesPage(
-          usuario: widget.usuario,
-          projeto: resultado,
-        ),
+        builder: (_) =>
+            ProjetoDetalhesPage(usuario: widget.usuario, projeto: resultado),
       ),
     );
 
@@ -128,14 +145,242 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
     }
   }
 
+  Future<void> _alternarEscutaVoz() async {
+    if (_ouvindo) {
+      await _speechService.stopListening();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _ouvindo = false;
+        _statusVoz = 'Escuta encerrada.';
+      });
+      return;
+    }
+
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!configuracao.comandosVozAtivos) {
+      setState(() {
+        _statusVoz = 'Comandos de voz desativados.';
+      });
+      return;
+    }
+
+    setState(() {
+      _ouvindo = true;
+      _statusVoz = 'Ouvindo comando de projeto...';
+    });
+
+    await _speechService.startListening(
+      onResult: (texto) {
+        unawaited(_executarComandoVoz(texto));
+      },
+      onStatus: (status) {
+        if (!mounted) {
+          return;
+        }
+
+        if (status == 'done' || status == 'notListening') {
+          setState(() {
+            _ouvindo = false;
+          });
+        }
+      },
+      onError: (error) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _ouvindo = false;
+          _statusVoz = 'Erro no reconhecimento de voz: $error';
+        });
+      },
+    );
+  }
+
+  Future<void> _executarComandoVoz(String texto) async {
+    final resultadoController = await _commandController.interpret(texto);
+    final resultado = resultadoController.commandResult;
+
+    unawaited(_registrarComando(resultado));
+
+    if (!mounted || resultado.normalizedText.isEmpty) {
+      return;
+    }
+
+    switch (resultado.type) {
+      case VoiceCommandType.abrirNovoProjeto:
+        await _criarProjetoPorVozOuAbrirFormulario();
+        return;
+      case VoiceCommandType.definirNomeProjeto:
+        setState(() {
+          _nomeProjetoVoz = resultado.parametro;
+          _statusVoz = 'Nome do projeto definido: ${resultado.parametro}.';
+        });
+        return;
+      case VoiceCommandType.definirDescricaoProjeto:
+        setState(() {
+          _descricaoProjetoVoz = resultado.parametro;
+          _statusVoz = 'Descricao do projeto definida por voz.';
+        });
+        return;
+      case VoiceCommandType.abrirProjetoPorNome:
+        await _abrirProjetoPorNome(resultado.parametro);
+        return;
+      case VoiceCommandType.voltar:
+        Navigator.maybePop(context);
+        return;
+      case VoiceCommandType.iniciarGravacao:
+      case VoiceCommandType.pausarGravacao:
+      case VoiceCommandType.retomarGravacao:
+      case VoiceCommandType.encerrarGravacao:
+      case VoiceCommandType.pararReproducao:
+      case VoiceCommandType.reproduzirGravacao:
+      case VoiceCommandType.listarGravacoes:
+      case VoiceCommandType.criarMarcador:
+      case VoiceCommandType.limparTexto:
+      case VoiceCommandType.abrirDashboard:
+      case VoiceCommandType.abrirProjetos:
+      case VoiceCommandType.abrirGravacoes:
+      case VoiceCommandType.abrirConfiguracoes:
+      case VoiceCommandType.abrirAssistente:
+      case VoiceCommandType.abrirHistorico:
+      case VoiceCommandType.abrirEditor:
+      case VoiceCommandType.renomearGravacao:
+      case VoiceCommandType.excluirGravacao:
+      case VoiceCommandType.ativarControleVoz:
+      case VoiceCommandType.desativarControleVoz:
+      case VoiceCommandType.ativarEscutaContinua:
+      case VoiceCommandType.desativarEscutaContinua:
+      case VoiceCommandType.ativarFeedbackSonoro:
+      case VoiceCommandType.desativarFeedbackSonoro:
+      case VoiceCommandType.ativarParadaSilencio:
+      case VoiceCommandType.desativarParadaSilencio:
+      case VoiceCommandType.definirTempoSilencio:
+      case VoiceCommandType.sair:
+      case VoiceCommandType.desconhecido:
+        setState(() {
+          _statusVoz = resultado.recognized
+              ? 'Comando nao disponivel nesta tela.'
+              : 'Comando nao reconhecido nesta tela.';
+        });
+        return;
+    }
+  }
+
+  Future<void> _criarProjetoPorVozOuAbrirFormulario() async {
+    final nome = _nomeProjetoVoz?.trim();
+
+    if (nome == null || nome.isEmpty) {
+      await _abrirCriacaoProjeto();
+      return;
+    }
+
+    final usuarioId = widget.usuario.id;
+    if (usuarioId == null) {
+      setState(() {
+        _statusVoz = 'Usuario sem identificacao para criar projeto.';
+      });
+      return;
+    }
+
+    final descricao = _descricaoProjetoVoz?.trim();
+    final novoProjeto = Projeto(
+      usuarioId: usuarioId,
+      nome: nome,
+      descricao: descricao == null || descricao.isEmpty ? null : descricao,
+      dataCriacao: DateTime.now().toIso8601String(),
+    );
+
+    final id = await ProjetoRepository.instance.criarProjeto(novoProjeto);
+
+    if (!mounted) {
+      return;
+    }
+
+    _nomeProjetoVoz = null;
+    _descricaoProjetoVoz = null;
+    await _carregarProjetos();
+
+    if (!mounted) {
+      return;
+    }
+
+    await _abrirProjeto(
+      Projeto(
+        id: id,
+        usuarioId: novoProjeto.usuarioId,
+        nome: novoProjeto.nome,
+        descricao: novoProjeto.descricao,
+        dataCriacao: novoProjeto.dataCriacao,
+      ),
+    );
+  }
+
+  Future<void> _abrirProjetoPorNome(String? nomeFalado) async {
+    final nomeNormalizado = _commandService.normalize(nomeFalado ?? '');
+    if (nomeNormalizado.isEmpty) {
+      setState(() {
+        _statusVoz = 'Diga o nome do projeto que deseja abrir.';
+      });
+      return;
+    }
+
+    Projeto? projeto;
+    for (final item in _projetos) {
+      if (_commandService.normalize(item.nome).contains(nomeNormalizado)) {
+        projeto = item;
+        break;
+      }
+    }
+
+    if (projeto == null) {
+      setState(() {
+        _statusVoz = 'Projeto "$nomeFalado" nao encontrado.';
+      });
+      return;
+    }
+
+    await _abrirProjeto(projeto);
+  }
+
+  Future<void> _registrarComando(CommandResult resultado) async {
+    final usuarioId = widget.usuario.id;
+    if (usuarioId == null || resultado.normalizedText.isEmpty) {
+      return;
+    }
+
+    try {
+      await ComandoVozRepository.instance.registrarComando(
+        ComandoVoz(
+          usuarioId: usuarioId,
+          textoReconhecido: resultado.originalText,
+          tipoComando: resultado.tipoComando,
+          statusReconhecimento: resultado.statusReconhecimento,
+          acaoExecutada: resultado.acaoExecutada,
+          dataHora: DateTime.now().toIso8601String(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Erro ao registrar comando de voz: $e');
+    }
+  }
+
   Future<void> _abrirProjeto(Projeto projeto) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ProjetoDetalhesPage(
-          usuario: widget.usuario,
-          projeto: projeto,
-        ),
+        builder: (_) =>
+            ProjetoDetalhesPage(usuario: widget.usuario, projeto: projeto),
       ),
     );
 
@@ -145,12 +390,25 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
   }
 
   @override
+  void dispose() {
+    _speechService.stopListening();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Meus Projetos'),
+        actions: [
+          IconButton(
+            tooltip: _ouvindo ? 'Parar escuta' : 'Comando de voz',
+            onPressed: _alternarEscutaVoz,
+            icon: Icon(_ouvindo ? Icons.mic : Icons.mic_none),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _abrirCriacaoProjeto,
@@ -204,7 +462,8 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.lg),
               itemCount: _projetos.length,
-              separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+              separatorBuilder: (_, __) =>
+                  const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
                 final projeto = _projetos[index];
 
@@ -212,7 +471,9 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(AppSpacing.md),
                     leading: CircleAvatar(
-                      backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+                      backgroundColor: theme.colorScheme.primary.withOpacity(
+                        0.12,
+                      ),
                       child: Icon(
                         Icons.folder_outlined,
                         color: theme.colorScheme.primary,
@@ -231,7 +492,9 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
                               projeto.descricao!.isNotEmpty)
                             Text(projeto.descricao!),
                           const SizedBox(height: 4),
-                          Text('Criado em: ${_formatarData(projeto.dataCriacao)}'),
+                          Text(
+                            'Criado em: ${_formatarData(projeto.dataCriacao)}',
+                          ),
                         ],
                       ),
                     ),
@@ -247,14 +510,32 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
           },
         ),
       ),
+      bottomNavigationBar: _statusVoz == null
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Text(
+                  _statusVoz!,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ),
     );
   }
 }
 
 class _CriarProjetoDialog extends StatefulWidget {
   final Usuario usuario;
+  final String? nomeInicial;
+  final String? descricaoInicial;
 
-  const _CriarProjetoDialog({required this.usuario});
+  const _CriarProjetoDialog({
+    required this.usuario,
+    this.nomeInicial,
+    this.descricaoInicial,
+  });
 
   @override
   State<_CriarProjetoDialog> createState() => _CriarProjetoDialogState();
@@ -272,8 +553,8 @@ class _CriarProjetoDialogState extends State<_CriarProjetoDialog> {
   @override
   void initState() {
     super.initState();
-    _nomeController = TextEditingController();
-    _descricaoController = TextEditingController();
+    _nomeController = TextEditingController(text: widget.nomeInicial);
+    _descricaoController = TextEditingController(text: widget.descricaoInicial);
     _nomeFocusNode = FocusNode();
     _descricaoFocusNode = FocusNode();
 
@@ -367,9 +648,7 @@ class _CriarProjetoDialogState extends State<_CriarProjetoDialog> {
               focusNode: _nomeFocusNode,
               textInputAction: TextInputAction.next,
               onSubmitted: (_) => _descricaoFocusNode.requestFocus(),
-              decoration: const InputDecoration(
-                labelText: 'Nome do projeto',
-              ),
+              decoration: const InputDecoration(labelText: 'Nome do projeto'),
             ),
             const SizedBox(height: AppSpacing.sm),
             TextField(
@@ -384,10 +663,7 @@ class _CriarProjetoDialogState extends State<_CriarProjetoDialog> {
             ),
             if (_erroLocal != null) ...[
               const SizedBox(height: AppSpacing.sm),
-              Text(
-                _erroLocal!,
-                style: const TextStyle(color: Colors.red),
-              ),
+              Text(_erroLocal!, style: const TextStyle(color: Colors.red)),
             ],
           ],
         ),

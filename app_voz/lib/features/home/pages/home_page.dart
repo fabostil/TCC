@@ -456,7 +456,21 @@ class _HomePageState extends State<HomePage> {
       case VoiceCommandType.reproduzirGravacao:
       case VoiceCommandType.criarMarcador:
       case VoiceCommandType.limparTexto:
+      case VoiceCommandType.definirNomeProjeto:
+      case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.abrirProjetoPorNome:
       case VoiceCommandType.abrirEditor:
+      case VoiceCommandType.renomearGravacao:
+      case VoiceCommandType.excluirGravacao:
+      case VoiceCommandType.ativarControleVoz:
+      case VoiceCommandType.desativarControleVoz:
+      case VoiceCommandType.ativarEscutaContinua:
+      case VoiceCommandType.desativarEscutaContinua:
+      case VoiceCommandType.ativarFeedbackSonoro:
+      case VoiceCommandType.desativarFeedbackSonoro:
+      case VoiceCommandType.ativarParadaSilencio:
+      case VoiceCommandType.desativarParadaSilencio:
+      case VoiceCommandType.definirTempoSilencio:
       case VoiceCommandType.desconhecido:
         setState(() {
           _iaPensando = false;
@@ -488,7 +502,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _abrirConfiguracoes() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ConfiguracoesPage()),
+      MaterialPageRoute(
+        builder: (_) => ConfiguracoesPage(usuario: widget.usuario),
+      ),
     );
 
     final configuracao = await ConfiguracaoAppRepository.instance

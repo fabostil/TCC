@@ -84,6 +84,31 @@ void main() {
       expect(service.interpret('sair').type, VoiceCommandType.sair);
     });
 
+    test('reconhece comandos contextuais com parametros', () {
+      final nomeProjeto = service.interpret('nome do projeto beat novo');
+      expect(nomeProjeto.type, VoiceCommandType.definirNomeProjeto);
+      expect(nomeProjeto.parametro, 'beat novo');
+
+      final abrirProjeto = service.interpret('abrir projeto demo acustica');
+      expect(abrirProjeto.type, VoiceCommandType.abrirProjetoPorNome);
+      expect(abrirProjeto.parametro, 'demo acustica');
+
+      final reproduzir = service.interpret('reproduzir gravacao ideia um');
+      expect(reproduzir.type, VoiceCommandType.reproduzirGravacao);
+      expect(reproduzir.parametro, 'ideia um');
+
+      final renomear = service.interpret(
+        'renomear gravacao ideia um para refrao final',
+      );
+      expect(renomear.type, VoiceCommandType.renomearGravacao);
+      expect(renomear.parametro, 'ideia um');
+      expect(renomear.parametroSecundario, 'refrao final');
+
+      final tempo = service.interpret('tempo de silencio 9 segundos');
+      expect(tempo.type, VoiceCommandType.definirTempoSilencio);
+      expect(tempo.parametro, '9');
+    });
+
     test('reconhece frases naturais frequentes sem acionar IA', () {
       expect(
         service.interpret('quero ver minha atividade recente').type,
