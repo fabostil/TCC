@@ -325,6 +325,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
 
     if (mounted) {
       await _carregarGravacoes();
+      await _retomarEscutaContinuaAposAcao();
     }
   }
 
@@ -540,8 +541,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
     });
   }
 
-  Future<void> _suspenderEscutaParaAcao() async {
-    _paradaManualEscuta = true;
+  Future<void> _suspenderEscutaParaAcao({bool manterPausada = false}) async {
+    _paradaManualEscuta = manterPausada;
     _escutaContinuaAtiva = false;
 
     if (_ouvindo || _speechService.isListening) {
@@ -552,6 +553,25 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       setState(() {
         _ouvindo = false;
       });
+    }
+  }
+
+  Future<void> _retomarEscutaContinuaAposAcao() async {
+    if (!mounted || _paradaManualEscuta) {
+      return;
+    }
+
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    _escutaContinuaAtiva =
+        configuracao.comandosVozAtivos && configuracao.escutaContinua;
+    if (_escutaContinuaAtiva && !_ouvindo) {
+      await _iniciarEscutaVoz();
     }
   }
 

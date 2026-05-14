@@ -543,8 +543,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
     });
   }
 
-  Future<void> _suspenderEscutaParaAcao() async {
-    _paradaManualEscuta = true;
+  Future<void> _suspenderEscutaParaAcao({bool manterPausada = false}) async {
+    _paradaManualEscuta = manterPausada;
     _escutaContinuaAtiva = false;
 
     if (_ouvindo || _speechService.isListening) {

@@ -174,7 +174,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
           ),
         );
         _atualizarStatus('Controle por voz desativado.');
-        await _suspenderEscutaParaAcao();
+        await _suspenderEscutaParaAcao(manterPausada: true);
         _executandoComandoVoz = false;
         return;
       case VoiceCommandType.ativarEscutaContinua:
@@ -299,8 +299,8 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
     });
   }
 
-  Future<void> _suspenderEscutaParaAcao() async {
-    _paradaManualEscuta = true;
+  Future<void> _suspenderEscutaParaAcao({bool manterPausada = false}) async {
+    _paradaManualEscuta = manterPausada;
     _escutaContinuaAtiva = false;
 
     if (_ouvindo || _speechService.isListening) {

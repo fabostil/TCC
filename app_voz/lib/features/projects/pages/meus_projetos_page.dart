@@ -134,6 +134,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
     );
 
     if (resultado == null || !mounted) {
+      await _retomarEscutaContinuaAposAcao();
       return;
     }
 
@@ -153,6 +154,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
 
     if (mounted) {
       await _carregarProjetos();
+      await _retomarEscutaContinuaAposAcao();
     }
   }
 
@@ -355,8 +357,8 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
     });
   }
 
-  Future<void> _suspenderEscutaParaAcao() async {
-    _paradaManualEscuta = true;
+  Future<void> _suspenderEscutaParaAcao({bool manterPausada = false}) async {
+    _paradaManualEscuta = manterPausada;
     _escutaContinuaAtiva = false;
 
     if (_ouvindo || _speechService.isListening) {
@@ -367,6 +369,25 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       setState(() {
         _ouvindo = false;
       });
+    }
+  }
+
+  Future<void> _retomarEscutaContinuaAposAcao() async {
+    if (!mounted || _paradaManualEscuta) {
+      return;
+    }
+
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    _escutaContinuaAtiva =
+        configuracao.comandosVozAtivos && configuracao.escutaContinua;
+    if (_escutaContinuaAtiva && !_ouvindo) {
+      await _iniciarEscutaVoz();
     }
   }
 
@@ -450,6 +471,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
 
     await _suspenderEscutaParaAcao();
     await _abrirProjeto(projeto);
+    await _retomarEscutaContinuaAposAcao();
   }
 
   Future<void> _registrarComando(CommandResult resultado) async {

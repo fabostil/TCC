@@ -175,8 +175,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _abrirNovoProjeto(BuildContext context) {
-    Navigator.push(
+  Future<void> _abrirNovoProjeto(BuildContext context) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => MeusProjetosPage(
@@ -185,15 +185,19 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+
+    await _retomarEscutaAposNavegacao();
   }
 
-  void _abrirProjetos(BuildContext context) {
-    Navigator.push(
+  Future<void> _abrirProjetos(BuildContext context) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => MeusProjetosPage(usuario: widget.usuario),
       ),
     );
+
+    await _retomarEscutaAposNavegacao();
   }
 
   void _abrirAssistente(BuildContext context) {
@@ -299,27 +303,33 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _abrirGravacoes(BuildContext context) {
-    Navigator.push(
+  Future<void> _abrirGravacoes(BuildContext context) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => MinhasGravacoesPage(usuario: widget.usuario),
       ),
     );
+
+    await _retomarEscutaAposNavegacao();
   }
 
-  void _abrirDashboard(BuildContext context) {
-    Navigator.push(
+  Future<void> _abrirDashboard(BuildContext context) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => DashboardPage(usuario: widget.usuario)),
     );
+
+    await _retomarEscutaAposNavegacao();
   }
 
-  void _abrirHistorico(BuildContext context) {
-    Navigator.push(
+  Future<void> _abrirHistorico(BuildContext context) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => HistoricoPage(usuario: widget.usuario)),
     );
+
+    await _retomarEscutaAposNavegacao();
   }
 
   Future<void> _executarComandoHome(String comando) async {
@@ -382,7 +392,7 @@ class _HomePageState extends State<HomePage> {
           _executandoComandoVoz = false;
           return;
         }
-        _abrirNovoProjeto(context);
+        await _abrirNovoProjeto(context);
         _executandoComandoVoz = false;
         return;
       case VoiceCommandType.abrirDashboard:
@@ -391,7 +401,7 @@ class _HomePageState extends State<HomePage> {
           _executandoComandoVoz = false;
           return;
         }
-        _abrirDashboard(context);
+        await _abrirDashboard(context);
         _executandoComandoVoz = false;
         return;
       case VoiceCommandType.abrirProjetos:
@@ -400,7 +410,7 @@ class _HomePageState extends State<HomePage> {
           _executandoComandoVoz = false;
           return;
         }
-        _abrirProjetos(context);
+        await _abrirProjetos(context);
         _executandoComandoVoz = false;
         return;
       case VoiceCommandType.abrirGravacoes:
@@ -410,7 +420,7 @@ class _HomePageState extends State<HomePage> {
           _executandoComandoVoz = false;
           return;
         }
-        _abrirGravacoes(context);
+        await _abrirGravacoes(context);
         _executandoComandoVoz = false;
         return;
       case VoiceCommandType.abrirConfiguracoes:
@@ -434,7 +444,7 @@ class _HomePageState extends State<HomePage> {
           _executandoComandoVoz = false;
           return;
         }
-        _abrirHistorico(context);
+        await _abrirHistorico(context);
         _executandoComandoVoz = false;
         return;
       case VoiceCommandType.voltar:
@@ -517,6 +527,28 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _configuracao = configuracao;
     });
+
+    await _retomarEscutaAposNavegacao();
+  }
+
+  Future<void> _retomarEscutaAposNavegacao() async {
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _configuracao = configuracao;
+    });
+
+    _escutaContinuaSuspensa = false;
+    if (configuracao.comandosVozAtivos &&
+        configuracao.escutaContinua &&
+        !_ouvindo) {
+      await _iniciarEscutaHome();
+    }
   }
 
   @override
