@@ -193,11 +193,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       return;
     }
 
+    final nomeFinal = _gerarNomeGravacaoUnico(novoNome, ignorarId: gravacao.id);
     final gravacaoAtualizada = Gravacao(
       id: gravacao.id,
       usuarioId: gravacao.usuarioId,
       projetoId: gravacao.projetoId,
-      nome: novoNome,
+      nome: nomeFinal,
       caminhoArquivo: gravacao.caminhoArquivo,
       dataCriacao: gravacao.dataCriacao,
       duracaoSegundos: gravacao.duracaoSegundos,
@@ -220,7 +221,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       unawaited(
         _registrarHistorico(
           tipo: 'gravacao_renomeada',
-          descricao: 'Renomeou "${gravacao.nome}" para "$novoNome"',
+          descricao: 'Renomeou "${gravacao.nome}" para "$nomeFinal"',
           gravacaoId: gravacao.id,
           projetoId: gravacao.projetoId,
         ),
@@ -244,11 +245,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       return;
     }
 
+    final nomeFinal = _gerarNomeGravacaoUnico(novoNome, ignorarId: gravacao.id);
     final gravacaoAtualizada = Gravacao(
       id: gravacao.id,
       usuarioId: gravacao.usuarioId,
       projetoId: gravacao.projetoId,
-      nome: novoNome,
+      nome: nomeFinal,
       caminhoArquivo: gravacao.caminhoArquivo,
       dataCriacao: gravacao.dataCriacao,
       duracaoSegundos: gravacao.duracaoSegundos,
@@ -265,13 +267,13 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       if (index != -1) {
         _gravacoes[index] = gravacaoAtualizada;
       }
-      _statusVoz = 'Gravacao renomeada para $novoNome.';
+      _statusVoz = 'Gravacao renomeada para $nomeFinal.';
     });
 
     unawaited(
       _registrarHistorico(
         tipo: 'gravacao_renomeada',
-        descricao: 'Renomeou "${gravacao.nome}" para "$novoNome" por voz',
+        descricao: 'Renomeou "${gravacao.nome}" para "$nomeFinal" por voz',
         gravacaoId: gravacao.id,
         projetoId: gravacao.projetoId,
       ),
@@ -508,6 +510,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       case VoiceCommandType.substituirNomeProjeto:
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.renomearProjeto:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
       case VoiceCommandType.cancelarProjeto:
@@ -698,6 +701,27 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
     return null;
   }
 
+  String _gerarNomeGravacaoUnico(String nomeBase, {int? ignorarId}) {
+    final base = nomeBase.trim();
+    if (base.isEmpty) {
+      return base;
+    }
+
+    final nomesExistentes = _gravacoes
+        .where((gravacao) => gravacao.id != ignorarId)
+        .map((gravacao) => _commandService.normalize(gravacao.nome))
+        .toSet();
+
+    var candidato = base;
+    var contador = 1;
+    while (nomesExistentes.contains(_commandService.normalize(candidato))) {
+      candidato = '$base$contador';
+      contador++;
+    }
+
+    return candidato;
+  }
+
   Future<void> _registrarComando(CommandResult resultado) async {
     final usuarioId = widget.usuario.id;
     if (usuarioId == null || resultado.normalizedText.isEmpty) {
@@ -791,9 +815,25 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
             if (_gravacoes.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 120),
-                  AppEmptyState(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  if (_gravacaoPendenteExclusao != null) ...[
+                    _ConfirmacaoExclusaoCard(
+                      gravacao: _gravacaoPendenteExclusao!,
+                      onConfirmar: () {
+                        unawaited(_confirmarExclusaoPendente());
+                      },
+                      onCancelar: () {
+                        setState(() {
+                          _gravacaoPendenteExclusao = null;
+                          _statusVoz = 'Exclusao cancelada.';
+                        });
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                  ],
+                  const SizedBox(height: 80),
+                  const AppEmptyState(
                     icon: Icons.library_music_outlined,
                     title: 'Nenhuma gravação encontrada',
                     subtitle:
@@ -805,11 +845,31 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
 
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              itemCount: _gravacoes.length,
+              itemCount:
+                  _gravacoes.length +
+                  (_gravacaoPendenteExclusao != null ? 1 : 0),
               separatorBuilder: (_, __) =>
                   const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
-                final gravacao = _gravacoes[index];
+                if (_gravacaoPendenteExclusao != null && index == 0) {
+                  return _ConfirmacaoExclusaoCard(
+                    gravacao: _gravacaoPendenteExclusao!,
+                    onConfirmar: () {
+                      unawaited(_confirmarExclusaoPendente());
+                    },
+                    onCancelar: () {
+                      setState(() {
+                        _gravacaoPendenteExclusao = null;
+                        _statusVoz = 'Exclusao cancelada.';
+                      });
+                    },
+                  );
+                }
+
+                final gravacaoIndex = _gravacaoPendenteExclusao != null
+                    ? index - 1
+                    : index;
+                final gravacao = _gravacoes[gravacaoIndex];
                 final reproduzindo = _gravacaoReproduzindoId == gravacao.id;
 
                 return Card(
@@ -891,6 +951,66 @@ class _RenomearGravacaoDialog extends StatefulWidget {
   @override
   State<_RenomearGravacaoDialog> createState() =>
       _RenomearGravacaoDialogState();
+}
+
+class _ConfirmacaoExclusaoCard extends StatelessWidget {
+  final Gravacao gravacao;
+  final VoidCallback onConfirmar;
+  final VoidCallback onCancelar;
+
+  const _ConfirmacaoExclusaoCard({
+    required this.gravacao,
+    required this.onConfirmar,
+    required this.onCancelar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Excluir gravação',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text('Deseja excluir "${gravacao.nome}"?'),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onCancelar,
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: onConfirmar,
+                    child: const Text('Excluir'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {

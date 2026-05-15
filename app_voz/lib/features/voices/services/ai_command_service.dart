@@ -318,6 +318,16 @@ class AiCommandService {
           acaoExecutada: 'Abrir projeto por nome',
           parametro: parsed?.parametro,
         );
+      case 'project_rename_named':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.renomearProjeto,
+          tipoComando: 'renomear_projeto',
+          acaoExecutada: 'Renomear projeto',
+          parametro: parsed?.parametro,
+          parametroSecundario: parsed?.parametroSecundario,
+        );
       case 'recording_delete_named':
         return _recognized(
           originalText,
@@ -611,6 +621,7 @@ Intents permitidas:
 - project_create: salvar ou criar o projeto atual.
 - project_cancel: cancelar a criacao do projeto atual.
 - project_open_named: abrir um projeto pelo nome.
+- project_rename_named: renomear projeto; parametro e nome atual, parametro_secundario e novo nome.
 - recording_delete_named: excluir/remover/apagar gravacao pelo nome.
 - recording_rename_named: renomear gravacao pelo nome.
 - settings_voice_on: ativar comandos ou controle por voz.

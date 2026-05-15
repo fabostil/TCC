@@ -257,6 +257,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
       case VoiceCommandType.substituirNomeProjeto:
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.renomearProjeto:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
       case VoiceCommandType.cancelarProjeto:

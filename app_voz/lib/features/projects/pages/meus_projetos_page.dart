@@ -274,6 +274,14 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
         await _abrirProjetoPorNome(resultado.parametro);
         _executandoComandoVoz = false;
         return;
+      case VoiceCommandType.renomearProjeto:
+        await _renomearProjetoPorVoz(
+          resultado.parametro,
+          resultado.parametroSecundario,
+        );
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
+        return;
       case VoiceCommandType.voltar:
         await _suspenderEscutaParaAcao();
         if (!mounted) {
@@ -417,9 +425,10 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
     });
 
     final descricao = _descricaoProjetoController.text.trim();
+    final nomeFinal = _gerarNomeProjetoUnico(nome);
     final novoProjeto = Projeto(
       usuarioId: usuarioId,
-      nome: nome,
+      nome: nomeFinal,
       descricao: descricao.isEmpty ? null : descricao,
       dataCriacao: DateTime.now().toIso8601String(),
     );
@@ -483,6 +492,100 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
     await _suspenderEscutaParaAcao();
     await _abrirProjeto(projeto);
     await _retomarEscutaContinuaAposAcao();
+  }
+
+  Future<void> _renomearProjetoPorVoz(
+    String? nomeAtual,
+    String? novoNome,
+  ) async {
+    final projeto = _buscarProjetoPorNome(nomeAtual);
+
+    if (projeto == null || novoNome == null || novoNome.trim().isEmpty) {
+      setState(() {
+        _statusVoz = 'Diga: renomear projeto nome atual para novo nome.';
+      });
+      return;
+    }
+
+    await _salvarNovoNomeProjeto(projeto, novoNome.trim());
+  }
+
+  Future<void> _renomearProjetoManual(Projeto projeto) async {
+    final novoNome = await showDialog<String>(
+      context: context,
+      builder: (context) => _RenomearProjetoDialog(nomeInicial: projeto.nome),
+    );
+
+    if (novoNome == null || novoNome.trim().isEmpty) {
+      return;
+    }
+
+    await _salvarNovoNomeProjeto(projeto, novoNome.trim());
+  }
+
+  Future<void> _salvarNovoNomeProjeto(Projeto projeto, String novoNome) async {
+    if (projeto.id == null) {
+      return;
+    }
+
+    final nomeFinal = _gerarNomeProjetoUnico(novoNome, ignorarId: projeto.id);
+    final projetoAtualizado = Projeto(
+      id: projeto.id,
+      usuarioId: projeto.usuarioId,
+      nome: nomeFinal,
+      descricao: projeto.descricao,
+      dataCriacao: projeto.dataCriacao,
+    );
+
+    await ProjetoRepository.instance.atualizarProjeto(projetoAtualizado);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      final index = _projetos.indexWhere((item) => item.id == projeto.id);
+      if (index != -1) {
+        _projetos[index] = projetoAtualizado;
+      }
+      _statusVoz = 'Projeto renomeado para $nomeFinal.';
+    });
+  }
+
+  Projeto? _buscarProjetoPorNome(String? nome) {
+    final nomeNormalizado = _commandService.normalize(nome ?? '');
+    if (nomeNormalizado.isEmpty) {
+      return null;
+    }
+
+    for (final projeto in _projetos) {
+      if (_commandService.normalize(projeto.nome).contains(nomeNormalizado)) {
+        return projeto;
+      }
+    }
+
+    return null;
+  }
+
+  String _gerarNomeProjetoUnico(String nomeBase, {int? ignorarId}) {
+    final base = nomeBase.trim();
+    if (base.isEmpty) {
+      return base;
+    }
+
+    final nomesExistentes = _projetos
+        .where((projeto) => projeto.id != ignorarId)
+        .map((projeto) => _commandService.normalize(projeto.nome))
+        .toSet();
+
+    var candidato = base;
+    var contador = 1;
+    while (nomesExistentes.contains(_commandService.normalize(candidato))) {
+      candidato = '$base$contador';
+      contador++;
+    }
+
+    return candidato;
   }
 
   Future<void> _registrarComando(CommandResult resultado) async {
@@ -654,11 +757,22 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
                         ],
                       ),
                     ),
-                    trailing: Icon(
-                      Icons.chevron_right_rounded,
-                      color: theme.colorScheme.primary,
+                    trailing: PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'open') {
+                          _abrirProjeto(projeto);
+                        }
+                        if (value == 'rename') {
+                          _renomearProjetoManual(projeto);
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(value: 'open', child: Text('Abrir')),
+                        PopupMenuItem(value: 'rename', child: Text('Renomear')),
+                      ],
                     ),
                     onTap: () => _abrirProjeto(projeto),
+                    onLongPress: () => _renomearProjetoManual(projeto),
                   ),
                 );
               },
@@ -748,6 +862,55 @@ class _ProjetoCriacaoCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RenomearProjetoDialog extends StatefulWidget {
+  final String nomeInicial;
+
+  const _RenomearProjetoDialog({required this.nomeInicial});
+
+  @override
+  State<_RenomearProjetoDialog> createState() => _RenomearProjetoDialogState();
+}
+
+class _RenomearProjetoDialogState extends State<_RenomearProjetoDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.nomeInicial);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Renomear projeto'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => Navigator.pop(context, _controller.text.trim()),
+        decoration: const InputDecoration(labelText: 'Novo nome'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: const Text('Salvar'),
+        ),
+      ],
     );
   }
 }

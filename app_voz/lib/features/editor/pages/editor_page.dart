@@ -347,6 +347,7 @@ class _EditorPageState extends State<EditorPage> {
       case VoiceCommandType.substituirNomeProjeto:
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.renomearProjeto:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
       case VoiceCommandType.cancelarProjeto:
@@ -604,7 +605,7 @@ class _EditorPageState extends State<EditorPage> {
       }
 
       final numeroFaixa = faixas.length + 1;
-      final nomeFaixa = 'Gravação $numeroFaixa';
+      final nomeFaixa = _gerarNomeGravacaoUnico('Gravação $numeroFaixa');
       final agora = DateTime.now();
       final duracaoSegundos = inicioGravacaoEm == null
           ? 0
@@ -1000,6 +1001,21 @@ class _EditorPageState extends State<EditorPage> {
     }
 
     return 'Pronto';
+  }
+
+  String _gerarNomeGravacaoUnico(String nomeBase) {
+    final nomesExistentes = faixas
+        .map((gravacao) => commandService.normalize(gravacao.nome))
+        .toSet();
+
+    var candidato = nomeBase;
+    var contador = 1;
+    while (nomesExistentes.contains(commandService.normalize(candidato))) {
+      candidato = '$nomeBase$contador';
+      contador++;
+    }
+
+    return candidato;
   }
 
   @override

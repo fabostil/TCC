@@ -203,11 +203,12 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       return;
     }
 
+    final nomeFinal = _gerarNomeGravacaoUnico(novoNome, ignorarId: gravacao.id);
     final gravacaoAtualizada = Gravacao(
       id: gravacao.id,
       usuarioId: gravacao.usuarioId,
       projetoId: gravacao.projetoId,
-      nome: novoNome,
+      nome: nomeFinal,
       caminhoArquivo: gravacao.caminhoArquivo,
       dataCriacao: gravacao.dataCriacao,
       duracaoSegundos: gravacao.duracaoSegundos,
@@ -231,7 +232,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
         _registrarHistorico(
           tipo: 'gravacao_renomeada',
           descricao:
-              'Renomeou "${gravacao.nome}" para "$novoNome" no projeto "${widget.projeto.nome}"',
+              'Renomeou "${gravacao.nome}" para "$nomeFinal" no projeto "${widget.projeto.nome}"',
           gravacaoId: gravacao.id,
           projetoId: gravacao.projetoId,
         ),
@@ -493,6 +494,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       case VoiceCommandType.substituirNomeProjeto:
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.renomearProjeto:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
       case VoiceCommandType.cancelarProjeto:
@@ -645,11 +647,12 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       return;
     }
 
+    final nomeFinal = _gerarNomeGravacaoUnico(novoNome, ignorarId: gravacao.id);
     final gravacaoAtualizada = Gravacao(
       id: gravacao.id,
       usuarioId: gravacao.usuarioId,
       projetoId: gravacao.projetoId,
-      nome: novoNome,
+      nome: nomeFinal,
       caminhoArquivo: gravacao.caminhoArquivo,
       dataCriacao: gravacao.dataCriacao,
       duracaoSegundos: gravacao.duracaoSegundos,
@@ -666,18 +669,39 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       if (index != -1) {
         _gravacoes[index] = gravacaoAtualizada;
       }
-      _statusVoz = 'Gravacao renomeada para $novoNome.';
+      _statusVoz = 'Gravacao renomeada para $nomeFinal.';
     });
 
     unawaited(
       _registrarHistorico(
         tipo: 'gravacao_renomeada',
         descricao:
-            'Renomeou "${gravacao.nome}" para "$novoNome" no projeto "${widget.projeto.nome}" por voz',
+            'Renomeou "${gravacao.nome}" para "$nomeFinal" no projeto "${widget.projeto.nome}" por voz',
         gravacaoId: gravacao.id,
         projetoId: gravacao.projetoId,
       ),
     );
+  }
+
+  String _gerarNomeGravacaoUnico(String nomeBase, {int? ignorarId}) {
+    final base = nomeBase.trim();
+    if (base.isEmpty) {
+      return base;
+    }
+
+    final nomesExistentes = _gravacoes
+        .where((gravacao) => gravacao.id != ignorarId)
+        .map((gravacao) => _commandService.normalize(gravacao.nome))
+        .toSet();
+
+    var candidato = base;
+    var contador = 1;
+    while (nomesExistentes.contains(_commandService.normalize(candidato))) {
+      candidato = '$base$contador';
+      contador++;
+    }
+
+    return candidato;
   }
 
   Future<void> _registrarComando(CommandResult resultado) async {

@@ -194,6 +194,7 @@ class _VoicePageState extends State<VoicePage> {
       case VoiceCommandType.substituirNomeProjeto:
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.renomearProjeto:
       case VoiceCommandType.renomearGravacao:
       case VoiceCommandType.excluirGravacao:
       case VoiceCommandType.confirmarAcao:

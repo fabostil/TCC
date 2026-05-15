@@ -12,6 +12,7 @@ enum VoiceCommandType {
   definirDescricaoProjeto,
   substituirNomeProjeto,
   substituirDescricaoProjeto,
+  renomearProjeto,
   abrirProjetoPorNome,
   abrirNovoProjeto,
   criarProjeto,
@@ -283,6 +284,19 @@ class CommandService {
         tipoComando: 'definir_descricao_projeto',
         acaoExecutada: 'Definir descricao do projeto',
         parametro: _polishSentence(descricaoProjeto),
+      );
+    }
+
+    final renomearProjeto = _extractRenameProject(normalizedText);
+    if (renomearProjeto != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.renomearProjeto,
+        tipoComando: 'renomear_projeto',
+        acaoExecutada: 'Renomear projeto',
+        parametro: renomearProjeto.$1,
+        parametroSecundario: renomearProjeto.$2,
       );
     }
 
@@ -774,6 +788,25 @@ class CommandService {
   (String, String)? _extractRenameRecording(String text) {
     final match = RegExp(
       r'^(renomear|nomear) gravacao (.+) para (.+)$',
+    ).firstMatch(text);
+
+    if (match == null) {
+      return null;
+    }
+
+    final atual = match.group(2)?.trim();
+    final novo = match.group(3)?.trim();
+
+    if (atual == null || atual.isEmpty || novo == null || novo.isEmpty) {
+      return null;
+    }
+
+    return (atual, novo);
+  }
+
+  (String, String)? _extractRenameProject(String text) {
+    final match = RegExp(
+      r'^(renomear|nomear) projeto (.+) para (.+)$',
     ).firstMatch(text);
 
     if (match == null) {

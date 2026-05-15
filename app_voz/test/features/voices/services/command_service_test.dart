@@ -124,6 +124,13 @@ void main() {
       expect(abrirProjeto.type, VoiceCommandType.abrirProjetoPorNome);
       expect(abrirProjeto.parametro, 'demo acustica');
 
+      final renomearProjeto = service.interpret(
+        'renomear projeto tomate para alface',
+      );
+      expect(renomearProjeto.type, VoiceCommandType.renomearProjeto);
+      expect(renomearProjeto.parametro, 'tomate');
+      expect(renomearProjeto.parametroSecundario, 'alface');
+
       final reproduzir = service.interpret('reproduzir gravacao ideia um');
       expect(reproduzir.type, VoiceCommandType.reproduzirGravacao);
       expect(reproduzir.parametro, 'ideia um');
