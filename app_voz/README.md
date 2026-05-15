@@ -1,80 +1,183 @@
-# 🎙️ Assistente Virtual para Produção Musical
+# Assistente Musical Voice-First
 
-![Flutter](https://img.shields.io/badge/Flutter-Framework-blue)
-![Dart](https://img.shields.io/badge/Dart-Language-blue)
-![Status](https://img.shields.io/badge/status-em%20desenvolvimento-orange)
+Aplicativo Flutter para Android criado como projeto academico/TCC para apoiar musicos independentes na captura, organizacao, reproducao e acompanhamento de ideias musicais usando comandos de voz como experiencia principal e controles manuais como fallback.
 
-Aplicativo móvel desenvolvido em **Flutter** como projeto acadêmico de **Projeto e Desenvolvimento de Sistemas**.
+## Objetivo
 
-O objetivo do sistema é auxiliar **músicos independentes** na captura, organização e reprodução de ideias musicais por meio de uma interface simples, intuitiva e com apoio de **comandos de voz**.
+Reduzir interrupcoes no fluxo criativo. O usuario pode navegar, criar projetos, gravar ideias, organizar gravacoes e consultar historico/dashboard por voz quando a escuta continua esta ativa.
 
----
+## Estado Atual
 
-## 📚 Contexto do Projeto
+O app possui:
 
-Durante o processo de criação musical, músicos independentes costumam registrar ideias rapidamente, como melodias, letras, frases vocais, riffs, harmonias ou rascunhos de arranjos.
+- cadastro e login local;
+- projetos musicais;
+- gravacao real de audio;
+- pausa, retomada e encerramento;
+- parada automatica por silencio;
+- listagem, reproducao, renomeacao e exclusao de gravacoes;
+- historico persistente;
+- dashboard com metricas reais;
+- configuracoes persistidas;
+- escuta continua;
+- comandos contextuais por tela;
+- fallback com Gemini para linguagem natural;
+- modo hibrido no Editor para evitar conflito de microfone durante gravacao.
 
-Muitas vezes essas ideias surgem de forma espontânea, e o uso de aplicativos comuns de gravação pode exigir várias interações manuais, como abrir o gravador, iniciar a gravação, salvar o arquivo, nomear a ideia e depois organizá-la.
-
-Esse processo pode interromper o fluxo criativo.
-
-Este projeto propõe um aplicativo que funciona como um **assistente virtual para apoio à produção musical independente**, permitindo que o usuário utilize comandos de voz para iniciar ações, registrar ideias, organizar gravações e acessar informações sobre sua atividade criativa.
-
----
-
-## 🎯 Objetivo Geral
-
-Desenvolver um aplicativo móvel Android que utilize comandos de voz para auxiliar músicos independentes na captura, organização e reprodução de ideias musicais.
-
----
-
-## ✅ Objetivos Específicos
-
-- Implementar cadastro e autenticação de usuários.
-- Implementar reconhecimento de comandos de voz.
-- Permitir iniciar gravações a partir de comandos de voz.
-- Permitir encerramento da gravação por botão destacado ou parada automática por silêncio.
-- Salvar arquivos de áudio localmente no dispositivo.
-- Listar e reproduzir gravações salvas.
-- Permitir organização das gravações por projetos musicais.
-- Permitir renomeação de gravações.
-- Registrar histórico de comandos e ações realizadas.
-- Exibir um dashboard com informações sobre projetos, gravações e uso do sistema.
-- Criar uma interface simples, acessível e intuitiva.
-
----
-
-## 🎤 Funcionalidades Planejadas
-
-O sistema contará com as seguintes funcionalidades principais:
-
-- Cadastro de usuário.
-- Login de usuário.
-- Criação de projetos musicais.
-- Sessão de captura de ideias musicais.
-- Reconhecimento de comandos de voz.
-- Gravação de áudio.
-- Parada manual com botão destacado.
-- Parada automática por silêncio.
-- Reprodução de gravações.
-- Listagem de gravações.
-- Renomeação de gravações.
-- Histórico de comandos executados.
-- Dashboard com resumo de uso.
-
----
-
-## 🗣️ Exemplos de Comandos de Voz
-
-Exemplos de comandos previstos no sistema:
+## Arquitetura De Voz
 
 ```text
-"iniciar gravação"
-"começar gravação"
-"gravar"
-"criar marcador"
-"reproduzir"
-"tocar última gravação"
-"listar gravações"
-"nomear como refrão da música nova"
-"abrir dashboard"
+SpeechService
+  -> VoiceCommandController
+      -> CommandService local
+      -> AiCommandService/Gemini se local nao entender
+  -> Tela executa acao contextual
+  -> Repositories persistem comando/historico/dados
+```
+
+`CommandService` e a primeira camada. Ele e local, rapido e sem custo.
+
+`AiCommandService` usa Gemini apenas como fallback quando o parser local retorna `desconhecido`.
+
+## Como Rodar
+
+Sem Gemini:
+
+```powershell
+flutter run
+```
+
+Com Gemini:
+
+```powershell
+flutter run --dart-define=GEMINI_API_KEY=SUA_CHAVE
+```
+
+Modelo Gemini opcional:
+
+```powershell
+flutter run --dart-define=GEMINI_API_KEY=SUA_CHAVE --dart-define=GEMINI_MODEL=gemini-1.5-flash
+```
+
+## Validacao
+
+```powershell
+flutter analyze
+flutter test
+```
+
+Estado atual verificado:
+
+- `flutter analyze`: sem issues.
+- `flutter test`: 17 testes passando.
+
+## Comandos Exemplos
+
+Navegacao:
+
+```text
+abrir dashboard
+abrir projetos
+abrir gravacoes
+abrir configuracoes
+abrir historico
+voltar
+voltar para home
+```
+
+Projetos:
+
+```text
+novo projeto
+eu quero que voce coloque o nome abacate
+descricao do projeto ideia simples para tocar na rua
+criar projeto
+cancelar projeto
+abrir projeto abacate
+renomear projeto abacate para alface
+```
+
+Gravacoes:
+
+```text
+reproduzir gravacao teste
+parar audio
+renomear gravacao teste para ideia inicial
+excluir gravacao ideia inicial
+confirmar exclusao
+cancelar exclusao
+```
+
+Configuracoes:
+
+```text
+ativar escuta continua
+desativar escuta continua
+ativar feedback sonoro
+desativar feedback sonoro
+ativar parada por silencio
+desativar parada por silencio
+tempo de silencio 8 segundos
+```
+
+Editor:
+
+```text
+iniciar gravacao
+pausar gravacao
+retomar gravacao
+encerrar gravacao
+reproduzir
+parar audio
+criar marcador
+```
+
+## Modo Hibrido Do Editor
+
+Durante a gravacao, o app pausa a escuta por voz e dedica o microfone a captura musical. Isso evita conflito real do Android entre `speech_to_text` e `record`.
+
+Fluxo:
+
+```text
+Modo normal
+  -> escuta continua ativa
+
+Modo gravacao
+  -> microfone reservado para audio
+  -> escuta por voz pausada
+  -> controles manuais grandes
+  -> escuta volta ao finalizar se configurada
+```
+
+## Banco Local
+
+SQLite: `assistente_musical.db`
+
+Tabelas:
+
+- `usuario`
+- `projeto`
+- `gravacao`
+- `comando_voz`
+- `historico_acao`
+- `configuracao_app`
+
+## Pendencias Principais
+
+- Teste manual completo em Android real.
+- Melhorar fluxo de permissao negada.
+- Implementar feedback sonoro real.
+- Criar comandos personalizados.
+- Corrigir mojibake remanescente.
+- Criar detalhes de gravacao.
+- Decidir destino da `VoicePage` legada.
+- Atualizar documentacao academica final do TCC.
+
+## Observacao De Git
+
+Arquivos iOS gerados podem aparecer modificados localmente:
+
+- `ios/Runner/GeneratedPluginRegistrant.h`
+- `ios/Runner/GeneratedPluginRegistrant.m`
+
+Eles nao devem ser commitados sem revisao explicita.
