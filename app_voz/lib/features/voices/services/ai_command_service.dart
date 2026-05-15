@@ -257,6 +257,22 @@ class AiCommandService {
           tipoComando: 'abrir_novo_projeto',
           acaoExecutada: 'Abrir novo projeto',
         );
+      case 'project_create':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.criarProjeto,
+          tipoComando: 'criar_projeto',
+          acaoExecutada: 'Criar projeto',
+        );
+      case 'project_cancel':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.cancelarProjeto,
+          tipoComando: 'cancelar_projeto',
+          acaoExecutada: 'Cancelar projeto',
+        );
       case 'project_name_set':
         return _recognized(
           originalText,
@@ -266,6 +282,15 @@ class AiCommandService {
           acaoExecutada: 'Definir nome do projeto',
           parametro: parsed?.parametro,
         );
+      case 'project_name_replace':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.substituirNomeProjeto,
+          tipoComando: 'substituir_nome_projeto',
+          acaoExecutada: 'Substituir nome do projeto',
+          parametro: parsed?.parametro,
+        );
       case 'project_description_set':
         return _recognized(
           originalText,
@@ -273,6 +298,15 @@ class AiCommandService {
           VoiceCommandType.definirDescricaoProjeto,
           tipoComando: 'definir_descricao_projeto',
           acaoExecutada: 'Definir descricao do projeto',
+          parametro: parsed?.parametro,
+        );
+      case 'project_description_replace':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.substituirDescricaoProjeto,
+          tipoComando: 'substituir_descricao_projeto',
+          acaoExecutada: 'Substituir descricao do projeto',
           parametro: parsed?.parametro,
         );
       case 'project_open_named':
@@ -440,6 +474,22 @@ class AiCommandService {
           tipoComando: 'voltar',
           acaoExecutada: 'Voltar tela',
         );
+      case 'confirm_action':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.confirmarAcao,
+          tipoComando: 'confirmar_acao',
+          acaoExecutada: 'Confirmar acao',
+        );
+      case 'cancel_action':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.cancelarAcao,
+          tipoComando: 'cancelar_acao',
+          acaoExecutada: 'Cancelar acao',
+        );
       case 'logout':
         return _recognized(
           originalText,
@@ -556,6 +606,10 @@ Intents permitidas:
 - clear_text: limpar texto reconhecido.
 - project_name_set: definir ou preencher nome de projeto.
 - project_description_set: definir ou preencher descricao de projeto.
+- project_name_replace: substituir o nome do projeto por outro valor.
+- project_description_replace: substituir a descricao do projeto por outro valor.
+- project_create: salvar ou criar o projeto atual.
+- project_cancel: cancelar a criacao do projeto atual.
 - project_open_named: abrir um projeto pelo nome.
 - recording_delete_named: excluir/remover/apagar gravacao pelo nome.
 - recording_rename_named: renomear gravacao pelo nome.
@@ -568,7 +622,7 @@ Intents permitidas:
 - settings_silence_stop_on: ativar parada por silencio.
 - settings_silence_stop_off: desativar parada por silencio.
 - settings_silence_time_set: definir tempo de silencio em segundos.
-- nav_new_project: criar novo projeto ou abrir formulario de novo projeto.
+- nav_new_project: abrir formulario de novo projeto, sem salvar.
 - nav_editor: abrir editor, gravador ou tela de edicao de um projeto.
 - nav_dashboard: abrir dashboard.
 - nav_dashboard: ver metricas, numeros, resumo, produtividade ou desempenho.
@@ -579,6 +633,8 @@ Intents permitidas:
 - nav_history: abrir historico.
 - nav_history: ver atividade recente, linha do tempo, ultimas acoes ou historico de uso.
 - nav_back: voltar tela.
+- confirm_action: confirmar uma acao pendente, como exclusao.
+- cancel_action: cancelar uma acao pendente, como exclusao.
 - logout: sair da conta.
 - unknown: quando nao houver intencao segura.
 

@@ -10,8 +10,12 @@ enum VoiceCommandType {
   limparTexto,
   definirNomeProjeto,
   definirDescricaoProjeto,
+  substituirNomeProjeto,
+  substituirDescricaoProjeto,
   abrirProjetoPorNome,
   abrirNovoProjeto,
+  criarProjeto,
+  cancelarProjeto,
   abrirDashboard,
   abrirProjetos,
   abrirGravacoes,
@@ -30,6 +34,8 @@ enum VoiceCommandType {
   ativarParadaSilencio,
   desativarParadaSilencio,
   definirTempoSilencio,
+  confirmarAcao,
+  cancelarAcao,
   voltar,
   sair,
   desconhecido,
@@ -190,6 +196,36 @@ class CommandService {
       );
     }
 
+    final substituirNomeProjeto = _extractProjectReplacement(
+      normalizedText,
+      const ['nome', 'nome do projeto'],
+    );
+    if (substituirNomeProjeto != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.substituirNomeProjeto,
+        tipoComando: 'substituir_nome_projeto',
+        acaoExecutada: 'Substituir nome do projeto',
+        parametro: _cleanShortName(substituirNomeProjeto),
+      );
+    }
+
+    final substituirDescricaoProjeto = _extractProjectReplacement(
+      normalizedText,
+      const ['descricao', 'descricao do projeto'],
+    );
+    if (substituirDescricaoProjeto != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.substituirDescricaoProjeto,
+        tipoComando: 'substituir_descricao_projeto',
+        acaoExecutada: 'Substituir descricao do projeto',
+        parametro: _polishSentence(substituirDescricaoProjeto),
+      );
+    }
+
     final nomeProjeto = _extractAfterAny(normalizedText, const [
       'eu quero que voce coloque o nome do projeto',
       'quero que voce coloque o nome do projeto',
@@ -271,8 +307,37 @@ class CommandService {
     }
 
     if (_containsAny(normalizedText, const [
-      'novo projeto',
       'criar projeto',
+      'salvar projeto',
+      'confirmar projeto',
+      'finalizar projeto',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.criarProjeto,
+        tipoComando: 'criar_projeto',
+        acaoExecutada: 'Criar projeto',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'cancelar projeto',
+      'cancelar criacao',
+      'cancelar novo projeto',
+      'fechar novo projeto',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.cancelarProjeto,
+        tipoComando: 'cancelar_projeto',
+        acaoExecutada: 'Cancelar projeto',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'novo projeto',
       'criar novo projeto',
       'abrir novo projeto',
       'adicionar projeto',
@@ -350,21 +415,6 @@ class CommandService {
     }
 
     if (_containsAny(normalizedText, const [
-      'ativar controle por voz',
-      'ligar controle por voz',
-      'ativar comandos de voz',
-      'ligar comandos de voz',
-    ])) {
-      return _recognized(
-        text,
-        normalizedText,
-        VoiceCommandType.ativarControleVoz,
-        tipoComando: 'ativar_controle_voz',
-        acaoExecutada: 'Ativar controle por voz',
-      );
-    }
-
-    if (_containsAny(normalizedText, const [
       'desativar controle por voz',
       'desligar controle por voz',
       'desativar comandos de voz',
@@ -380,15 +430,17 @@ class CommandService {
     }
 
     if (_containsAny(normalizedText, const [
-      'ativar escuta continua',
-      'ligar escuta continua',
+      'ativar controle por voz',
+      'ligar controle por voz',
+      'ativar comandos de voz',
+      'ligar comandos de voz',
     ])) {
       return _recognized(
         text,
         normalizedText,
-        VoiceCommandType.ativarEscutaContinua,
-        tipoComando: 'ativar_escuta_continua',
-        acaoExecutada: 'Ativar escuta continua',
+        VoiceCommandType.ativarControleVoz,
+        tipoComando: 'ativar_controle_voz',
+        acaoExecutada: 'Ativar controle por voz',
       );
     }
 
@@ -406,15 +458,15 @@ class CommandService {
     }
 
     if (_containsAny(normalizedText, const [
-      'ativar feedback sonoro',
-      'ligar feedback sonoro',
+      'ativar escuta continua',
+      'ligar escuta continua',
     ])) {
       return _recognized(
         text,
         normalizedText,
-        VoiceCommandType.ativarFeedbackSonoro,
-        tipoComando: 'ativar_feedback_sonoro',
-        acaoExecutada: 'Ativar feedback sonoro',
+        VoiceCommandType.ativarEscutaContinua,
+        tipoComando: 'ativar_escuta_continua',
+        acaoExecutada: 'Ativar escuta continua',
       );
     }
 
@@ -432,16 +484,15 @@ class CommandService {
     }
 
     if (_containsAny(normalizedText, const [
-      'ativar parada por silencio',
-      'ligar parada por silencio',
-      'ativar parada automatica',
+      'ativar feedback sonoro',
+      'ligar feedback sonoro',
     ])) {
       return _recognized(
         text,
         normalizedText,
-        VoiceCommandType.ativarParadaSilencio,
-        tipoComando: 'ativar_parada_silencio',
-        acaoExecutada: 'Ativar parada por silencio',
+        VoiceCommandType.ativarFeedbackSonoro,
+        tipoComando: 'ativar_feedback_sonoro',
+        acaoExecutada: 'Ativar feedback sonoro',
       );
     }
 
@@ -456,6 +507,20 @@ class CommandService {
         VoiceCommandType.desativarParadaSilencio,
         tipoComando: 'desativar_parada_silencio',
         acaoExecutada: 'Desativar parada por silencio',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'ativar parada por silencio',
+      'ligar parada por silencio',
+      'ativar parada automatica',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.ativarParadaSilencio,
+        tipoComando: 'ativar_parada_silencio',
+        acaoExecutada: 'Ativar parada por silencio',
       );
     }
 
@@ -569,7 +634,43 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const ['voltar', 'voltar tela'])) {
+    if (_containsAny(normalizedText, const [
+      'confirmar exclusao',
+      'confirmar',
+      'sim pode excluir',
+      'sim excluir',
+      'pode excluir',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.confirmarAcao,
+        tipoComando: 'confirmar_acao',
+        acaoExecutada: 'Confirmar acao',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'cancelar exclusao',
+      'cancelar acao',
+      'nao excluir',
+      'nao',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.cancelarAcao,
+        tipoComando: 'cancelar_acao',
+        acaoExecutada: 'Cancelar acao',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'voltar',
+      'voltar tela',
+      'voltar para home',
+      'ir para home',
+    ])) {
       return _recognized(
         text,
         normalizedText,
@@ -687,6 +788,35 @@ class CommandService {
     }
 
     return (atual, novo);
+  }
+
+  String? _extractProjectReplacement(String text, List<String> fields) {
+    for (final field in fields) {
+      final patterns = [
+        RegExp('^apague o $field .+ e coloque (.+)\$'),
+        RegExp('^apague a $field .+ e coloque (.+)\$'),
+        RegExp('^apague o $field e coloque (.+)\$'),
+        RegExp('^apague a $field e coloque (.+)\$'),
+        RegExp('^apagar o $field .+ e colocar (.+)\$'),
+        RegExp('^apagar a $field .+ e colocar (.+)\$'),
+        RegExp('^apagar o $field e colocar (.+)\$'),
+        RegExp('^apagar a $field e colocar (.+)\$'),
+        RegExp('^substituir o $field por (.+)\$'),
+        RegExp('^substituir a $field por (.+)\$'),
+        RegExp('^trocar o $field para (.+)\$'),
+        RegExp('^trocar a $field para (.+)\$'),
+      ];
+
+      for (final pattern in patterns) {
+        final match = pattern.firstMatch(text);
+        final value = match?.group(1)?.trim();
+        if (value != null && value.isNotEmpty) {
+          return value;
+        }
+      }
+    }
+
+    return null;
   }
 
   int? _extractTempoSilencio(String text) {

@@ -77,6 +77,10 @@ void main() {
         VoiceCommandType.abrirNovoProjeto,
       );
       expect(
+        service.interpret('criar projeto').type,
+        VoiceCommandType.criarProjeto,
+      );
+      expect(
         service.interpret('abrir editor').type,
         VoiceCommandType.abrirEditor,
       );
@@ -100,6 +104,21 @@ void main() {
       );
       expect(descricao.type, VoiceCommandType.definirDescricaoProjeto);
       expect(descricao.parametro, 'Ideia simples para tocar na rua.');
+
+      final substituirNome = service.interpret(
+        'apague o nome abacate e coloque alface',
+      );
+      expect(substituirNome.type, VoiceCommandType.substituirNomeProjeto);
+      expect(substituirNome.parametro, 'alface');
+
+      final substituirDescricao = service.interpret(
+        'apague a descricao e coloque minha alface e muito boa',
+      );
+      expect(
+        substituirDescricao.type,
+        VoiceCommandType.substituirDescricaoProjeto,
+      );
+      expect(substituirDescricao.parametro, 'Minha alface e muito boa.');
 
       final abrirProjeto = service.interpret('abrir projeto demo acustica');
       expect(abrirProjeto.type, VoiceCommandType.abrirProjetoPorNome);
@@ -129,6 +148,25 @@ void main() {
       expect(
         service.interpret('me mostra meus numeros').type,
         VoiceCommandType.abrirDashboard,
+      );
+    });
+
+    test('respeita comandos negativos antes dos positivos', () {
+      expect(
+        service.interpret('desativar escuta continua').type,
+        VoiceCommandType.desativarEscutaContinua,
+      );
+      expect(
+        service.interpret('desativar feedback sonoro').type,
+        VoiceCommandType.desativarFeedbackSonoro,
+      );
+      expect(
+        service.interpret('desativar comandos de voz').type,
+        VoiceCommandType.desativarControleVoz,
+      );
+      expect(
+        service.interpret('desativar parada por silencio').type,
+        VoiceCommandType.desativarParadaSilencio,
       );
     });
 

@@ -254,8 +254,12 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
       case VoiceCommandType.limparTexto:
       case VoiceCommandType.definirNomeProjeto:
       case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.substituirNomeProjeto:
+      case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
       case VoiceCommandType.abrirNovoProjeto:
+      case VoiceCommandType.criarProjeto:
+      case VoiceCommandType.cancelarProjeto:
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
@@ -265,6 +269,8 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
       case VoiceCommandType.abrirEditor:
       case VoiceCommandType.renomearGravacao:
       case VoiceCommandType.excluirGravacao:
+      case VoiceCommandType.confirmarAcao:
+      case VoiceCommandType.cancelarAcao:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
         _atualizarStatus(
@@ -286,7 +292,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
       return;
     }
 
-    Future.delayed(const Duration(milliseconds: 700), () {
+    Future.delayed(const Duration(seconds: 2), () {
       if (!mounted ||
           _ouvindo ||
           _paradaManualEscuta ||

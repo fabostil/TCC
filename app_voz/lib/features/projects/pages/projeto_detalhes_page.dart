@@ -490,8 +490,12 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       case VoiceCommandType.limparTexto:
       case VoiceCommandType.definirNomeProjeto:
       case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.substituirNomeProjeto:
+      case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
       case VoiceCommandType.abrirNovoProjeto:
+      case VoiceCommandType.criarProjeto:
+      case VoiceCommandType.cancelarProjeto:
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
@@ -507,6 +511,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       case VoiceCommandType.ativarParadaSilencio:
       case VoiceCommandType.desativarParadaSilencio:
       case VoiceCommandType.definirTempoSilencio:
+      case VoiceCommandType.confirmarAcao:
+      case VoiceCommandType.cancelarAcao:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
         setState(() {
@@ -528,7 +534,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       return;
     }
 
-    Future.delayed(const Duration(milliseconds: 700), () {
+    Future.delayed(const Duration(seconds: 2), () {
       if (!mounted ||
           _ouvindo ||
           _paradaManualEscuta ||

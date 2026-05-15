@@ -460,7 +460,11 @@ class _HomePageState extends State<HomePage> {
       case VoiceCommandType.limparTexto:
       case VoiceCommandType.definirNomeProjeto:
       case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.substituirNomeProjeto:
+      case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.criarProjeto:
+      case VoiceCommandType.cancelarProjeto:
       case VoiceCommandType.abrirEditor:
       case VoiceCommandType.renomearGravacao:
       case VoiceCommandType.excluirGravacao:
@@ -473,6 +477,8 @@ class _HomePageState extends State<HomePage> {
       case VoiceCommandType.ativarParadaSilencio:
       case VoiceCommandType.desativarParadaSilencio:
       case VoiceCommandType.definirTempoSilencio:
+      case VoiceCommandType.confirmarAcao:
+      case VoiceCommandType.cancelarAcao:
       case VoiceCommandType.desconhecido:
         setState(() {
           _iaPensando = false;

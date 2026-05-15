@@ -43,6 +43,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
   String? _erro;
   String? _statusVoz;
   int? _gravacaoReproduzindoId;
+  Gravacao? _gravacaoPendenteExclusao;
   StreamSubscription? _playerStateSubscription;
 
   @override
@@ -473,6 +474,19 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
         _executandoComandoVoz = false;
         _reiniciarEscutaContinuaSeNecessario();
         return;
+      case VoiceCommandType.confirmarAcao:
+        await _confirmarExclusaoPendente();
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
+        return;
+      case VoiceCommandType.cancelarAcao:
+        setState(() {
+          _gravacaoPendenteExclusao = null;
+          _statusVoz = 'Exclusao cancelada.';
+        });
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
+        return;
       case VoiceCommandType.voltar:
         await _suspenderEscutaParaAcao();
         if (!mounted) {
@@ -491,8 +505,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       case VoiceCommandType.limparTexto:
       case VoiceCommandType.definirNomeProjeto:
       case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.substituirNomeProjeto:
+      case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
       case VoiceCommandType.abrirNovoProjeto:
+      case VoiceCommandType.criarProjeto:
+      case VoiceCommandType.cancelarProjeto:
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
@@ -530,7 +548,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       return;
     }
 
-    Future.delayed(const Duration(milliseconds: 700), () {
+    Future.delayed(const Duration(seconds: 2), () {
       if (!mounted ||
           _ouvindo ||
           _paradaManualEscuta ||
@@ -596,7 +614,73 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       return;
     }
 
-    await _excluirGravacao(gravacao);
+    setState(() {
+      _gravacaoPendenteExclusao = gravacao;
+      _statusVoz =
+          'Confirmar exclusao de ${gravacao.nome}? Diga confirmar exclusao ou cancelar exclusao.';
+    });
+  }
+
+  Future<void> _confirmarExclusaoPendente() async {
+    final gravacao = _gravacaoPendenteExclusao;
+
+    if (gravacao == null) {
+      setState(() {
+        _statusVoz = 'Nenhuma exclusao pendente para confirmar.';
+      });
+      return;
+    }
+
+    if (gravacao.id == null) {
+      setState(() {
+        _statusVoz = 'Gravacao invalida para exclusao.';
+        _gravacaoPendenteExclusao = null;
+      });
+      return;
+    }
+
+    try {
+      if (_gravacaoReproduzindoId == gravacao.id) {
+        await _playerService.stop();
+      }
+
+      await GravacaoRepository.instance.removerGravacao(gravacao.id!);
+
+      final arquivo = File(gravacao.caminhoArquivo);
+      if (await arquivo.exists()) {
+        await arquivo.delete();
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _gravacoes.removeWhere((item) => item.id == gravacao.id);
+        _gravacaoPendenteExclusao = null;
+        if (_gravacaoReproduzindoId == gravacao.id) {
+          _gravacaoReproduzindoId = null;
+        }
+        _statusVoz = 'Gravacao ${gravacao.nome} excluida.';
+      });
+
+      unawaited(
+        _registrarHistorico(
+          tipo: 'gravacao_excluida',
+          descricao: 'Excluiu a gravacao "${gravacao.nome}" por voz',
+          projetoId: gravacao.projetoId,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _statusVoz = 'Nao foi possivel excluir a gravacao: $e';
+        _gravacaoPendenteExclusao = null;
+      });
+    }
   }
 
   Gravacao? _buscarGravacaoPorNome(String? nome) {

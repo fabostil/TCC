@@ -262,7 +262,7 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    Future.delayed(const Duration(milliseconds: 700), () {
+    Future.delayed(const Duration(seconds: 2), () {
       if (!mounted ||
           ouvindo ||
           gravando ||
@@ -344,8 +344,12 @@ class _EditorPageState extends State<EditorPage> {
         return;
       case VoiceCommandType.definirNomeProjeto:
       case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.substituirNomeProjeto:
+      case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
       case VoiceCommandType.abrirNovoProjeto:
+      case VoiceCommandType.criarProjeto:
+      case VoiceCommandType.cancelarProjeto:
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
@@ -365,6 +369,8 @@ class _EditorPageState extends State<EditorPage> {
       case VoiceCommandType.ativarParadaSilencio:
       case VoiceCommandType.desativarParadaSilencio:
       case VoiceCommandType.definirTempoSilencio:
+      case VoiceCommandType.confirmarAcao:
+      case VoiceCommandType.cancelarAcao:
         setState(() {
           statusProjeto =
               'Comando de navegacao reconhecido. Use o assistente de voz para navegar.';

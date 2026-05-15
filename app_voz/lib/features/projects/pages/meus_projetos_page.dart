@@ -34,16 +34,19 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
   final SpeechService _speechService = SpeechService();
   final VoiceCommandController _commandController = VoiceCommandController();
   final CommandService _commandService = const CommandService();
+  final TextEditingController _nomeProjetoController = TextEditingController();
+  final TextEditingController _descricaoProjetoController =
+      TextEditingController();
   final List<Projeto> _projetos = [];
   bool _carregando = true;
   bool _ouvindo = false;
   bool _escutaContinuaAtiva = false;
   bool _paradaManualEscuta = false;
   bool _executandoComandoVoz = false;
+  bool _criacaoProjetoAtiva = false;
+  bool _salvandoProjeto = false;
   String? _erro;
   String? _statusVoz;
-  String? _nomeProjetoVoz;
-  String? _descricaoProjetoVoz;
   bool _abriuCriacaoInicial = false;
 
   @override
@@ -53,7 +56,8 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.abrirCriacaoAoEntrar && !_abriuCriacaoInicial && mounted) {
         _abriuCriacaoInicial = true;
-        _abrirCriacaoProjeto();
+        _mostrarCriacaoProjeto(limpar: true);
+        _iniciarEscutaContinuaSeAtiva();
         return;
       }
       _iniciarEscutaContinuaSeAtiva();
@@ -115,47 +119,16 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
     return '$dia/$mes/$ano';
   }
 
-  Future<void> _abrirCriacaoProjeto() async {
-    await _suspenderEscutaParaAcao();
-
-    if (!mounted) {
-      return;
+  void _mostrarCriacaoProjeto({bool limpar = false}) {
+    if (limpar) {
+      _nomeProjetoController.clear();
+      _descricaoProjetoController.clear();
     }
 
-    final resultado = await showDialog<Projeto>(
-      context: context,
-      builder: (dialogContext) {
-        return _CriarProjetoDialog(
-          usuario: widget.usuario,
-          nomeInicial: _nomeProjetoVoz,
-          descricaoInicial: _descricaoProjetoVoz,
-        );
-      },
-    );
-
-    if (resultado == null || !mounted) {
-      await _retomarEscutaContinuaAposAcao();
-      return;
-    }
-
-    await _carregarProjetos();
-
-    if (!mounted) {
-      return;
-    }
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            ProjetoDetalhesPage(usuario: widget.usuario, projeto: resultado),
-      ),
-    );
-
-    if (mounted) {
-      await _carregarProjetos();
-      await _retomarEscutaContinuaAposAcao();
-    }
+    setState(() {
+      _criacaoProjetoAtiva = true;
+      _statusVoz = 'Novo projeto aberto. Diga o nome e a descricao.';
+    });
   }
 
   Future<void> _alternarEscutaVoz() async {
@@ -265,19 +238,33 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
 
     switch (resultado.type) {
       case VoiceCommandType.abrirNovoProjeto:
-        await _criarProjetoPorVozOuAbrirFormulario();
+        _mostrarCriacaoProjeto(limpar: true);
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
+        return;
+      case VoiceCommandType.criarProjeto:
+        await _criarProjetoPorVoz();
+        return;
+      case VoiceCommandType.cancelarProjeto:
+        _cancelarCriacaoProjeto();
+        _executandoComandoVoz = false;
+        _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.definirNomeProjeto:
+      case VoiceCommandType.substituirNomeProjeto:
         setState(() {
-          _nomeProjetoVoz = resultado.parametro;
+          _criacaoProjetoAtiva = true;
+          _nomeProjetoController.text = resultado.parametro ?? '';
           _statusVoz = 'Nome do projeto definido: ${resultado.parametro}.';
         });
         _executandoComandoVoz = false;
         _reiniciarEscutaContinuaSeNecessario();
         return;
       case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.substituirDescricaoProjeto:
         setState(() {
-          _descricaoProjetoVoz = resultado.parametro;
+          _criacaoProjetoAtiva = true;
+          _descricaoProjetoController.text = resultado.parametro ?? '';
           _statusVoz = 'Descricao do projeto definida por voz.';
         });
         _executandoComandoVoz = false;
@@ -314,6 +301,8 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       case VoiceCommandType.abrirEditor:
       case VoiceCommandType.renomearGravacao:
       case VoiceCommandType.excluirGravacao:
+      case VoiceCommandType.confirmarAcao:
+      case VoiceCommandType.cancelarAcao:
       case VoiceCommandType.ativarControleVoz:
       case VoiceCommandType.desativarControleVoz:
       case VoiceCommandType.ativarEscutaContinua:
@@ -344,7 +333,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       return;
     }
 
-    Future.delayed(const Duration(milliseconds: 700), () {
+    Future.delayed(const Duration(seconds: 2), () {
       if (!mounted ||
           _ouvindo ||
           _paradaManualEscuta ||
@@ -391,12 +380,25 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
     }
   }
 
-  Future<void> _criarProjetoPorVozOuAbrirFormulario() async {
-    final nome = _nomeProjetoVoz?.trim();
+  void _cancelarCriacaoProjeto() {
+    setState(() {
+      _nomeProjetoController.clear();
+      _descricaoProjetoController.clear();
+      _criacaoProjetoAtiva = false;
+      _statusVoz = 'Criacao de projeto cancelada.';
+    });
+  }
 
-    if (nome == null || nome.isEmpty) {
-      await _abrirCriacaoProjeto();
+  Future<void> _criarProjetoPorVoz() async {
+    final nome = _nomeProjetoController.text.trim();
+
+    if (nome.isEmpty) {
+      _mostrarCriacaoProjeto();
+      setState(() {
+        _statusVoz = 'Informe o nome do projeto antes de criar.';
+      });
       _executandoComandoVoz = false;
+      _reiniciarEscutaContinuaSeNecessario();
       return;
     }
 
@@ -409,11 +411,16 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       return;
     }
 
-    final descricao = _descricaoProjetoVoz?.trim();
+    setState(() {
+      _salvandoProjeto = true;
+      _statusVoz = 'Criando projeto...';
+    });
+
+    final descricao = _descricaoProjetoController.text.trim();
     final novoProjeto = Projeto(
       usuarioId: usuarioId,
       nome: nome,
-      descricao: descricao == null || descricao.isEmpty ? null : descricao,
+      descricao: descricao.isEmpty ? null : descricao,
       dataCriacao: DateTime.now().toIso8601String(),
     );
 
@@ -423,14 +430,17 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       return;
     }
 
-    _nomeProjetoVoz = null;
-    _descricaoProjetoVoz = null;
+    _nomeProjetoController.clear();
+    _descricaoProjetoController.clear();
+    _salvandoProjeto = false;
+    _criacaoProjetoAtiva = false;
     await _carregarProjetos();
 
     if (!mounted) {
       return;
     }
 
+    await _suspenderEscutaParaAcao();
     await _abrirProjeto(
       Projeto(
         id: id,
@@ -441,6 +451,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
       ),
     );
     _executandoComandoVoz = false;
+    await _retomarEscutaContinuaAposAcao();
   }
 
   Future<void> _abrirProjetoPorNome(String? nomeFalado) async {
@@ -513,6 +524,8 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
   @override
   void dispose() {
     _speechService.stopListening();
+    _nomeProjetoController.dispose();
+    _descricaoProjetoController.dispose();
     super.dispose();
   }
 
@@ -532,7 +545,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _abrirCriacaoProjeto,
+        onPressed: () => _mostrarCriacaoProjeto(limpar: true),
         icon: const Icon(Icons.add),
         label: const Text('Novo projeto'),
       ),
@@ -568,9 +581,20 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
             if (_projetos.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 120),
-                  AppEmptyState(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  if (_criacaoProjetoAtiva) ...[
+                    _ProjetoCriacaoCard(
+                      nomeController: _nomeProjetoController,
+                      descricaoController: _descricaoProjetoController,
+                      salvando: _salvandoProjeto,
+                      onCriar: _criarProjetoPorVoz,
+                      onCancelar: _cancelarCriacaoProjeto,
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                  ],
+                  const SizedBox(height: 80),
+                  const AppEmptyState(
                     icon: Icons.folder_open_outlined,
                     title: 'Nenhum projeto criado ainda',
                     subtitle:
@@ -582,11 +606,22 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
 
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              itemCount: _projetos.length,
+              itemCount: _projetos.length + (_criacaoProjetoAtiva ? 1 : 0),
               separatorBuilder: (_, __) =>
                   const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
-                final projeto = _projetos[index];
+                if (_criacaoProjetoAtiva && index == 0) {
+                  return _ProjetoCriacaoCard(
+                    nomeController: _nomeProjetoController,
+                    descricaoController: _descricaoProjetoController,
+                    salvando: _salvandoProjeto,
+                    onCriar: _criarProjetoPorVoz,
+                    onCancelar: _cancelarCriacaoProjeto,
+                  );
+                }
+
+                final projetoIndex = _criacaoProjetoAtiva ? index - 1 : index;
+                final projeto = _projetos[projetoIndex];
 
                 return Card(
                   child: ListTile(
@@ -647,16 +682,80 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
   }
 }
 
+class _ProjetoCriacaoCard extends StatelessWidget {
+  final TextEditingController nomeController;
+  final TextEditingController descricaoController;
+  final bool salvando;
+  final VoidCallback onCriar;
+  final VoidCallback onCancelar;
+
+  const _ProjetoCriacaoCard({
+    required this.nomeController,
+    required this.descricaoController,
+    required this.salvando,
+    required this.onCriar,
+    required this.onCancelar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Novo projeto', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: nomeController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Nome do projeto'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: descricaoController,
+              maxLines: 3,
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                labelText: 'Descricao (opcional)',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: salvando ? null : onCancelar,
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: salvando ? null : onCriar,
+                    child: salvando
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Criar projeto'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CriarProjetoDialog extends StatefulWidget {
   final Usuario usuario;
-  final String? nomeInicial;
-  final String? descricaoInicial;
 
-  const _CriarProjetoDialog({
-    required this.usuario,
-    this.nomeInicial,
-    this.descricaoInicial,
-  });
+  const _CriarProjetoDialog({required this.usuario});
 
   @override
   State<_CriarProjetoDialog> createState() => _CriarProjetoDialogState();
@@ -674,8 +773,8 @@ class _CriarProjetoDialogState extends State<_CriarProjetoDialog> {
   @override
   void initState() {
     super.initState();
-    _nomeController = TextEditingController(text: widget.nomeInicial);
-    _descricaoController = TextEditingController(text: widget.descricaoInicial);
+    _nomeController = TextEditingController();
+    _descricaoController = TextEditingController();
     _nomeFocusNode = FocusNode();
     _descricaoFocusNode = FocusNode();
 

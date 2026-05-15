@@ -187,11 +187,17 @@ class _VoicePageState extends State<VoicePage> {
       case VoiceCommandType.abrirNovoProjeto:
         _abrirNovoProjeto();
         return;
+      case VoiceCommandType.criarProjeto:
+      case VoiceCommandType.cancelarProjeto:
       case VoiceCommandType.definirNomeProjeto:
       case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.substituirNomeProjeto:
+      case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
       case VoiceCommandType.renomearGravacao:
       case VoiceCommandType.excluirGravacao:
+      case VoiceCommandType.confirmarAcao:
+      case VoiceCommandType.cancelarAcao:
       case VoiceCommandType.ativarControleVoz:
       case VoiceCommandType.desativarControleVoz:
       case VoiceCommandType.ativarEscutaContinua:

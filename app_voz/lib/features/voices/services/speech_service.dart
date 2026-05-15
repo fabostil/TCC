@@ -76,9 +76,9 @@ class SpeechService {
 
     await _speech.listen(
       localeId: _localeId,
-      listenMode: stt.ListenMode.confirmation,
-      listenFor: const Duration(seconds: 20),
-      pauseFor: const Duration(seconds: 5),
+      listenMode: stt.ListenMode.dictation,
+      listenFor: const Duration(minutes: 2),
+      pauseFor: const Duration(seconds: 10),
       partialResults: true,
       cancelOnError: false,
       onResult: (result) {
