@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/comando_voz.dart';
 import '../../../models/configuracao_app.dart';
 import '../../../models/usuario.dart';
@@ -455,16 +456,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
             ),
       bottomNavigationBar: _statusVoz == null
           ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Text(
-                  _statusVoz!,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            ),
+          : VoiceStatusBar(message: _statusVoz!, listening: _ouvindo),
     );
   }
 }

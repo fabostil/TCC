@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/comando_voz.dart';
 import '../../../models/dashboard_action_metric.dart';
 import '../../../models/gravacao.dart';
@@ -497,16 +498,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       bottomNavigationBar: _statusVoz == null
           ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Text(
-                  _statusVoz!,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-            ),
+          : VoiceStatusBar(message: _statusVoz!, listening: _ouvindo),
     );
   }
 }
