@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
@@ -6,6 +9,10 @@ class SpeechService {
 
   bool _initialized = false;
   String? _localeId;
+  Timer? _resultDebounceTimer;
+  String? _pendingText;
+  String? _lastDeliveredText;
+  DateTime? _lastDeliveredAt;
 
   bool get isListening => _speech.isListening;
 
@@ -26,11 +33,11 @@ class SpeechService {
 
     _initialized = await _speech.initialize(
       onStatus: (status) {
-        print('Status reconhecimento de voz: $status');
+        debugPrint('Status reconhecimento de voz: $status');
         onStatus?.call(status);
       },
       onError: (error) {
-        print('Erro reconhecimento de voz: ${error.errorMsg}');
+        debugPrint('Erro reconhecimento de voz: ${error.errorMsg}');
         onError?.call(error.errorMsg);
       },
     );
@@ -53,7 +60,7 @@ class SpeechService {
       _localeId = systemLocale?.localeId;
     }
 
-    print('Locale usado: $_localeId');
+    debugPrint('Locale usado: $_localeId');
 
     return true;
   }
@@ -74,32 +81,97 @@ class SpeechService {
       await Future.delayed(const Duration(milliseconds: 300));
     }
 
+    _resetResultState();
+
     await _speech.listen(
       localeId: _localeId,
-      listenMode: stt.ListenMode.dictation,
       listenFor: const Duration(minutes: 2),
       pauseFor: const Duration(seconds: 10),
-      partialResults: true,
-      cancelOnError: false,
+      listenOptions: stt.SpeechListenOptions(
+        listenMode: stt.ListenMode.dictation,
+        partialResults: true,
+        cancelOnError: false,
+      ),
       onResult: (result) {
         final text = result.recognizedWords.trim();
 
         if (text.isNotEmpty) {
-          onResult(text);
+          _handleResultText(
+            text,
+            finalResult: result.finalResult,
+            onResult: onResult,
+          );
         }
       },
     );
   }
 
   Future<void> stopListening() async {
+    _clearResultDebounce();
     if (_speech.isListening) {
       await _speech.stop();
     }
   }
 
   Future<void> cancelListening() async {
+    _clearResultDebounce();
     if (_speech.isListening) {
       await _speech.cancel();
     }
+  }
+
+  void _handleResultText(
+    String text, {
+    required bool finalResult,
+    required Function(String text) onResult,
+  }) {
+    _pendingText = text;
+    _resultDebounceTimer?.cancel();
+
+    if (finalResult) {
+      _deliverPendingResult(onResult);
+      return;
+    }
+
+    _resultDebounceTimer = Timer(const Duration(milliseconds: 450), () {
+      _deliverPendingResult(onResult);
+    });
+  }
+
+  void _deliverPendingResult(Function(String text) onResult) {
+    final text = _pendingText?.trim();
+    if (text == null || text.isEmpty) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final normalized = _normalizeForDedup(text);
+    final lastDeliveredAt = _lastDeliveredAt;
+
+    if (_lastDeliveredText == normalized &&
+        lastDeliveredAt != null &&
+        now.difference(lastDeliveredAt) < const Duration(seconds: 2)) {
+      return;
+    }
+
+    _lastDeliveredText = normalized;
+    _lastDeliveredAt = now;
+    onResult(text);
+  }
+
+  String _normalizeForDedup(String text) {
+    return text.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  void _resetResultState() {
+    _clearResultDebounce();
+    _pendingText = null;
+    _lastDeliveredText = null;
+    _lastDeliveredAt = null;
+  }
+
+  void _clearResultDebounce() {
+    _resultDebounceTimer?.cancel();
+    _resultDebounceTimer = null;
   }
 }
