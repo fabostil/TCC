@@ -462,7 +462,7 @@ class _VoicePageState extends State<VoicePage> {
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.only(bottom: 24),
               decoration: BoxDecoration(
-                color: Colors.deepPurple.withOpacity(0.08),
+                color: Colors.deepPurple.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(

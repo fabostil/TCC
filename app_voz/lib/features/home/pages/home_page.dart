@@ -588,8 +588,8 @@ class _HomePageState extends State<HomePage> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    theme.colorScheme.primary.withOpacity(0.14),
-                    theme.colorScheme.secondary.withOpacity(0.10),
+                    theme.colorScheme.primary.withValues(alpha: 0.14),
+                    theme.colorScheme.secondary.withValues(alpha: 0.10),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(28),
@@ -720,7 +720,9 @@ class _HomeCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 26,
-                backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+                backgroundColor: theme.colorScheme.primary.withValues(
+                  alpha: 0.12,
+                ),
                 child: Icon(icon, color: theme.colorScheme.primary, size: 28),
               ),
               const SizedBox(width: AppSpacing.md),

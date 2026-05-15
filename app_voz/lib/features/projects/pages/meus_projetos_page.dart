@@ -710,7 +710,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.lg),
               itemCount: _projetos.length + (_criacaoProjetoAtiva ? 1 : 0),
-              separatorBuilder: (_, __) =>
+              separatorBuilder: (context, index) =>
                   const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
                 if (_criacaoProjetoAtiva && index == 0) {
@@ -730,8 +730,8 @@ class _MeusProjetosPageState extends State<MeusProjetosPage> {
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(AppSpacing.md),
                     leading: CircleAvatar(
-                      backgroundColor: theme.colorScheme.primary.withOpacity(
-                        0.12,
+                      backgroundColor: theme.colorScheme.primary.withValues(
+                        alpha: 0.12,
                       ),
                       child: Icon(
                         Icons.folder_outlined,

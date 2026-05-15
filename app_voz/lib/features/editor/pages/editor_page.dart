@@ -1134,7 +1134,7 @@ class _EditorPageState extends State<EditorPage> {
           children: [
             CircleAvatar(
               radius: 28,
-              backgroundColor: corStatus.withOpacity(0.12),
+              backgroundColor: corStatus.withValues(alpha: 0.12),
               child: Icon(Icons.graphic_eq, color: corStatus, size: 32),
             ),
             const SizedBox(width: 16),
@@ -1179,10 +1179,10 @@ class _EditorPageState extends State<EditorPage> {
     final tempoSilencioSegundos = limiteSilencioMs ~/ 1000;
 
     return Card(
-      color: Colors.red.withOpacity(0.08),
+      color: Colors.red.withValues(alpha: 0.08),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: Colors.red.withOpacity(0.3)),
+        side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -1443,7 +1443,7 @@ class _EditorPageState extends State<EditorPage> {
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.deepPurple.withOpacity(0.08),
+                color: Colors.deepPurple.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(

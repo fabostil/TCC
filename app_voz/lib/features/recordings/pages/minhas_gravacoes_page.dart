@@ -848,7 +848,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
               itemCount:
                   _gravacoes.length +
                   (_gravacaoPendenteExclusao != null ? 1 : 0),
-              separatorBuilder: (_, __) =>
+              separatorBuilder: (context, index) =>
                   const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
                 if (_gravacaoPendenteExclusao != null && index == 0) {
