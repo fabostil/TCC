@@ -48,6 +48,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
   bool _escutaContinuaAtiva = false;
   bool _paradaManualEscuta = false;
   bool _executandoComandoVoz = false;
+  bool _iaPensando = false;
   String? _erro;
   String? _statusVoz;
   int? _gravacaoReproduzindoId;
@@ -430,15 +431,31 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
     }
 
     _executandoComandoVoz = true;
-    final resultadoController = await _commandController.interpret(texto);
+    final resultadoController = await _commandController.interpret(
+      texto,
+      onAiStarted: () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _iaPensando = true;
+          _statusVoz = 'IA pensando...';
+        });
+      },
+    );
     final resultado = resultadoController.commandResult;
 
     unawaited(_registrarComando(resultado));
 
     if (!mounted || resultado.normalizedText.isEmpty) {
       _executandoComandoVoz = false;
+      _iaPensando = false;
       return;
     }
+
+    setState(() {
+      _iaPensando = false;
+    });
 
     switch (resultado.type) {
       case VoiceCommandType.abrirEditor:
@@ -941,7 +958,11 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       ),
       bottomNavigationBar: _statusVoz == null
           ? null
-          : VoiceStatusBar(message: _statusVoz!, listening: _ouvindo),
+          : VoiceStatusBar(
+              message: _statusVoz!,
+              listening: _ouvindo,
+              thinking: _iaPensando,
+            ),
     );
   }
 }

@@ -31,6 +31,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
   bool _escutaContinuaAtiva = false;
   bool _paradaManualEscuta = false;
   bool _executandoComandoVoz = false;
+  bool _iaPensando = false;
   ConfiguracaoApp? _configuracao;
   String? _statusVoz;
 
@@ -144,15 +145,31 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
     }
 
     _executandoComandoVoz = true;
-    final resultadoController = await _commandController.interpret(texto);
+    final resultadoController = await _commandController.interpret(
+      texto,
+      onAiStarted: () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _iaPensando = true;
+          _statusVoz = 'IA pensando...';
+        });
+      },
+    );
     final resultado = resultadoController.commandResult;
 
     unawaited(_registrarComando(resultado));
 
     if (!mounted || resultado.normalizedText.isEmpty) {
       _executandoComandoVoz = false;
+      _iaPensando = false;
       return;
     }
+
+    setState(() {
+      _iaPensando = false;
+    });
 
     final configuracao = _configuracao;
     if (configuracao == null) {
@@ -456,7 +473,11 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
             ),
       bottomNavigationBar: _statusVoz == null
           ? null
-          : VoiceStatusBar(message: _statusVoz!, listening: _ouvindo),
+          : VoiceStatusBar(
+              message: _statusVoz!,
+              listening: _ouvindo,
+              thinking: _iaPensando,
+            ),
     );
   }
 }
