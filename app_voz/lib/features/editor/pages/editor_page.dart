@@ -16,6 +16,8 @@ import '../../voices/services/speech_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/audio_recording_service.dart';
 
+enum EditorInteractionMode { normal, recording }
+
 class EditorPage extends StatefulWidget {
   final Usuario usuario;
   final Projeto? projeto;
@@ -54,6 +56,7 @@ class _EditorPageState extends State<EditorPage> {
   bool feedbackSonoroAtivo = false;
   bool _paradaManualEscuta = false;
   bool _executandoComandoVoz = false;
+  EditorInteractionMode _interactionMode = EditorInteractionMode.normal;
 
   String textoReconhecido = 'Pressione o microfone e fale um comando.';
   String statusProjeto = 'Projeto pronto para gravar.';
@@ -174,6 +177,9 @@ class _EditorPageState extends State<EditorPage> {
 
     if (gravando) {
       setState(() {
+        _interactionMode = EditorInteractionMode.recording;
+        textoReconhecido =
+            'Escuta por voz pausada durante a gravação para evitar conflito de microfone.';
         statusProjeto =
             'Durante a gravação, o microfone fica reservado para capturar áudio. Use os controles manuais ou a parada por silêncio.';
       });
@@ -231,6 +237,7 @@ class _EditorPageState extends State<EditorPage> {
                   'Nenhuma fala detectada. Tente falar mais perto do microfone.';
               statusProjeto = 'Tempo de escuta encerrado sem comando.';
             });
+            _reiniciarEscutaContinuaSeNecessario();
             return;
           }
 
@@ -274,6 +281,54 @@ class _EditorPageState extends State<EditorPage> {
 
       alternarMicrofone();
     });
+  }
+
+  Future<void> _pausarEscutaParaModoGravacao() async {
+    _paradaManualEscuta = false;
+
+    if (ouvindo || speech.isListening) {
+      await speech.cancelListening();
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      ouvindo = false;
+      _interactionMode = EditorInteractionMode.recording;
+      statusProjeto = 'Preparando modo gravação...';
+      textoReconhecido = 'Escuta por voz pausada para liberar o microfone.';
+    });
+  }
+
+  Future<void> _retomarEscutaContinuaAposModoGravacao() async {
+    if (!mounted || _paradaManualEscuta || gravando || carregandoAudio) {
+      return;
+    }
+
+    final configuracao = await ConfiguracaoAppRepository.instance
+        .buscarConfiguracao();
+
+    if (!mounted) {
+      return;
+    }
+
+    _aplicarConfiguracao(configuracao);
+
+    if (configuracao.comandosVozAtivos &&
+        configuracao.escutaContinua &&
+        !ouvindo &&
+        !speech.isListening) {
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (!mounted || gravando || carregandoAudio || ouvindo) {
+          return;
+        }
+
+        unawaited(alternarMicrofone());
+      });
+    }
   }
 
   Future<void> interpretarComando(String comando) async {
@@ -408,6 +463,13 @@ class _EditorPageState extends State<EditorPage> {
 
     _executandoComandoVoz = true;
 
+    await _pausarEscutaParaModoGravacao();
+
+    if (!mounted) {
+      _executandoComandoVoz = false;
+      return;
+    }
+
     if (ouvindo || speech.isListening) {
       _paradaManualEscuta = false;
       await speech.cancelListening();
@@ -452,6 +514,7 @@ class _EditorPageState extends State<EditorPage> {
         caminhoGravacaoAtual = path;
         inicioGravacaoEm = DateTime.now();
         gravando = true;
+        _interactionMode = EditorInteractionMode.recording;
         pausado = false;
         reproduzindo = false;
         carregandoAudio = false;
@@ -472,8 +535,10 @@ class _EditorPageState extends State<EditorPage> {
       if (mounted) {
         setState(() {
           carregandoAudio = false;
+          _interactionMode = EditorInteractionMode.normal;
           statusProjeto = 'Erro ao iniciar gravação: $e';
         });
+        _retomarEscutaContinuaAposModoGravacao();
       }
     } finally {
       _executandoComandoVoz = false;
@@ -580,11 +645,13 @@ class _EditorPageState extends State<EditorPage> {
       if (path == null || path.isEmpty) {
         setState(() {
           gravando = false;
+          _interactionMode = EditorInteractionMode.normal;
           pausado = false;
           carregandoAudio = false;
           inicioGravacaoEm = null;
           statusProjeto = 'Não foi possível salvar a gravação.';
         });
+        _retomarEscutaContinuaAposModoGravacao();
         return;
       }
 
@@ -593,6 +660,7 @@ class _EditorPageState extends State<EditorPage> {
       if (usuarioId == null) {
         setState(() {
           gravando = false;
+          _interactionMode = EditorInteractionMode.normal;
           pausado = false;
           carregandoAudio = false;
           caminhoGravacaoAtual = null;
@@ -601,6 +669,7 @@ class _EditorPageState extends State<EditorPage> {
           nivelAudioAtual = -160.0;
           statusProjeto = 'Usuário sem identificação para salvar a gravação.';
         });
+        _retomarEscutaContinuaAposModoGravacao();
         return;
       }
 
@@ -635,6 +704,7 @@ class _EditorPageState extends State<EditorPage> {
 
       setState(() {
         gravando = false;
+        _interactionMode = EditorInteractionMode.normal;
         pausado = false;
         carregandoAudio = false;
         caminhoGravacaoAtual = null;
@@ -658,11 +728,10 @@ class _EditorPageState extends State<EditorPage> {
         gravacaoId: gravacaoId,
         projetoId: gravacaoSalva.projetoId,
       );
-
-      _reiniciarEscutaContinuaSeNecessario();
     } catch (e) {
       setState(() {
         gravando = false;
+        _interactionMode = EditorInteractionMode.normal;
         pausado = false;
         carregandoAudio = false;
         caminhoGravacaoAtual = null;
@@ -670,6 +739,7 @@ class _EditorPageState extends State<EditorPage> {
         statusProjeto = 'Erro ao encerrar gravação: $e';
       });
     }
+    _retomarEscutaContinuaAposModoGravacao();
   }
 
   void iniciarMonitoramentoSilencio() {
@@ -1151,6 +1221,30 @@ class _EditorPageState extends State<EditorPage> {
                 style: const TextStyle(fontSize: 13),
               ),
             const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: carregandoAudio || pausado
+                        ? null
+                        : () => pausarGravacao('botão grande pausar'),
+                    icon: const Icon(Icons.pause),
+                    label: const Text('Pausar'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: carregandoAudio || !pausado
+                        ? null
+                        : () => retomarGravacao('botão grande retomar'),
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Retomar'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               height: 64,
@@ -1319,6 +1413,13 @@ class _EditorPageState extends State<EditorPage> {
               'Comandos: iniciar gravação, pausar gravação, retomar gravação, encerrar gravação, reproduzir, criar marcador.',
             ),
             const SizedBox(height: 16),
+            if (_interactionMode == EditorInteractionMode.recording) ...[
+              const Chip(
+                avatar: Icon(Icons.mic_off_outlined, size: 18),
+                label: Text('Escuta pausada na gravação'),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (escutaContinuaAtiva || feedbackSonoroAtivo) ...[
               Wrap(
                 spacing: 8,
@@ -1354,10 +1455,24 @@ class _EditorPageState extends State<EditorPage> {
             const SizedBox(height: 16),
             Center(
               child: FloatingActionButton.extended(
-                onPressed: carregandoAudio ? null : alternarMicrofone,
+                onPressed: carregandoAudio || gravando
+                    ? null
+                    : alternarMicrofone,
                 backgroundColor: ouvindo ? Colors.red : Colors.deepPurple,
-                icon: Icon(ouvindo ? Icons.mic : Icons.mic_none),
-                label: Text(ouvindo ? 'Parar escuta' : 'Falar comando'),
+                icon: Icon(
+                  gravando
+                      ? Icons.mic_off
+                      : ouvindo
+                      ? Icons.mic
+                      : Icons.mic_none,
+                ),
+                label: Text(
+                  gravando
+                      ? 'Escuta pausada'
+                      : ouvindo
+                      ? 'Parar escuta'
+                      : 'Falar comando',
+                ),
               ),
             ),
           ],
