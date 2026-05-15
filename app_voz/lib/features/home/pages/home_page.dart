@@ -14,7 +14,6 @@ import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/pages/login_page.dart';
-import '../../voices/pages/voice_page.dart';
 import '../../voices/controllers/voice_command_controller.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/speech_service.dart';
@@ -198,13 +197,6 @@ class _HomePageState extends State<HomePage> {
     );
 
     await _retomarEscutaAposNavegacao();
-  }
-
-  void _abrirAssistente(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => VoicePage(usuario: widget.usuario)),
-    );
   }
 
   Future<void> _alternarEscutaHome() async {
@@ -651,15 +643,6 @@ class _HomePageState extends State<HomePage> {
               title: 'Novo projeto',
               subtitle: 'Crie um projeto musical e vá direto para o editor.',
               onTap: () => _abrirNovoProjeto(context),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _HomeCard(
-              icon: Icons.mic_none_rounded,
-              title: 'Assistente de voz',
-              subtitle: comandosAtivos
-                  ? 'Use comandos para iniciar, pausar e encerrar gravações.'
-                  : 'Comandos de voz desativados. Ative em Configurações.',
-              onTap: () => _abrirAssistente(context),
             ),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(

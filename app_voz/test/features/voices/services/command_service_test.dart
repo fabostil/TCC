@@ -89,6 +89,18 @@ void main() {
       expect(nomeProjeto.type, VoiceCommandType.definirNomeProjeto);
       expect(nomeProjeto.parametro, 'beat novo');
 
+      final nomeNatural = service.interpret(
+        'eu quero que voce coloque o nome abacate',
+      );
+      expect(nomeNatural.type, VoiceCommandType.definirNomeProjeto);
+      expect(nomeNatural.parametro, 'abacate');
+
+      final descricao = service.interpret(
+        'descricao do projeto ideia simples para tocar na rua',
+      );
+      expect(descricao.type, VoiceCommandType.definirDescricaoProjeto);
+      expect(descricao.parametro, 'Ideia simples para tocar na rua.');
+
       final abrirProjeto = service.interpret('abrir projeto demo acustica');
       expect(abrirProjeto.type, VoiceCommandType.abrirProjetoPorNome);
       expect(abrirProjeto.parametro, 'demo acustica');

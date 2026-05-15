@@ -10,6 +10,7 @@ import '../../../repositories/comando_voz_repository.dart';
 import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/gravacao_repository.dart';
 import '../../../repositories/historico_repository.dart';
+import '../../voices/controllers/voice_command_controller.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/speech_service.dart';
 import '../services/audio_player_service.dart';
@@ -28,6 +29,7 @@ class EditorPage extends StatefulWidget {
 class _EditorPageState extends State<EditorPage> {
   final SpeechService speech = SpeechService();
   final CommandService commandService = const CommandService();
+  final VoiceCommandController commandController = VoiceCommandController();
   final AudioRecordingService audioService = AudioRecordingService();
   final AudioPlayerService playerService = AudioPlayerService();
   StreamSubscription? playerStateSubscription;
@@ -94,6 +96,12 @@ class _EditorPageState extends State<EditorPage> {
       }
 
       _aplicarConfiguracao(configuracao);
+      if (configuracao.comandosVozAtivos &&
+          configuracao.escutaContinua &&
+          !gravando &&
+          !ouvindo) {
+        unawaited(alternarMicrofone());
+      }
     } catch (e) {
       debugPrint('Erro ao carregar configuracoes do editor: $e');
     }
@@ -167,7 +175,7 @@ class _EditorPageState extends State<EditorPage> {
     if (gravando) {
       setState(() {
         statusProjeto =
-            'Pare a gravação antes de usar comando de voz. O microfone já está em uso.';
+            'Durante a gravação, o microfone fica reservado para capturar áudio. Use os controles manuais ou a parada por silêncio.';
       });
       return;
     }
@@ -269,7 +277,19 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   Future<void> interpretarComando(String comando) async {
-    final resultado = commandService.interpret(comando);
+    final resultadoController = await commandController.interpret(
+      comando,
+      onAiStarted: () {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          statusProjeto = 'IA pensando...';
+        });
+      },
+    );
+    final resultado = resultadoController.commandResult;
 
     if (resultado.normalizedText.isEmpty) {
       return;
@@ -382,7 +402,7 @@ class _EditorPageState extends State<EditorPage> {
     _executandoComandoVoz = true;
 
     if (ouvindo || speech.isListening) {
-      _paradaManualEscuta = true;
+      _paradaManualEscuta = false;
       await speech.cancelListening();
       await Future.delayed(const Duration(milliseconds: 500));
 
@@ -631,6 +651,8 @@ class _EditorPageState extends State<EditorPage> {
         gravacaoId: gravacaoId,
         projetoId: gravacaoSalva.projetoId,
       );
+
+      _reiniciarEscutaContinuaSeNecessario();
     } catch (e) {
       setState(() {
         gravando = false;

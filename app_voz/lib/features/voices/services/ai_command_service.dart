@@ -52,9 +52,9 @@ class AiCommandService {
         _buildRequestBody(text),
         timeout,
       ).timeout(timeout);
-      final action = _extractAction(response);
+      final parsed = _extractCommand(response);
 
-      return _mapAction(text, normalizedText, action);
+      return _mapCommand(text, normalizedText, parsed);
     } catch (_) {
       return _unknown(text, normalizedText);
     }
@@ -99,7 +99,7 @@ class AiCommandService {
     return _requestTimes.length < maxRequestsPerMinute;
   }
 
-  String? _extractAction(Map<String, dynamic> response) {
+  _AiParsedCommand? _extractCommand(Map<String, dynamic> response) {
     final candidates = response['candidates'];
 
     if (candidates is! List || candidates.isEmpty) {
@@ -144,7 +144,24 @@ class AiCommandService {
 
     final action = parsed['action'];
 
-    return action is String ? action.trim() : null;
+    if (action is! String) {
+      return null;
+    }
+
+    return _AiParsedCommand(
+      action: action.trim(),
+      parametro: _readOptionalString(parsed, 'parametro'),
+      parametroSecundario: _readOptionalString(parsed, 'parametro_secundario'),
+    );
+  }
+
+  String? _readOptionalString(Map<String, dynamic> parsed, String key) {
+    final value = parsed[key];
+    if (value is! String || value.trim().isEmpty) {
+      return null;
+    }
+
+    return value.trim();
   }
 
   String _stripJsonFence(String value) {
@@ -161,12 +178,12 @@ class AiCommandService {
         .trim();
   }
 
-  CommandResult _mapAction(
+  CommandResult _mapCommand(
     String originalText,
     String normalizedText,
-    String? action,
+    _AiParsedCommand? parsed,
   ) {
-    switch (action) {
+    switch (parsed?.action) {
       case 'record_start':
         return _recognized(
           originalText,
@@ -206,6 +223,7 @@ class AiCommandService {
           VoiceCommandType.reproduzirGravacao,
           tipoComando: 'reproduzir_gravacao',
           acaoExecutada: 'Reproduzir gravacao',
+          parametro: parsed?.parametro,
         );
       case 'playback_stop':
         return _recognized(
@@ -238,6 +256,125 @@ class AiCommandService {
           VoiceCommandType.abrirNovoProjeto,
           tipoComando: 'abrir_novo_projeto',
           acaoExecutada: 'Abrir novo projeto',
+        );
+      case 'project_name_set':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.definirNomeProjeto,
+          tipoComando: 'definir_nome_projeto',
+          acaoExecutada: 'Definir nome do projeto',
+          parametro: parsed?.parametro,
+        );
+      case 'project_description_set':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.definirDescricaoProjeto,
+          tipoComando: 'definir_descricao_projeto',
+          acaoExecutada: 'Definir descricao do projeto',
+          parametro: parsed?.parametro,
+        );
+      case 'project_open_named':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.abrirProjetoPorNome,
+          tipoComando: 'abrir_projeto_por_nome',
+          acaoExecutada: 'Abrir projeto por nome',
+          parametro: parsed?.parametro,
+        );
+      case 'recording_delete_named':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.excluirGravacao,
+          tipoComando: 'excluir_gravacao',
+          acaoExecutada: 'Excluir gravacao',
+          parametro: parsed?.parametro,
+        );
+      case 'recording_rename_named':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.renomearGravacao,
+          tipoComando: 'renomear_gravacao',
+          acaoExecutada: 'Renomear gravacao',
+          parametro: parsed?.parametro,
+          parametroSecundario: parsed?.parametroSecundario,
+        );
+      case 'settings_voice_on':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.ativarControleVoz,
+          tipoComando: 'ativar_controle_voz',
+          acaoExecutada: 'Ativar controle por voz',
+        );
+      case 'settings_voice_off':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.desativarControleVoz,
+          tipoComando: 'desativar_controle_voz',
+          acaoExecutada: 'Desativar controle por voz',
+        );
+      case 'settings_continuous_on':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.ativarEscutaContinua,
+          tipoComando: 'ativar_escuta_continua',
+          acaoExecutada: 'Ativar escuta continua',
+        );
+      case 'settings_continuous_off':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.desativarEscutaContinua,
+          tipoComando: 'desativar_escuta_continua',
+          acaoExecutada: 'Desativar escuta continua',
+        );
+      case 'settings_feedback_on':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.ativarFeedbackSonoro,
+          tipoComando: 'ativar_feedback_sonoro',
+          acaoExecutada: 'Ativar feedback sonoro',
+        );
+      case 'settings_feedback_off':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.desativarFeedbackSonoro,
+          tipoComando: 'desativar_feedback_sonoro',
+          acaoExecutada: 'Desativar feedback sonoro',
+        );
+      case 'settings_silence_stop_on':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.ativarParadaSilencio,
+          tipoComando: 'ativar_parada_silencio',
+          acaoExecutada: 'Ativar parada por silencio',
+        );
+      case 'settings_silence_stop_off':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.desativarParadaSilencio,
+          tipoComando: 'desativar_parada_silencio',
+          acaoExecutada: 'Desativar parada por silencio',
+        );
+      case 'settings_silence_time_set':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.definirTempoSilencio,
+          tipoComando: 'definir_tempo_silencio',
+          acaoExecutada: 'Definir tempo de silencio',
+          parametro: parsed?.parametro,
         );
       case 'nav_editor':
         return _recognized(
@@ -322,6 +459,8 @@ class AiCommandService {
     VoiceCommandType type, {
     required String tipoComando,
     required String acaoExecutada,
+    String? parametro,
+    String? parametroSecundario,
   }) {
     return CommandResult(
       originalText: originalText,
@@ -330,6 +469,8 @@ class AiCommandService {
       recognized: true,
       tipoComando: tipoComando,
       acaoExecutada: acaoExecutada,
+      parametro: parametro,
+      parametroSecundario: parametroSecundario,
     );
   }
 
@@ -379,10 +520,30 @@ class AiCommandService {
   }
 }
 
+class _AiParsedCommand {
+  const _AiParsedCommand({
+    required this.action,
+    this.parametro,
+    this.parametroSecundario,
+  });
+
+  final String action;
+  final String? parametro;
+  final String? parametroSecundario;
+}
+
 const String _systemPrompt = '''
 Voce e o modulo NLU de um app Flutter voice-first para producao musical.
 Responda exclusivamente com JSON valido, sem Markdown, sem explicacoes e sem texto adicional.
-Formato obrigatorio: {"action":"<intent>"}
+Formato obrigatorio: {"action":"<intent>","parametro":"<valor opcional>","parametro_secundario":"<valor opcional>"}
+Quando nao houver parametro, omita a chave ou use string vazia.
+
+Regras de parametros:
+- Para nomes curtos, extraia somente o nome final. Exemplo: "eu quero que voce coloque o nome abacate" -> parametro "abacate".
+- Para abrir, tocar, excluir ou renomear itens por nome, extraia o nome do projeto/gravacao.
+- Para renomear gravacao, use parametro como nome atual e parametro_secundario como novo nome.
+- Para descricao de projeto, reescreva o parametro em portugues claro e formal, sem mudar o sentido.
+- Para tempo de silencio, use parametro numerico entre 3 e 12.
 
 Intents permitidas:
 - record_start: iniciar gravacao, gravar ideia, capturar audio.
@@ -393,6 +554,20 @@ Intents permitidas:
 - playback_stop: parar reproducao.
 - marker_create: criar marcador.
 - clear_text: limpar texto reconhecido.
+- project_name_set: definir ou preencher nome de projeto.
+- project_description_set: definir ou preencher descricao de projeto.
+- project_open_named: abrir um projeto pelo nome.
+- recording_delete_named: excluir/remover/apagar gravacao pelo nome.
+- recording_rename_named: renomear gravacao pelo nome.
+- settings_voice_on: ativar comandos ou controle por voz.
+- settings_voice_off: desativar comandos ou controle por voz.
+- settings_continuous_on: ativar escuta continua.
+- settings_continuous_off: desativar escuta continua.
+- settings_feedback_on: ativar feedback sonoro.
+- settings_feedback_off: desativar feedback sonoro.
+- settings_silence_stop_on: ativar parada por silencio.
+- settings_silence_stop_off: desativar parada por silencio.
+- settings_silence_time_set: definir tempo de silencio em segundos.
 - nav_new_project: criar novo projeto ou abrir formulario de novo projeto.
 - nav_editor: abrir editor, gravador ou tela de edicao de um projeto.
 - nav_dashboard: abrir dashboard.

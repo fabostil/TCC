@@ -54,6 +54,24 @@ void main() {
       expect(result.recognized, isTrue);
     });
 
+    test('mapeia parametros retornados pela Gemini', () async {
+      final service = AiCommandService(
+        apiKey: 'test-key',
+        httpPost: (uri, headers, body, timeout) async {
+          return _geminiResponse(
+            '{"action":"project_name_set","parametro":"abacate"}',
+          );
+        },
+      );
+
+      final result = await service.interpretUnknown(
+        'eu quero que voce coloque o nome abacate',
+      );
+
+      expect(result.type, VoiceCommandType.definirNomeProjeto);
+      expect(result.parametro, 'abacate');
+    });
+
     test('respeita limite de requisicoes por minuto', () async {
       var calls = 0;
       final service = AiCommandService(

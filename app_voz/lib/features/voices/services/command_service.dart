@@ -136,8 +136,9 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const ['reproduzir']) ||
-        _containsWord(normalizedText, 'tocar')) {
+    if (!_looksLikeDescriptionCommand(normalizedText) &&
+        (_containsAny(normalizedText, const ['reproduzir']) ||
+            _containsWord(normalizedText, 'tocar'))) {
       final gravacao = _extractAfterAny(normalizedText, const [
         'reproduzir gravacao',
         'tocar gravacao',
@@ -190,10 +191,24 @@ class CommandService {
     }
 
     final nomeProjeto = _extractAfterAny(normalizedText, const [
+      'eu quero que voce coloque o nome do projeto',
+      'quero que voce coloque o nome do projeto',
+      'coloque o nome do projeto',
+      'colocar o nome do projeto',
+      'defina o nome do projeto',
+      'definir o nome do projeto',
       'nome do projeto',
       'nome projeto',
       'definir nome do projeto',
       'preencher nome do projeto',
+      'coloque o nome',
+      'colocar o nome',
+      'defina o nome',
+      'definir o nome',
+      'quero que voce coloque o nome',
+      'eu quero que voce coloque o nome',
+      'chamar de',
+      'salvar como',
     ]);
     if (nomeProjeto != null) {
       return _recognized(
@@ -202,15 +217,27 @@ class CommandService {
         VoiceCommandType.definirNomeProjeto,
         tipoComando: 'definir_nome_projeto',
         acaoExecutada: 'Definir nome do projeto',
-        parametro: nomeProjeto,
+        parametro: _cleanShortName(nomeProjeto),
       );
     }
 
     final descricaoProjeto = _extractAfterAny(normalizedText, const [
+      'eu quero que voce coloque a descricao do projeto',
+      'quero que voce coloque a descricao do projeto',
+      'coloque a descricao do projeto',
+      'colocar a descricao do projeto',
+      'defina a descricao do projeto',
+      'definir a descricao do projeto',
       'descricao do projeto',
       'descricao projeto',
       'definir descricao do projeto',
       'preencher descricao do projeto',
+      'coloque a descricao',
+      'colocar a descricao',
+      'defina a descricao',
+      'definir a descricao',
+      'descrever projeto',
+      'descrição projeto',
     ]);
     if (descricaoProjeto != null) {
       return _recognized(
@@ -219,7 +246,7 @@ class CommandService {
         VoiceCommandType.definirDescricaoProjeto,
         tipoComando: 'definir_descricao_projeto',
         acaoExecutada: 'Definir descricao do projeto',
-        parametro: descricaoProjeto,
+        parametro: _polishSentence(descricaoProjeto),
       );
     }
 
@@ -227,6 +254,10 @@ class CommandService {
       'abrir projeto',
       'entrar no projeto',
       'acessar projeto',
+      'abre o projeto',
+      'abrir o projeto',
+      'entrar no',
+      'acessar o',
     ]);
     if (projetoParaAbrir != null) {
       return _recognized(
@@ -272,6 +303,9 @@ class CommandService {
       'excluir gravacao',
       'apagar gravacao',
       'remover gravacao',
+      'excluir audio',
+      'apagar audio',
+      'remover audio',
     ]);
     if (gravacaoParaExcluir != null) {
       return _recognized(
@@ -289,6 +323,8 @@ class CommandService {
       'tocar gravacao',
       'reproduzir audio',
       'tocar audio',
+      'toque a gravacao',
+      'toca a gravacao',
     ]);
     if (gravacaoParaReproduzir != null) {
       return _recognized(
@@ -608,6 +644,17 @@ class CommandService {
     return RegExp('(^| )$word( |\$)').hasMatch(text);
   }
 
+  bool _looksLikeDescriptionCommand(String text) {
+    return _containsAny(text, const [
+      'descricao do projeto',
+      'descricao projeto',
+      'coloque a descricao',
+      'colocar a descricao',
+      'defina a descricao',
+      'definir a descricao',
+    ]);
+  }
+
   String? _extractAfterAny(String text, List<String> prefixes) {
     for (final prefix in prefixes) {
       if (text == prefix) {
@@ -657,5 +704,23 @@ class CommandService {
     }
 
     return value.clamp(3, 12).toInt();
+  }
+
+  String _cleanShortName(String value) {
+    return value.replaceFirst(RegExp(r'^(do|da|de|para|como) '), '').trim();
+  }
+
+  String _polishSentence(String value) {
+    final cleaned = value.trim();
+    if (cleaned.isEmpty) {
+      return cleaned;
+    }
+
+    final withoutTrailingDot = cleaned.replaceFirst(RegExp(r'[.!?]+$'), '');
+    final first = withoutTrailingDot.substring(0, 1).toUpperCase();
+    final rest = withoutTrailingDot.length == 1
+        ? ''
+        : withoutTrailingDot.substring(1);
+    return '$first$rest.';
   }
 }
