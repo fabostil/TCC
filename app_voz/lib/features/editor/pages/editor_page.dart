@@ -11,8 +11,11 @@ import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/gravacao_repository.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../voices/controllers/voice_command_controller.dart';
+import '../../voices/coordination/voice_listening_coordinator.dart';
+import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/speech_service.dart';
+import '../../voices/services/voice_global_command_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/audio_recording_service.dart';
 
@@ -29,9 +32,14 @@ class EditorPage extends StatefulWidget {
 }
 
 class _EditorPageState extends State<EditorPage> {
-  final SpeechService speech = SpeechService();
+  final SpeechService speech = SpeechService.instance;
+  final VoiceListeningCoordinator _voiceCoordinator =
+      VoiceListeningCoordinator.instance;
+  static const String _voiceOwnerId = VoicePageOwners.editor;
   final CommandService commandService = const CommandService();
   final VoiceCommandController commandController = VoiceCommandController();
+  final VoiceGlobalCommandService _globalCommandService =
+      VoiceGlobalCommandService();
   final AudioRecordingService audioService = AudioRecordingService();
   final AudioPlayerService playerService = AudioPlayerService();
   StreamSubscription? playerStateSubscription;
@@ -175,7 +183,7 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    if (gravando) {
+    if (gravando || _voiceCoordinator.recordingModeActive) {
       setState(() {
         _interactionMode = EditorInteractionMode.recording;
         textoReconhecido =
@@ -189,6 +197,10 @@ class _EditorPageState extends State<EditorPage> {
     if (!ouvindo) {
       _aplicarConfiguracao(configuracao);
       _paradaManualEscuta = false;
+
+      if (!_voiceCoordinator.claimListening(_voiceOwnerId)) {
+        return;
+      }
 
       setState(() {
         ouvindo = true;
@@ -237,7 +249,9 @@ class _EditorPageState extends State<EditorPage> {
                   'Nenhuma fala detectada. Tente falar mais perto do microfone.';
               statusProjeto = 'Tempo de escuta encerrado sem comando.';
             });
-            _reiniciarEscutaContinuaSeNecessario();
+            _reiniciarEscutaContinuaSeNecessario(
+              reason: VoiceRestartReason.afterError,
+            );
             return;
           }
 
@@ -260,31 +274,27 @@ class _EditorPageState extends State<EditorPage> {
     }
   }
 
-  void _reiniciarEscutaContinuaSeNecessario() {
-    if (!escutaContinuaAtiva ||
-        _paradaManualEscuta ||
-        gravando ||
-        carregandoAudio ||
-        !mounted) {
-      return;
-    }
-
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted ||
-          ouvindo ||
-          gravando ||
-          carregandoAudio ||
-          _paradaManualEscuta ||
-          !escutaContinuaAtiva) {
-        return;
-      }
-
-      alternarMicrofone();
-    });
+  void _reiniciarEscutaContinuaSeNecessario({
+    VoiceRestartReason reason = VoiceRestartReason.normal,
+  }) {
+    _voiceCoordinator.scheduleContinuousRestart(
+      ownerId: _voiceOwnerId,
+      reason: reason,
+      shouldRestart: () =>
+          mounted &&
+          escutaContinuaAtiva &&
+          !_paradaManualEscuta &&
+          !gravando &&
+          !carregandoAudio &&
+          !ouvindo &&
+          !_voiceCoordinator.recordingModeActive,
+      onRestart: alternarMicrofone,
+    );
   }
 
   Future<void> _pausarEscutaParaModoGravacao() async {
     _paradaManualEscuta = false;
+    _voiceCoordinator.enterRecordingMode();
 
     if (ouvindo || speech.isListening) {
       await speech.cancelListening();
@@ -304,6 +314,8 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   Future<void> _retomarEscutaContinuaAposModoGravacao() async {
+    _voiceCoordinator.exitRecordingMode();
+
     if (!mounted || _paradaManualEscuta || gravando || carregandoAudio) {
       return;
     }
@@ -334,6 +346,7 @@ class _EditorPageState extends State<EditorPage> {
   Future<void> interpretarComando(String comando) async {
     final resultadoController = await commandController.interpret(
       comando,
+      usuarioId: widget.usuario.id,
       onAiStarted: () {
         if (!mounted) {
           return;
@@ -359,6 +372,34 @@ class _EditorPageState extends State<EditorPage> {
     }
 
     if (_executandoComandoVoz) {
+      return;
+    }
+
+    final globalResult = await _globalCommandService.execute(resultado);
+    if (globalResult.handled) {
+      final updatedConfig = globalResult.updatedConfig;
+      if (updatedConfig != null) {
+        _aplicarConfiguracao(updatedConfig);
+      }
+
+      if (globalResult.shouldStopListening && (ouvindo || speech.isListening)) {
+        await speech.cancelListening();
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        if (globalResult.shouldStopListening) {
+          ouvindo = false;
+        }
+        statusProjeto = globalResult.message ?? statusProjeto;
+      });
+
+      if (!globalResult.shouldStopListening) {
+        _reiniciarEscutaContinuaSeNecessario();
+      }
       return;
     }
 
@@ -409,6 +450,7 @@ class _EditorPageState extends State<EditorPage> {
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
+      case VoiceCommandType.abrirDetalhesGravacao:
       case VoiceCommandType.abrirConfiguracoes:
       case VoiceCommandType.abrirAssistente:
       case VoiceCommandType.abrirHistorico:
@@ -422,6 +464,8 @@ class _EditorPageState extends State<EditorPage> {
       case VoiceCommandType.desativarEscutaContinua:
       case VoiceCommandType.ativarFeedbackSonoro:
       case VoiceCommandType.desativarFeedbackSonoro:
+      case VoiceCommandType.ativarTemaEscuro:
+      case VoiceCommandType.desativarTemaEscuro:
       case VoiceCommandType.ativarParadaSilencio:
       case VoiceCommandType.desativarParadaSilencio:
       case VoiceCommandType.definirTempoSilencio:
@@ -992,7 +1036,7 @@ class _EditorPageState extends State<EditorPage> {
         projetoId: projetoId,
       );
     } catch (e) {
-      debugPrint('Erro ao registrar histÃ³rico persistente: $e');
+      debugPrint('Erro ao registrar historico persistente: $e');
     }
   }
 
@@ -1092,7 +1136,8 @@ class _EditorPageState extends State<EditorPage> {
   void dispose() {
     playerStateSubscription?.cancel();
     pararMonitoramentoSilencio();
-    speech.stopListening();
+    _voiceCoordinator.exitRecordingMode();
+    unawaited(_voiceCoordinator.releaseAndStop(_voiceOwnerId));
     audioService.dispose();
     playerService.dispose();
     super.dispose();

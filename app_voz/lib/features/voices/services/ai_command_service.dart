@@ -347,6 +347,15 @@ class AiCommandService {
           parametro: parsed?.parametro,
           parametroSecundario: parsed?.parametroSecundario,
         );
+      case 'recording_details_named':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.abrirDetalhesGravacao,
+          tipoComando: 'abrir_detalhes_gravacao',
+          acaoExecutada: 'Abrir detalhes da gravacao',
+          parametro: parsed?.parametro,
+        );
       case 'settings_voice_on':
         return _recognized(
           originalText,
@@ -394,6 +403,22 @@ class AiCommandService {
           VoiceCommandType.desativarFeedbackSonoro,
           tipoComando: 'desativar_feedback_sonoro',
           acaoExecutada: 'Desativar feedback sonoro',
+        );
+      case 'settings_dark_theme_on':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.ativarTemaEscuro,
+          tipoComando: 'ativar_tema_escuro',
+          acaoExecutada: 'Ativar tema escuro',
+        );
+      case 'settings_dark_theme_off':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.desativarTemaEscuro,
+          tipoComando: 'desativar_tema_escuro',
+          acaoExecutada: 'Ativar tema claro',
         );
       case 'settings_silence_stop_on':
         return _recognized(
@@ -624,12 +649,15 @@ Intents permitidas:
 - project_rename_named: renomear projeto; parametro e nome atual, parametro_secundario e novo nome.
 - recording_delete_named: excluir/remover/apagar gravacao pelo nome.
 - recording_rename_named: renomear gravacao pelo nome.
+- recording_details_named: abrir detalhes, informacoes ou metadados de gravacao pelo nome.
 - settings_voice_on: ativar comandos ou controle por voz.
 - settings_voice_off: desativar comandos ou controle por voz.
 - settings_continuous_on: ativar escuta continua.
 - settings_continuous_off: desativar escuta continua.
 - settings_feedback_on: ativar feedback sonoro.
 - settings_feedback_off: desativar feedback sonoro.
+- settings_dark_theme_on: ativar tema escuro, modo escuro ou aparencia escura.
+- settings_dark_theme_off: ativar tema claro, modo claro ou aparencia clara.
 - settings_silence_stop_on: ativar parada por silencio.
 - settings_silence_stop_off: desativar parada por silencio.
 - settings_silence_time_set: definir tempo de silencio em segundos.

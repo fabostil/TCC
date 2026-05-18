@@ -164,14 +164,18 @@ Tabelas:
 
 ## Pendencias Principais
 
-- Teste manual completo em Android real.
+- Teste manual completo em Android real (gravacao + escuta continua + navegacao).
+- Centralizar escuta de voz (evitar multiplas instancias `SpeechService`) — ver `docs/VOICE_ARCHITECTURE.md`.
 - Melhorar fluxo de permissao negada.
-- Implementar feedback sonoro real.
-- Criar comandos personalizados.
+- Feedback sonoro/TTS opcional (hoje: click/haptic).
 - Corrigir mojibake remanescente.
-- Criar detalhes de gravacao.
 - Decidir destino da `VoicePage` legada.
+- Insights inteligentes no dashboard (placeholder).
 - Atualizar documentacao academica final do TCC.
+
+## Arquitetura De Voz (evolucao)
+
+Plano incremental sem reescrever a base: `docs/VOICE_ARCHITECTURE.md`
 
 ## Observacao De Git
 

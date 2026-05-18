@@ -2,6 +2,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'tables/comando_voz_table.dart';
+import 'tables/comando_personalizado_table.dart';
 import 'tables/configuracao_app_table.dart';
 import 'tables/gravacao_table.dart';
 import 'tables/historico_acao_table.dart';
@@ -29,7 +30,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 4,
+      version: 6,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -51,6 +52,7 @@ class AppDatabase {
     await db.execute(ProjetoTable.createTable);
     await db.execute(GravacaoTable.createTable);
     await db.execute(ComandoVozTable.createTable);
+    await db.execute(ComandoPersonalizadoTable.createTable);
     await db.execute(HistoricoAcaoTable.createTable);
     await db.execute(ConfiguracaoAppTable.createTable);
     await db.execute(ConfiguracaoAppTable.insertDefault);
@@ -64,6 +66,10 @@ class AppDatabase {
     }
 
     for (final index in ComandoVozTable.indexes) {
+      await db.execute(index);
+    }
+
+    for (final index in ComandoPersonalizadoTable.indexes) {
       await db.execute(index);
     }
 
@@ -128,6 +134,43 @@ class AppDatabase {
       await db.execute(ConfiguracaoAppTable.createTable);
       await db.execute(ConfiguracaoAppTable.insertDefault);
     }
+
+    if (oldVersion < 5) {
+      await db.execute(ConfiguracaoAppTable.createTable);
+      await _addColumnIfMissing(
+        db,
+        tableName: ConfiguracaoAppTable.tableName,
+        columnName: 'tema_escuro',
+        definition: 'INTEGER NOT NULL DEFAULT 0',
+      );
+      await db.execute(ConfiguracaoAppTable.insertDefault);
+    }
+
+    if (oldVersion < 6) {
+      await db.execute(ComandoPersonalizadoTable.createTable);
+
+      for (final index in ComandoPersonalizadoTable.indexes) {
+        await db.execute(index);
+      }
+    }
+  }
+
+  Future<void> _addColumnIfMissing(
+    Database db, {
+    required String tableName,
+    required String columnName,
+    required String definition,
+  }) async {
+    final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+    final columnNames = columns.map((column) => column['name']).toSet();
+
+    if (columnNames.contains(columnName)) {
+      return;
+    }
+
+    await db.execute(
+      'ALTER TABLE $tableName ADD COLUMN $columnName $definition',
+    );
   }
 
   Future<void> _migrateComandoVozToVersion3(Database db) async {

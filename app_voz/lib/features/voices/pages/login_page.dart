@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/ui/app_logo.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/usuario_repository.dart';
 import '../../home/pages/home_page.dart';
@@ -31,10 +32,11 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final Usuario? usuario = await UsuarioRepository.instance.autenticarUsuario(
-        email: _emailController.text,
-        senha: _senhaController.text,
-      );
+      final Usuario? usuario = await UsuarioRepository.instance
+          .autenticarUsuario(
+            email: _emailController.text,
+            senha: _senhaController.text,
+          );
 
       if (!mounted) {
         return;
@@ -87,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
             key: _formKey,
             child: Column(
               children: [
-                const Icon(Icons.mic, size: 80, color: Colors.deepPurple),
+                const AppLogo(height: 112),
 
                 const SizedBox(height: 16),
 

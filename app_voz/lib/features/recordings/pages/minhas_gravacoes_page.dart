@@ -8,17 +8,16 @@ import '../../../core/ui/app_feedback.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
 import '../../../core/ui/voice_status_bar.dart';
-import '../../../models/comando_voz.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/comando_voz_repository.dart';
-import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/gravacao_repository.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../editor/services/audio_player_service.dart';
-import '../../voices/controllers/voice_command_controller.dart';
+import '../../voices/coordination/contextual_voice_listening_mixin.dart';
+import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
-import '../../voices/services/speech_service.dart';
+import 'detalhes_gravacao_page.dart';
 
 class MinhasGravacoesPage extends StatefulWidget {
   final Usuario usuario;
@@ -29,28 +28,36 @@ class MinhasGravacoesPage extends StatefulWidget {
   State<MinhasGravacoesPage> createState() => _MinhasGravacoesPageState();
 }
 
-class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
-  final SpeechService _speechService = SpeechService();
-  final VoiceCommandController _commandController = VoiceCommandController();
+class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
+    with ContextualVoiceListeningMixin<MinhasGravacoesPage> {
   final CommandService _commandService = const CommandService();
   final List<Gravacao> _gravacoes = [];
   final AudioPlayerService _playerService = AudioPlayerService();
 
   bool _carregando = true;
-  bool _ouvindo = false;
-  bool _escutaContinuaAtiva = false;
-  bool _paradaManualEscuta = false;
-  bool _executandoComandoVoz = false;
-  bool _iaPensando = false;
   String? _erro;
-  String? _statusVoz;
   int? _gravacaoReproduzindoId;
   Gravacao? _gravacaoPendenteExclusao;
   StreamSubscription? _playerStateSubscription;
 
   @override
+  String get voiceOwnerId => VoicePageOwners.minhasGravacoes;
+
+  @override
+  int? get voiceUsuarioId => widget.usuario.id;
+
+  @override
+  String get voiceListeningPrompt => 'Ouvindo comando de gravacao...';
+
+  @override
+  late final VoiceCommandDispatcher voiceCommandDispatcher;
+
+  @override
   void initState() {
     super.initState();
+    voiceCommandDispatcher = VoiceCommandDispatcher(
+      onFallback: _dispatchContextualVoice,
+    );
     _playerStateSubscription = _playerService.playerStateStream.listen((state) {
       if (!mounted) {
         return;
@@ -63,9 +70,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       }
     });
     _carregarGravacoes();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _iniciarEscutaContinuaSeAtiva();
-    });
+    scheduleVoiceListeningOnFirstFrame();
   }
 
   Future<void> _carregarGravacoes() async {
@@ -269,7 +274,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       if (index != -1) {
         _gravacoes[index] = gravacaoAtualizada;
       }
-      _statusVoz = 'Gravacao renomeada para $nomeFinal.';
+    });
+    voiceSetState(() {
+      voiceStatusMessage = 'Gravacao renomeada para $nomeFinal.';
     });
 
     unawaited(
@@ -339,183 +346,80 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
     }
   }
 
+  Future<void> _abrirDetalhesGravacao(Gravacao gravacao) async {
+    final gravacaoId = gravacao.id;
+    if (gravacaoId == null) {
+      AppFeedback.showMessage(context, 'Gravacao sem identificacao local.');
+      return;
+    }
+
+    await suspendContextualVoiceListening();
+
+    if (!mounted) {
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetalhesGravacaoPage(
+          usuario: widget.usuario,
+          gravacaoId: gravacaoId,
+        ),
+      ),
+    );
+
+    if (mounted) {
+      await _carregarGravacoes();
+      await startContinuousVoiceListeningIfActive();
+    }
+  }
+
   @override
   void dispose() {
-    _speechService.stopListening();
+    disposeContextualVoiceListening();
     _playerStateSubscription?.cancel();
     _playerService.dispose();
     super.dispose();
   }
 
-  Future<void> _alternarEscutaVoz() async {
-    if (_ouvindo) {
-      _paradaManualEscuta = true;
-      await _speechService.stopListening();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _ouvindo = false;
-        _statusVoz = 'Escuta encerrada.';
-      });
-      return;
-    }
-
-    _paradaManualEscuta = false;
-    await _iniciarEscutaVoz();
-  }
-
-  Future<void> _iniciarEscutaContinuaSeAtiva() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
-
-    if (!mounted) {
-      return;
-    }
-
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-
-    if (_escutaContinuaAtiva && !_ouvindo && !_paradaManualEscuta) {
-      await _iniciarEscutaVoz();
-    }
-  }
-
-  Future<void> _iniciarEscutaVoz() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
-
-    if (!mounted) {
-      return;
-    }
-
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-
-    if (!configuracao.comandosVozAtivos) {
-      setState(() {
-        _statusVoz = 'Comandos de voz desativados.';
-      });
-      return;
-    }
-
-    setState(() {
-      _ouvindo = true;
-      _statusVoz = 'Ouvindo comando de gravacao...';
-    });
-
-    await _speechService.startListening(
-      onResult: (texto) {
-        unawaited(_executarComandoVoz(texto));
-      },
-      onStatus: (status) {
-        if (!mounted) {
-          return;
-        }
-        if (status == 'done' || status == 'notListening') {
-          setState(() {
-            _ouvindo = false;
-          });
-          _reiniciarEscutaContinuaSeNecessario();
-        }
-      },
-      onError: (error) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _ouvindo = false;
-          _statusVoz = 'Erro no reconhecimento de voz: $error';
-        });
-        _reiniciarEscutaContinuaSeNecessario();
-      },
-    );
-  }
-
-  Future<void> _executarComandoVoz(String texto) async {
-    if (_executandoComandoVoz) {
-      return;
-    }
-
-    _executandoComandoVoz = true;
-    final resultadoController = await _commandController.interpret(
-      texto,
-      onAiStarted: () {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _iaPensando = true;
-          _statusVoz = 'IA pensando...';
-        });
-      },
-    );
-    final resultado = resultadoController.commandResult;
-
-    unawaited(_registrarComando(resultado));
-
-    if (!mounted || resultado.normalizedText.isEmpty) {
-      _executandoComandoVoz = false;
-      _iaPensando = false;
-      return;
-    }
-
-    setState(() {
-      _iaPensando = false;
-    });
-
+  Future<VoiceCommandPageResult> _dispatchContextualVoice(
+    CommandResult resultado,
+  ) async {
     switch (resultado.type) {
+      case VoiceCommandType.abrirDetalhesGravacao:
+        return _handleAbrirDetalhesPorVoz(resultado.parametro);
       case VoiceCommandType.reproduzirGravacao:
-        await _reproduzirPorNome(resultado.parametro);
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return _handleReproduzirPorNome(resultado.parametro);
       case VoiceCommandType.pararReproducao:
         await _playerService.stop();
         if (mounted) {
           setState(() {
             _gravacaoReproduzindoId = null;
-            _statusVoz = 'Reproducao parada.';
           });
         }
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return VoiceCommandPageResult.handled(message: 'Reproducao parada.');
       case VoiceCommandType.renomearGravacao:
-        await _renomearPorVoz(
+        return _handleRenomearPorVoz(
           resultado.parametro,
           resultado.parametroSecundario,
         );
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
       case VoiceCommandType.excluirGravacao:
-        await _excluirPorVoz(resultado.parametro);
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return _handleExcluirPorVoz(resultado.parametro);
       case VoiceCommandType.confirmarAcao:
-        await _confirmarExclusaoPendente();
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return _handleConfirmarExclusaoPendente();
       case VoiceCommandType.cancelarAcao:
-        setState(() {
+        voiceSetState(() {
           _gravacaoPendenteExclusao = null;
-          _statusVoz = 'Exclusao cancelada.';
+          voiceStatusMessage = 'Exclusao cancelada.';
         });
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return VoiceCommandPageResult.handled(message: 'Exclusao cancelada.');
       case VoiceCommandType.voltar:
-        await _suspenderEscutaParaAcao();
-        if (!mounted) {
-          _executandoComandoVoz = false;
-          return;
+        await suspendContextualVoiceListening();
+        if (mounted) {
+          Navigator.maybePop(context);
         }
-        Navigator.maybePop(context);
-        _executandoComandoVoz = false;
-        return;
+        return VoiceCommandPageResult.handled(restartListening: false);
       case VoiceCommandType.iniciarGravacao:
       case VoiceCommandType.pausarGravacao:
       case VoiceCommandType.retomarGravacao:
@@ -545,119 +449,102 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       case VoiceCommandType.desativarEscutaContinua:
       case VoiceCommandType.ativarFeedbackSonoro:
       case VoiceCommandType.desativarFeedbackSonoro:
+      case VoiceCommandType.ativarTemaEscuro:
+      case VoiceCommandType.desativarTemaEscuro:
       case VoiceCommandType.ativarParadaSilencio:
       case VoiceCommandType.desativarParadaSilencio:
       case VoiceCommandType.definirTempoSilencio:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
-        setState(() {
-          _statusVoz = resultado.recognized
-              ? 'Comando nao disponivel nesta tela.'
-              : 'Comando nao reconhecido nesta tela.';
-        });
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return VoiceCommandPageResult.unavailable(
+          recognized: resultado.recognized,
+        );
     }
   }
 
-  void _reiniciarEscutaContinuaSeNecessario() {
-    if (!_escutaContinuaAtiva ||
-        _paradaManualEscuta ||
-        _executandoComandoVoz ||
-        !mounted) {
-      return;
-    }
-
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted ||
-          _ouvindo ||
-          _paradaManualEscuta ||
-          _executandoComandoVoz ||
-          !_escutaContinuaAtiva) {
-        return;
-      }
-
-      unawaited(_iniciarEscutaVoz());
-    });
-  }
-
-  Future<void> _suspenderEscutaParaAcao({bool manterPausada = false}) async {
-    _paradaManualEscuta = manterPausada;
-    _escutaContinuaAtiva = false;
-
-    if (_ouvindo || _speechService.isListening) {
-      await _speechService.cancelListening();
-    }
-
-    if (mounted) {
-      setState(() {
-        _ouvindo = false;
-      });
-    }
-  }
-
-  Future<void> _reproduzirPorNome(String? nome) async {
+  Future<VoiceCommandPageResult> _handleReproduzirPorNome(String? nome) async {
     final gravacao =
         _buscarGravacaoPorNome(nome) ??
         (_gravacoes.isNotEmpty ? _gravacoes.first : null);
 
     if (gravacao == null) {
-      setState(() {
-        _statusVoz = 'Nenhuma gravacao encontrada para reproduzir.';
-      });
-      return;
+      return VoiceCommandPageResult.handled(
+        message: 'Nenhuma gravacao encontrada para reproduzir.',
+      );
     }
 
     await _alternarReproducao(gravacao);
+    return VoiceCommandPageResult.handled();
   }
 
-  Future<void> _renomearPorVoz(String? nomeAtual, String? novoNome) async {
+  Future<VoiceCommandPageResult> _handleAbrirDetalhesPorVoz(String? nome) async {
+    final gravacao =
+        _buscarGravacaoPorNome(nome) ??
+        (_gravacoes.isNotEmpty ? _gravacoes.first : null);
+
+    if (gravacao == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Nenhuma gravacao encontrada para abrir detalhes.',
+      );
+    }
+
+    await _abrirDetalhesGravacao(gravacao);
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
+  Future<VoiceCommandPageResult> _handleRenomearPorVoz(
+    String? nomeAtual,
+    String? novoNome,
+  ) async {
     final gravacao = _buscarGravacaoPorNome(nomeAtual);
 
     if (gravacao == null || novoNome == null || novoNome.trim().isEmpty) {
-      setState(() {
-        _statusVoz = 'Diga: renomear gravacao nome atual para novo nome.';
-      });
-      return;
+      return VoiceCommandPageResult.handled(
+        message: 'Diga: renomear gravacao nome atual para novo nome.',
+      );
     }
 
     await _salvarNovoNomeGravacao(gravacao, novoNome.trim());
+    return VoiceCommandPageResult.handled();
   }
 
-  Future<void> _excluirPorVoz(String? nome) async {
+  Future<VoiceCommandPageResult> _handleExcluirPorVoz(String? nome) async {
     final gravacao = _buscarGravacaoPorNome(nome);
 
     if (gravacao == null) {
-      setState(() {
-        _statusVoz = 'Gravacao nao encontrada para exclusao.';
-      });
-      return;
+      return VoiceCommandPageResult.handled(
+        message: 'Gravacao nao encontrada para exclusao.',
+      );
     }
 
-    setState(() {
+    voiceSetState(() {
       _gravacaoPendenteExclusao = gravacao;
-      _statusVoz =
+      voiceStatusMessage =
           'Confirmar exclusao de ${gravacao.nome}? Diga confirmar exclusao ou cancelar exclusao.';
     });
+    return VoiceCommandPageResult.handled(
+      message:
+          'Confirmar exclusao de ${gravacao.nome}? Diga confirmar exclusao ou cancelar exclusao.',
+    );
   }
 
-  Future<void> _confirmarExclusaoPendente() async {
+  Future<VoiceCommandPageResult> _handleConfirmarExclusaoPendente() async {
     final gravacao = _gravacaoPendenteExclusao;
 
     if (gravacao == null) {
-      setState(() {
-        _statusVoz = 'Nenhuma exclusao pendente para confirmar.';
-      });
-      return;
+      return VoiceCommandPageResult.handled(
+        message: 'Nenhuma exclusao pendente para confirmar.',
+      );
     }
 
     if (gravacao.id == null) {
-      setState(() {
-        _statusVoz = 'Gravacao invalida para exclusao.';
+      voiceSetState(() {
+        voiceStatusMessage = 'Gravacao invalida para exclusao.';
         _gravacaoPendenteExclusao = null;
       });
-      return;
+      return VoiceCommandPageResult.handled(
+        message: 'Gravacao invalida para exclusao.',
+      );
     }
 
     try {
@@ -673,7 +560,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
       }
 
       if (!mounted) {
-        return;
+        return VoiceCommandPageResult.handled(
+          message: 'Gravacao ${gravacao.nome} excluida.',
+        );
       }
 
       setState(() {
@@ -682,7 +571,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
         if (_gravacaoReproduzindoId == gravacao.id) {
           _gravacaoReproduzindoId = null;
         }
-        _statusVoz = 'Gravacao ${gravacao.nome} excluida.';
       });
 
       unawaited(
@@ -692,15 +580,24 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
           projetoId: gravacao.projetoId,
         ),
       );
+
+      return VoiceCommandPageResult.handled(
+        message: 'Gravacao ${gravacao.nome} excluida.',
+      );
     } catch (e) {
       if (!mounted) {
-        return;
+        return VoiceCommandPageResult.handled(
+          message: 'Nao foi possivel excluir a gravacao: $e',
+        );
       }
 
-      setState(() {
-        _statusVoz = 'Nao foi possivel excluir a gravacao: $e';
+      voiceSetState(() {
+        voiceStatusMessage = 'Nao foi possivel excluir a gravacao: $e';
         _gravacaoPendenteExclusao = null;
       });
+      return VoiceCommandPageResult.handled(
+        message: 'Nao foi possivel excluir a gravacao: $e',
+      );
     }
   }
 
@@ -740,28 +637,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
     return candidato;
   }
 
-  Future<void> _registrarComando(CommandResult resultado) async {
-    final usuarioId = widget.usuario.id;
-    if (usuarioId == null || resultado.normalizedText.isEmpty) {
-      return;
-    }
-
-    try {
-      await ComandoVozRepository.instance.registrarComando(
-        ComandoVoz(
-          usuarioId: usuarioId,
-          textoReconhecido: resultado.originalText,
-          tipoComando: resultado.tipoComando,
-          statusReconhecimento: resultado.statusReconhecimento,
-          acaoExecutada: resultado.acaoExecutada,
-          dataHora: DateTime.now().toIso8601String(),
-        ),
-      );
-    } catch (e) {
-      debugPrint('Erro ao registrar comando de voz: $e');
-    }
-  }
-
   Future<void> _registrarHistorico({
     required String tipo,
     required String descricao,
@@ -795,9 +670,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
         centerTitle: true,
         actions: [
           IconButton(
-            tooltip: _ouvindo ? 'Parar escuta' : 'Comando de voz',
-            onPressed: _alternarEscutaVoz,
-            icon: Icon(_ouvindo ? Icons.mic : Icons.mic_none),
+            tooltip: voiceOuvindo ? 'Parar escuta' : 'Comando de voz',
+            onPressed: toggleContextualVoiceListening,
+            icon: Icon(voiceOuvindo ? Icons.mic : Icons.mic_none),
           ),
         ],
       ),
@@ -839,12 +714,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                     _ConfirmacaoExclusaoCard(
                       gravacao: _gravacaoPendenteExclusao!,
                       onConfirmar: () {
-                        unawaited(_confirmarExclusaoPendente());
+                        unawaited(_handleConfirmarExclusaoPendente());
                       },
                       onCancelar: () {
-                        setState(() {
+                        voiceSetState(() {
                           _gravacaoPendenteExclusao = null;
-                          _statusVoz = 'Exclusao cancelada.';
+                          voiceStatusMessage = 'Exclusao cancelada.';
                         });
                       },
                     ),
@@ -873,12 +748,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                   return _ConfirmacaoExclusaoCard(
                     gravacao: _gravacaoPendenteExclusao!,
                     onConfirmar: () {
-                      unawaited(_confirmarExclusaoPendente());
+                      unawaited(_handleConfirmarExclusaoPendente());
                     },
                     onCancelar: () {
-                      setState(() {
+                      voiceSetState(() {
                         _gravacaoPendenteExclusao = null;
-                        _statusVoz = 'Exclusao cancelada.';
+                        voiceStatusMessage = 'Exclusao cancelada.';
                       });
                     },
                   );
@@ -896,6 +771,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
+                    onTap: () => _abrirDetalhesGravacao(gravacao),
                     leading: IconButton(
                       onPressed: () => _alternarReproducao(gravacao),
                       icon: Icon(
@@ -932,8 +808,15 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
                         if (value == 'delete') {
                           _excluirGravacao(gravacao);
                         }
+                        if (value == 'details') {
+                          _abrirDetalhesGravacao(gravacao);
+                        }
                       },
                       itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'details',
+                          child: Text('Detalhes'),
+                        ),
                         PopupMenuItem(value: 'rename', child: Text('Renomear')),
                         PopupMenuItem(value: 'delete', child: Text('Excluir')),
                       ],
@@ -945,12 +828,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
           },
         ),
       ),
-      bottomNavigationBar: _statusVoz == null
+      bottomNavigationBar: voiceStatusMessage == null
           ? null
           : VoiceStatusBar(
-              message: _statusVoz!,
-              listening: _ouvindo,
-              thinking: _iaPensando,
+              message: voiceStatusMessage!,
+              listening: voiceOuvindo,
+              thinking: voiceIaPensando,
             ),
     );
   }

@@ -82,6 +82,11 @@ class ConfiguracaoAppRepository {
     );
   }
 
+  Future<void> atualizarTemaEscuro(bool ativo) async {
+    final configuracao = await buscarConfiguracao();
+    await salvarConfiguracao(configuracao.copyWith(temaEscuro: ativo));
+  }
+
   Future<void> _garantirConfiguracaoPadrao(Database db) async {
     await db.execute(ConfiguracaoAppTable.insertDefault);
   }

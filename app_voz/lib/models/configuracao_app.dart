@@ -6,6 +6,7 @@ class ConfiguracaoApp {
   final bool feedbackSonoro;
   final bool paradaSilencio;
   final int tempoSilencioSegundos;
+  final bool temaEscuro;
   final String dataAtualizacao;
 
   ConfiguracaoApp({
@@ -16,6 +17,7 @@ class ConfiguracaoApp {
     required this.feedbackSonoro,
     required this.paradaSilencio,
     required this.tempoSilencioSegundos,
+    required this.temaEscuro,
     required this.dataAtualizacao,
   });
 
@@ -27,6 +29,7 @@ class ConfiguracaoApp {
       feedbackSonoro: false,
       paradaSilencio: true,
       tempoSilencioSegundos: 6,
+      temaEscuro: false,
       dataAtualizacao: DateTime.now().toIso8601String(),
     );
   }
@@ -40,6 +43,7 @@ class ConfiguracaoApp {
       'feedback_sonoro': feedbackSonoro ? 1 : 0,
       'parada_silencio': paradaSilencio ? 1 : 0,
       'tempo_silencio_segundos': tempoSilencioSegundos,
+      'tema_escuro': temaEscuro ? 1 : 0,
       'data_atualizacao': dataAtualizacao,
     };
   }
@@ -54,6 +58,7 @@ class ConfiguracaoApp {
       feedbackSonoro: (map['feedback_sonoro'] as int) == 1,
       paradaSilencio: (map['parada_silencio'] as int) == 1,
       tempoSilencioSegundos: map['tempo_silencio_segundos'] as int,
+      temaEscuro: (map['tema_escuro'] as int? ?? 0) == 1,
       dataAtualizacao: map['data_atualizacao'] as String,
     );
   }
@@ -65,6 +70,7 @@ class ConfiguracaoApp {
     bool? feedbackSonoro,
     bool? paradaSilencio,
     int? tempoSilencioSegundos,
+    bool? temaEscuro,
     String? dataAtualizacao,
   }) {
     return ConfiguracaoApp(
@@ -77,6 +83,7 @@ class ConfiguracaoApp {
       paradaSilencio: paradaSilencio ?? this.paradaSilencio,
       tempoSilencioSegundos:
           tempoSilencioSegundos ?? this.tempoSilencioSegundos,
+      temaEscuro: temaEscuro ?? this.temaEscuro,
       dataAtualizacao: dataAtualizacao ?? this.dataAtualizacao,
     );
   }

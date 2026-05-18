@@ -20,6 +20,7 @@ enum VoiceCommandType {
   abrirDashboard,
   abrirProjetos,
   abrirGravacoes,
+  abrirDetalhesGravacao,
   abrirConfiguracoes,
   abrirAssistente,
   abrirHistorico,
@@ -32,6 +33,8 @@ enum VoiceCommandType {
   desativarEscutaContinua,
   ativarFeedbackSonoro,
   desativarFeedbackSonoro,
+  ativarTemaEscuro,
+  desativarTemaEscuro,
   ativarParadaSilencio,
   desativarParadaSilencio,
   definirTempoSilencio,
@@ -378,6 +381,49 @@ class CommandService {
       );
     }
 
+    final detalhesGravacao = _extractAfterAny(normalizedText, const [
+      'abrir detalhes da gravacao',
+      'abrir detalhes gravacao',
+      'ver detalhes da gravacao',
+      'ver detalhes gravacao',
+      'mostrar detalhes da gravacao',
+      'mostrar detalhes gravacao',
+      'informacoes da gravacao',
+      'informacoes gravacao',
+      'detalhes da gravacao',
+      'detalhes gravacao',
+    ]);
+    if (detalhesGravacao != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirDetalhesGravacao,
+        tipoComando: 'abrir_detalhes_gravacao',
+        acaoExecutada: 'Abrir detalhes da gravacao',
+        parametro: detalhesGravacao,
+      );
+    }
+    if (_containsAny(normalizedText, const [
+      'abrir detalhes da gravacao',
+      'abrir detalhes gravacao',
+      'ver detalhes da gravacao',
+      'ver detalhes gravacao',
+      'mostrar detalhes da gravacao',
+      'mostrar detalhes gravacao',
+      'informacoes da gravacao',
+      'informacoes gravacao',
+      'detalhes da gravacao',
+      'detalhes gravacao',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirDetalhesGravacao,
+        tipoComando: 'abrir_detalhes_gravacao',
+        acaoExecutada: 'Abrir detalhes da gravacao',
+      );
+    }
+
     final gravacaoParaExcluir = _extractAfterAny(normalizedText, const [
       'excluir gravacao',
       'apagar gravacao',
@@ -494,6 +540,40 @@ class CommandService {
         VoiceCommandType.desativarFeedbackSonoro,
         tipoComando: 'desativar_feedback_sonoro',
         acaoExecutada: 'Desativar feedback sonoro',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'ativar tema claro',
+      'usar tema claro',
+      'modo claro',
+      'tema claro',
+      'desativar tema escuro',
+      'desligar tema escuro',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.desativarTemaEscuro,
+        tipoComando: 'desativar_tema_escuro',
+        acaoExecutada: 'Ativar tema claro',
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'ativar tema escuro',
+      'usar tema escuro',
+      'modo escuro',
+      'tema escuro',
+      'desativar tema claro',
+      'desligar tema claro',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.ativarTemaEscuro,
+        tipoComando: 'ativar_tema_escuro',
+        acaoExecutada: 'Ativar tema escuro',
       );
     }
 

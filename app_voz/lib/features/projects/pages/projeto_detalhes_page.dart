@@ -8,19 +8,18 @@ import '../../../core/ui/app_feedback.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
 import '../../../core/ui/voice_status_bar.dart';
-import '../../../models/comando_voz.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/projeto.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/comando_voz_repository.dart';
-import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/gravacao_repository.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../editor/pages/editor_page.dart';
 import '../../editor/services/audio_player_service.dart';
-import '../../voices/controllers/voice_command_controller.dart';
+import '../../recordings/pages/detalhes_gravacao_page.dart';
+import '../../voices/coordination/contextual_voice_listening_mixin.dart';
+import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
-import '../../voices/services/speech_service.dart';
 
 class ProjetoDetalhesPage extends StatefulWidget {
   final Usuario usuario;
@@ -36,27 +35,35 @@ class ProjetoDetalhesPage extends StatefulWidget {
   State<ProjetoDetalhesPage> createState() => _ProjetoDetalhesPageState();
 }
 
-class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
-  final SpeechService _speechService = SpeechService();
-  final VoiceCommandController _commandController = VoiceCommandController();
+class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
+    with ContextualVoiceListeningMixin<ProjetoDetalhesPage> {
   final CommandService _commandService = const CommandService();
   final List<Gravacao> _gravacoes = [];
   final AudioPlayerService _playerService = AudioPlayerService();
 
   bool _carregando = true;
-  bool _ouvindo = false;
-  bool _escutaContinuaAtiva = false;
-  bool _paradaManualEscuta = false;
-  bool _executandoComandoVoz = false;
-  bool _iaPensando = false;
   String? _erro;
-  String? _statusVoz;
   int? _gravacaoReproduzindoId;
   StreamSubscription? _playerStateSubscription;
 
   @override
+  String get voiceOwnerId => VoicePageOwners.projetoDetalhes;
+
+  @override
+  int? get voiceUsuarioId => widget.usuario.id;
+
+  @override
+  String get voiceListeningPrompt => 'Ouvindo comando do projeto...';
+
+  @override
+  late final VoiceCommandDispatcher voiceCommandDispatcher;
+
+  @override
   void initState() {
     super.initState();
+    voiceCommandDispatcher = VoiceCommandDispatcher(
+      onFallback: _dispatchContextualVoice,
+    );
     _playerStateSubscription = _playerService.playerStateStream.listen((state) {
       if (!mounted) {
         return;
@@ -69,9 +76,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       }
     });
     _carregarGravacoes();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _iniciarEscutaContinuaSeAtiva();
-    });
+    scheduleVoiceListeningOnFirstFrame();
   }
 
   Future<void> _carregarGravacoes() async {
@@ -312,7 +317,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
   }
 
   Future<void> _abrirEditor() async {
-    await _suspenderEscutaParaAcao();
+    await suspendContextualVoiceListening();
 
     if (!mounted) {
       return;
@@ -328,178 +333,79 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
 
     if (mounted) {
       await _carregarGravacoes();
-      await _retomarEscutaContinuaAposAcao();
+      await startContinuousVoiceListeningIfActive();
+    }
+  }
+
+  Future<void> _abrirDetalhesGravacao(Gravacao gravacao) async {
+    final gravacaoId = gravacao.id;
+    if (gravacaoId == null) {
+      AppFeedback.showMessage(context, 'Gravacao sem identificacao local.');
+      return;
+    }
+
+    await suspendContextualVoiceListening();
+
+    if (!mounted) {
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetalhesGravacaoPage(
+          usuario: widget.usuario,
+          gravacaoId: gravacaoId,
+        ),
+      ),
+    );
+
+    if (mounted) {
+      await _carregarGravacoes();
+      await startContinuousVoiceListeningIfActive();
     }
   }
 
   @override
   void dispose() {
-    _speechService.stopListening();
+    disposeContextualVoiceListening();
     _playerStateSubscription?.cancel();
     _playerService.dispose();
     super.dispose();
   }
 
-  Future<void> _alternarEscutaVoz() async {
-    if (_ouvindo) {
-      _paradaManualEscuta = true;
-      await _speechService.stopListening();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _ouvindo = false;
-        _statusVoz = 'Escuta encerrada.';
-      });
-      return;
-    }
-
-    _paradaManualEscuta = false;
-    await _iniciarEscutaVoz();
-  }
-
-  Future<void> _iniciarEscutaContinuaSeAtiva() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
-
-    if (!mounted) {
-      return;
-    }
-
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-
-    if (_escutaContinuaAtiva && !_ouvindo && !_paradaManualEscuta) {
-      await _iniciarEscutaVoz();
-    }
-  }
-
-  Future<void> _iniciarEscutaVoz() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
-
-    if (!mounted) {
-      return;
-    }
-
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-
-    if (!configuracao.comandosVozAtivos) {
-      setState(() {
-        _statusVoz = 'Comandos de voz desativados.';
-      });
-      return;
-    }
-
-    setState(() {
-      _ouvindo = true;
-      _statusVoz = 'Ouvindo comando do projeto...';
-    });
-
-    await _speechService.startListening(
-      onResult: (texto) {
-        unawaited(_executarComandoVoz(texto));
-      },
-      onStatus: (status) {
-        if (!mounted) {
-          return;
-        }
-        if (status == 'done' || status == 'notListening') {
-          setState(() {
-            _ouvindo = false;
-          });
-          _reiniciarEscutaContinuaSeNecessario();
-        }
-      },
-      onError: (error) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _ouvindo = false;
-          _statusVoz = 'Erro no reconhecimento de voz: $error';
-        });
-        _reiniciarEscutaContinuaSeNecessario();
-      },
-    );
-  }
-
-  Future<void> _executarComandoVoz(String texto) async {
-    if (_executandoComandoVoz) {
-      return;
-    }
-
-    _executandoComandoVoz = true;
-    final resultadoController = await _commandController.interpret(
-      texto,
-      onAiStarted: () {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _iaPensando = true;
-          _statusVoz = 'IA pensando...';
-        });
-      },
-    );
-    final resultado = resultadoController.commandResult;
-
-    unawaited(_registrarComando(resultado));
-
-    if (!mounted || resultado.normalizedText.isEmpty) {
-      _executandoComandoVoz = false;
-      _iaPensando = false;
-      return;
-    }
-
-    setState(() {
-      _iaPensando = false;
-    });
-
+  Future<VoiceCommandPageResult> _dispatchContextualVoice(
+    CommandResult resultado,
+  ) async {
     switch (resultado.type) {
       case VoiceCommandType.abrirEditor:
         await _abrirEditor();
-        _executandoComandoVoz = false;
-        return;
+        return VoiceCommandPageResult.handled(restartListening: false);
+      case VoiceCommandType.abrirDetalhesGravacao:
+        return _handleAbrirDetalhesPorVoz(resultado.parametro);
       case VoiceCommandType.reproduzirGravacao:
-        await _reproduzirPorNome(resultado.parametro);
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return _handleReproduzirPorNome(resultado.parametro);
       case VoiceCommandType.pararReproducao:
         await _playerService.stop();
         if (mounted) {
           setState(() {
             _gravacaoReproduzindoId = null;
-            _statusVoz = 'Reproducao parada.';
           });
         }
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return VoiceCommandPageResult.handled(message: 'Reproducao parada.');
       case VoiceCommandType.renomearGravacao:
-        await _renomearPorVoz(
+        return _handleRenomearPorVoz(
           resultado.parametro,
           resultado.parametroSecundario,
         );
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
       case VoiceCommandType.excluirGravacao:
-        await _excluirPorVoz(resultado.parametro);
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return _handleExcluirPorVoz(resultado.parametro);
       case VoiceCommandType.voltar:
-        await _suspenderEscutaParaAcao();
-        if (!mounted) {
-          _executandoComandoVoz = false;
-          return;
+        await suspendContextualVoiceListening();
+        if (mounted) {
+          Navigator.maybePop(context);
         }
-        Navigator.maybePop(context);
-        _executandoComandoVoz = false;
-        return;
+        return VoiceCommandPageResult.handled(restartListening: false);
       case VoiceCommandType.iniciarGravacao:
       case VoiceCommandType.pausarGravacao:
       case VoiceCommandType.retomarGravacao:
@@ -528,6 +434,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       case VoiceCommandType.desativarEscutaContinua:
       case VoiceCommandType.ativarFeedbackSonoro:
       case VoiceCommandType.desativarFeedbackSonoro:
+      case VoiceCommandType.ativarTemaEscuro:
+      case VoiceCommandType.desativarTemaEscuro:
       case VoiceCommandType.ativarParadaSilencio:
       case VoiceCommandType.desativarParadaSilencio:
       case VoiceCommandType.definirTempoSilencio:
@@ -535,111 +443,69 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       case VoiceCommandType.cancelarAcao:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
-        setState(() {
-          _statusVoz = resultado.recognized
-              ? 'Comando nao disponivel nesta tela.'
-              : 'Comando nao reconhecido nesta tela.';
-        });
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return VoiceCommandPageResult.unavailable(
+          recognized: resultado.recognized,
+        );
     }
   }
 
-  void _reiniciarEscutaContinuaSeNecessario() {
-    if (!_escutaContinuaAtiva ||
-        _paradaManualEscuta ||
-        _executandoComandoVoz ||
-        !mounted) {
-      return;
-    }
-
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted ||
-          _ouvindo ||
-          _paradaManualEscuta ||
-          _executandoComandoVoz ||
-          !_escutaContinuaAtiva) {
-        return;
-      }
-
-      unawaited(_iniciarEscutaVoz());
-    });
-  }
-
-  Future<void> _suspenderEscutaParaAcao({bool manterPausada = false}) async {
-    _paradaManualEscuta = manterPausada;
-    _escutaContinuaAtiva = false;
-
-    if (_ouvindo || _speechService.isListening) {
-      await _speechService.cancelListening();
-    }
-
-    if (mounted) {
-      setState(() {
-        _ouvindo = false;
-      });
-    }
-  }
-
-  Future<void> _retomarEscutaContinuaAposAcao() async {
-    if (!mounted || _paradaManualEscuta) {
-      return;
-    }
-
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
-
-    if (!mounted) {
-      return;
-    }
-
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-    if (_escutaContinuaAtiva && !_ouvindo) {
-      await _iniciarEscutaVoz();
-    }
-  }
-
-  Future<void> _reproduzirPorNome(String? nome) async {
+  Future<VoiceCommandPageResult> _handleReproduzirPorNome(String? nome) async {
     final gravacao =
         _buscarGravacaoPorNome(nome) ??
         (_gravacoes.isNotEmpty ? _gravacoes.first : null);
 
     if (gravacao == null) {
-      setState(() {
-        _statusVoz = 'Nenhuma gravacao encontrada para reproduzir.';
-      });
-      return;
+      return VoiceCommandPageResult.handled(
+        message: 'Nenhuma gravacao encontrada para reproduzir.',
+      );
     }
 
     await _alternarReproducao(gravacao);
+    return VoiceCommandPageResult.handled();
   }
 
-  Future<void> _renomearPorVoz(String? nomeAtual, String? novoNome) async {
+  Future<VoiceCommandPageResult> _handleAbrirDetalhesPorVoz(String? nome) async {
+    final gravacao =
+        _buscarGravacaoPorNome(nome) ??
+        (_gravacoes.isNotEmpty ? _gravacoes.first : null);
+
+    if (gravacao == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Nenhuma gravacao encontrada para abrir detalhes.',
+      );
+    }
+
+    await _abrirDetalhesGravacao(gravacao);
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
+  Future<VoiceCommandPageResult> _handleRenomearPorVoz(
+    String? nomeAtual,
+    String? novoNome,
+  ) async {
     final gravacao = _buscarGravacaoPorNome(nomeAtual);
 
     if (gravacao == null || novoNome == null || novoNome.trim().isEmpty) {
-      setState(() {
-        _statusVoz = 'Diga: renomear gravacao nome atual para novo nome.';
-      });
-      return;
+      return VoiceCommandPageResult.handled(
+        message: 'Diga: renomear gravacao nome atual para novo nome.',
+      );
     }
 
     await _salvarNovoNomeGravacao(gravacao, novoNome.trim());
+    return VoiceCommandPageResult.handled();
   }
 
-  Future<void> _excluirPorVoz(String? nome) async {
+  Future<VoiceCommandPageResult> _handleExcluirPorVoz(String? nome) async {
     final gravacao = _buscarGravacaoPorNome(nome);
 
     if (gravacao == null) {
-      setState(() {
-        _statusVoz = 'Gravacao nao encontrada para exclusao.';
-      });
-      return;
+      return VoiceCommandPageResult.handled(
+        message: 'Gravacao nao encontrada para exclusao.',
+      );
     }
 
     await _excluirGravacao(gravacao);
+    return VoiceCommandPageResult.handled();
   }
 
   Gravacao? _buscarGravacaoPorNome(String? nome) {
@@ -687,7 +553,9 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
       if (index != -1) {
         _gravacoes[index] = gravacaoAtualizada;
       }
-      _statusVoz = 'Gravacao renomeada para $nomeFinal.';
+    });
+    voiceSetState(() {
+      voiceStatusMessage = 'Gravacao renomeada para $nomeFinal.';
     });
 
     unawaited(
@@ -720,28 +588,6 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
     }
 
     return candidato;
-  }
-
-  Future<void> _registrarComando(CommandResult resultado) async {
-    final usuarioId = widget.usuario.id;
-    if (usuarioId == null || resultado.normalizedText.isEmpty) {
-      return;
-    }
-
-    try {
-      await ComandoVozRepository.instance.registrarComando(
-        ComandoVoz(
-          usuarioId: usuarioId,
-          textoReconhecido: resultado.originalText,
-          tipoComando: resultado.tipoComando,
-          statusReconhecimento: resultado.statusReconhecimento,
-          acaoExecutada: resultado.acaoExecutada,
-          dataHora: DateTime.now().toIso8601String(),
-        ),
-      );
-    } catch (e) {
-      debugPrint('Erro ao registrar comando de voz: $e');
-    }
   }
 
   Future<void> _registrarHistorico({
@@ -777,9 +623,9 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
         centerTitle: true,
         actions: [
           IconButton(
-            tooltip: _ouvindo ? 'Parar escuta' : 'Comando de voz',
-            onPressed: _alternarEscutaVoz,
-            icon: Icon(_ouvindo ? Icons.mic : Icons.mic_none),
+            tooltip: voiceOuvindo ? 'Parar escuta' : 'Comando de voz',
+            onPressed: toggleContextualVoiceListening,
+            icon: Icon(voiceOuvindo ? Icons.mic : Icons.mic_none),
           ),
         ],
       ),
@@ -895,6 +741,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
                         ),
                         child: ListTile(
                           contentPadding: const EdgeInsets.all(16),
+                          onTap: () => _abrirDetalhesGravacao(gravacao),
                           leading: IconButton(
                             onPressed: () => _alternarReproducao(gravacao),
                             icon: Icon(
@@ -935,8 +782,15 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
                               if (value == 'delete') {
                                 _excluirGravacao(gravacao);
                               }
+                              if (value == 'details') {
+                                _abrirDetalhesGravacao(gravacao);
+                              }
                             },
                             itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: 'details',
+                                child: Text('Detalhes'),
+                              ),
                               PopupMenuItem(
                                 value: 'rename',
                                 child: Text('Renomear'),
@@ -956,12 +810,12 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage> {
           },
         ),
       ),
-      bottomNavigationBar: _statusVoz == null
+      bottomNavigationBar: voiceStatusMessage == null
           ? null
           : VoiceStatusBar(
-              message: _statusVoz!,
-              listening: _ouvindo,
-              thinking: _iaPensando,
+              message: voiceStatusMessage!,
+              listening: voiceOuvindo,
+              thinking: voiceIaPensando,
             ),
     );
   }

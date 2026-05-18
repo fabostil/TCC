@@ -6,16 +6,14 @@ import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
 import '../../../core/ui/voice_status_bar.dart';
-import '../../../models/comando_voz.dart';
 import '../../../models/dashboard_action_metric.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/historico_acao.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/comando_voz_repository.dart';
-import '../../../repositories/configuracao_app_repository.dart';
-import '../../voices/controllers/voice_command_controller.dart';
+import '../../voices/coordination/contextual_voice_listening_mixin.dart';
+import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
-import '../../voices/services/speech_service.dart';
 import '../services/dashboard_service.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -27,235 +25,56 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class _DashboardPageState extends State<DashboardPage>
+    with ContextualVoiceListeningMixin<DashboardPage> {
   final DashboardService _dashboardService = DashboardService();
-  final SpeechService _speechService = SpeechService();
-  final VoiceCommandController _commandController = VoiceCommandController();
 
   bool _carregando = true;
-  bool _ouvindo = false;
-  bool _escutaContinuaAtiva = false;
-  bool _paradaManualEscuta = false;
-  bool _executandoComandoVoz = false;
-  bool _iaPensando = false;
   String? _erro;
-  String? _statusVoz;
   DashboardData? _dashboard;
+
+  @override
+  String get voiceOwnerId => VoicePageOwners.dashboard;
+
+  @override
+  int? get voiceUsuarioId => widget.usuario.id;
+
+  @override
+  String get voiceListeningPrompt => 'Ouvindo comando do dashboard...';
+
+  @override
+  late final VoiceCommandDispatcher voiceCommandDispatcher;
 
   @override
   void initState() {
     super.initState();
+    voiceCommandDispatcher = VoiceCommandDispatcher(
+      handlers: {
+        VoiceCommandType.voltar: _handleVoltar,
+        VoiceCommandType.abrirDashboard: _handleJaAberto,
+      },
+    );
     _carregarDashboard();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _iniciarEscutaContinuaSeAtiva();
-    });
+    scheduleVoiceListeningOnFirstFrame();
   }
 
-  Future<void> _alternarEscutaVoz() async {
-    if (_ouvindo) {
-      _paradaManualEscuta = true;
-      await _speechService.stopListening();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _ouvindo = false;
-        _statusVoz = 'Escuta encerrada.';
-      });
-      return;
-    }
-
-    _paradaManualEscuta = false;
-    await _iniciarEscutaVoz();
-  }
-
-  Future<void> _iniciarEscutaContinuaSeAtiva() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
-
-    if (!mounted) {
-      return;
-    }
-
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-
-    if (_escutaContinuaAtiva && !_ouvindo && !_paradaManualEscuta) {
-      await _iniciarEscutaVoz();
-    }
-  }
-
-  Future<void> _iniciarEscutaVoz() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
-
-    if (!mounted) {
-      return;
-    }
-
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-
-    if (!configuracao.comandosVozAtivos) {
-      setState(() {
-        _statusVoz = 'Comandos de voz desativados.';
-      });
-      return;
-    }
-
-    setState(() {
-      _ouvindo = true;
-      _statusVoz = 'Ouvindo comando do dashboard...';
-    });
-
-    await _speechService.startListening(
-      onResult: (texto) {
-        unawaited(_executarComandoVoz(texto));
-      },
-      onStatus: (status) {
-        if (!mounted) {
-          return;
-        }
-        if (status == 'done' || status == 'notListening') {
-          setState(() {
-            _ouvindo = false;
-          });
-          _reiniciarEscutaContinuaSeNecessario();
-        }
-      },
-      onError: (_) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _ouvindo = false;
-          _statusVoz = 'Nao entendi. Pode repetir.';
-        });
-        _reiniciarEscutaContinuaSeNecessario();
-      },
-    );
-  }
-
-  Future<void> _executarComandoVoz(String texto) async {
-    if (_executandoComandoVoz) {
-      return;
-    }
-
-    _executandoComandoVoz = true;
-    final resultadoController = await _commandController.interpret(
-      texto,
-      onAiStarted: () {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _iaPensando = true;
-          _statusVoz = 'IA pensando...';
-        });
-      },
-    );
-    final resultado = resultadoController.commandResult;
-
-    unawaited(_registrarComando(resultado));
-
-    if (!mounted || resultado.normalizedText.isEmpty) {
-      _executandoComandoVoz = false;
-      _iaPensando = false;
-      return;
-    }
-
-    setState(() {
-      _iaPensando = false;
-    });
-
-    switch (resultado.type) {
-      case VoiceCommandType.voltar:
-        await _suspenderEscutaParaAcao();
-        if (mounted) {
-          Navigator.maybePop(context);
-        }
-        _executandoComandoVoz = false;
-        return;
-      case VoiceCommandType.abrirDashboard:
-        setState(() {
-          _statusVoz = 'Dashboard ja esta aberto.';
-        });
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
-      default:
-        setState(() {
-          _statusVoz = resultado.recognized
-              ? 'Comando nao disponivel nesta tela.'
-              : 'Comando nao reconhecido nesta tela.';
-        });
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
-    }
-  }
-
-  void _reiniciarEscutaContinuaSeNecessario() {
-    if (!_escutaContinuaAtiva ||
-        _paradaManualEscuta ||
-        _executandoComandoVoz ||
-        !mounted) {
-      return;
-    }
-
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted ||
-          _ouvindo ||
-          _paradaManualEscuta ||
-          _executandoComandoVoz ||
-          !_escutaContinuaAtiva) {
-        return;
-      }
-
-      unawaited(_iniciarEscutaVoz());
-    });
-  }
-
-  Future<void> _suspenderEscutaParaAcao({bool manterPausada = false}) async {
-    _paradaManualEscuta = manterPausada;
-    _escutaContinuaAtiva = false;
-
-    if (_ouvindo || _speechService.isListening) {
-      await _speechService.cancelListening();
-    }
-
+  Future<VoiceCommandPageResult> _handleVoltar(CommandResult _) async {
+    await suspendContextualVoiceListening();
     if (mounted) {
-      setState(() {
-        _ouvindo = false;
-      });
+      Navigator.maybePop(context);
     }
+    return VoiceCommandPageResult.handled(restartListening: false);
   }
 
-  Future<void> _registrarComando(CommandResult resultado) async {
-    final usuarioId = widget.usuario.id;
-    if (usuarioId == null || resultado.normalizedText.isEmpty) {
-      return;
-    }
-
-    try {
-      await ComandoVozRepository.instance.registrarComando(
-        ComandoVoz(
-          usuarioId: usuarioId,
-          textoReconhecido: resultado.originalText,
-          tipoComando: resultado.tipoComando,
-          statusReconhecimento: resultado.statusReconhecimento,
-          acaoExecutada: resultado.acaoExecutada,
-          dataHora: DateTime.now().toIso8601String(),
-        ),
-      );
-    } catch (e) {
-      debugPrint('Erro ao registrar comando de voz: $e');
-    }
+  Future<VoiceCommandPageResult> _handleJaAberto(CommandResult _) async {
+    return VoiceCommandPageResult.handled(
+      message: 'Dashboard ja esta aberto.',
+    );
   }
 
   @override
   void dispose() {
-    _speechService.stopListening();
+    disposeContextualVoiceListening();
     super.dispose();
   }
 
@@ -384,9 +203,9 @@ class _DashboardPageState extends State<DashboardPage> {
         title: const Text('Dashboard'),
         actions: [
           IconButton(
-            tooltip: _ouvindo ? 'Parar escuta' : 'Comando de voz',
-            onPressed: _alternarEscutaVoz,
-            icon: Icon(_ouvindo ? Icons.mic : Icons.mic_none),
+            tooltip: voiceOuvindo ? 'Parar escuta' : 'Comando de voz',
+            onPressed: toggleContextualVoiceListening,
+            icon: Icon(voiceOuvindo ? Icons.mic : Icons.mic_none),
           ),
         ],
       ),
@@ -513,12 +332,12 @@ class _DashboardPageState extends State<DashboardPage> {
           },
         ),
       ),
-      bottomNavigationBar: _statusVoz == null
+      bottomNavigationBar: voiceStatusMessage == null
           ? null
           : VoiceStatusBar(
-              message: _statusVoz!,
-              listening: _ouvindo,
-              thinking: _iaPensando,
+              message: voiceStatusMessage!,
+              listening: voiceOuvindo,
+              thinking: voiceIaPensando,
             ),
     );
   }

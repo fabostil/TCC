@@ -1,8 +1,9 @@
 class GravacaoTable {
   static const String tableName = 'gravacao';
 
-  static const String createTable = '''
-    CREATE TABLE $tableName (
+  static const String createTable =
+      '''
+    CREATE TABLE IF NOT EXISTS $tableName (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       usuario_id INTEGER NOT NULL,
       projeto_id INTEGER,
@@ -16,8 +17,8 @@ class GravacaoTable {
   ''';
 
   static const List<String> indexes = [
-    'CREATE INDEX idx_gravacao_usuario_id ON gravacao(usuario_id)',
-    'CREATE INDEX idx_gravacao_projeto_id ON gravacao(projeto_id)',
-    'CREATE INDEX idx_gravacao_data_criacao ON gravacao(data_criacao)',
+    'CREATE INDEX IF NOT EXISTS idx_gravacao_usuario_id ON gravacao(usuario_id)',
+    'CREATE INDEX IF NOT EXISTS idx_gravacao_projeto_id ON gravacao(projeto_id)',
+    'CREATE INDEX IF NOT EXISTS idx_gravacao_data_criacao ON gravacao(data_criacao)',
   ];
 }

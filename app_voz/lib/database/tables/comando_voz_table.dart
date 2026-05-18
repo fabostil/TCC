@@ -3,7 +3,7 @@ class ComandoVozTable {
 
   static const String createTable =
       '''
-    CREATE TABLE $tableName (
+    CREATE TABLE IF NOT EXISTS $tableName (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       usuario_id INTEGER NOT NULL,
       texto_reconhecido TEXT NOT NULL,

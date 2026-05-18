@@ -6,16 +6,14 @@ import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
 import '../../../core/ui/voice_status_bar.dart';
-import '../../../models/comando_voz.dart';
 import '../../../models/historico_acao.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/comando_voz_repository.dart';
-import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../dashboard/pages/dashboard_page.dart';
-import '../../voices/controllers/voice_command_controller.dart';
+import '../../voices/coordination/contextual_voice_listening_mixin.dart';
+import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
-import '../../voices/services/speech_service.dart';
 
 class HistoricoPage extends StatefulWidget {
   final Usuario usuario;
@@ -26,249 +24,71 @@ class HistoricoPage extends StatefulWidget {
   State<HistoricoPage> createState() => _HistoricoPageState();
 }
 
-class _HistoricoPageState extends State<HistoricoPage> {
-  final SpeechService _speechService = SpeechService();
-  final VoiceCommandController _commandController = VoiceCommandController();
+class _HistoricoPageState extends State<HistoricoPage>
+    with ContextualVoiceListeningMixin<HistoricoPage> {
   final List<HistoricoAcao> _eventos = [];
 
   bool _carregando = true;
-  bool _ouvindo = false;
-  bool _escutaContinuaAtiva = false;
-  bool _paradaManualEscuta = false;
-  bool _executandoComandoVoz = false;
-  bool _iaPensando = false;
   String? _erro;
-  String? _statusVoz;
   String? _tipoSelecionado;
+
+  @override
+  late final VoiceCommandDispatcher voiceCommandDispatcher;
+
+  @override
+  String get voiceOwnerId => VoicePageOwners.historico;
+
+  @override
+  int? get voiceUsuarioId => widget.usuario.id;
+
+  @override
+  String get voiceListeningPrompt => 'Ouvindo comando do historico...';
 
   @override
   void initState() {
     super.initState();
+    voiceCommandDispatcher = VoiceCommandDispatcher(
+      handlers: {
+        VoiceCommandType.voltar: _handleVoltar,
+        VoiceCommandType.abrirDashboard: _handleAbrirDashboard,
+        VoiceCommandType.abrirHistorico: _handleJaAberto,
+      },
+    );
     _carregarHistorico();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _iniciarEscutaContinuaSeAtiva();
-    });
+    scheduleVoiceListeningOnFirstFrame();
   }
 
-  Future<void> _alternarEscutaVoz() async {
-    if (_ouvindo) {
-      _paradaManualEscuta = true;
-      await _speechService.stopListening();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _ouvindo = false;
-        _statusVoz = 'Escuta encerrada.';
-      });
-      return;
-    }
-
-    _paradaManualEscuta = false;
-    await _iniciarEscutaVoz();
-  }
-
-  Future<void> _iniciarEscutaContinuaSeAtiva() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
-
-    if (!mounted) {
-      return;
-    }
-
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-
-    if (_escutaContinuaAtiva && !_ouvindo && !_paradaManualEscuta) {
-      await _iniciarEscutaVoz();
-    }
-  }
-
-  Future<void> _iniciarEscutaVoz() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
-
-    if (!mounted) {
-      return;
-    }
-
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-
-    if (!configuracao.comandosVozAtivos) {
-      setState(() {
-        _statusVoz = 'Comandos de voz desativados.';
-      });
-      return;
-    }
-
-    setState(() {
-      _ouvindo = true;
-      _statusVoz = 'Ouvindo comando do historico...';
-    });
-
-    await _speechService.startListening(
-      onResult: (texto) {
-        unawaited(_executarComandoVoz(texto));
-      },
-      onStatus: (status) {
-        if (!mounted) {
-          return;
-        }
-        if (status == 'done' || status == 'notListening') {
-          setState(() {
-            _ouvindo = false;
-          });
-          _reiniciarEscutaContinuaSeNecessario();
-        }
-      },
-      onError: (_) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _ouvindo = false;
-          _statusVoz = 'Nao entendi. Pode repetir.';
-        });
-        _reiniciarEscutaContinuaSeNecessario();
-      },
-    );
-  }
-
-  Future<void> _executarComandoVoz(String texto) async {
-    if (_executandoComandoVoz) {
-      return;
-    }
-
-    _executandoComandoVoz = true;
-    final resultadoController = await _commandController.interpret(
-      texto,
-      onAiStarted: () {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _iaPensando = true;
-          _statusVoz = 'IA pensando...';
-        });
-      },
-    );
-    final resultado = resultadoController.commandResult;
-
-    unawaited(_registrarComando(resultado));
-
-    if (!mounted || resultado.normalizedText.isEmpty) {
-      _executandoComandoVoz = false;
-      _iaPensando = false;
-      return;
-    }
-
-    setState(() {
-      _iaPensando = false;
-    });
-
-    switch (resultado.type) {
-      case VoiceCommandType.voltar:
-        await _suspenderEscutaParaAcao();
-        if (mounted) {
-          Navigator.maybePop(context);
-        }
-        _executandoComandoVoz = false;
-        return;
-      case VoiceCommandType.abrirDashboard:
-        await _suspenderEscutaParaAcao();
-        if (!mounted) {
-          _executandoComandoVoz = false;
-          return;
-        }
-        await Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DashboardPage(usuario: widget.usuario),
-          ),
-        );
-        _executandoComandoVoz = false;
-        return;
-      case VoiceCommandType.abrirHistorico:
-        setState(() {
-          _statusVoz = 'Historico ja esta aberto.';
-        });
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
-      default:
-        setState(() {
-          _statusVoz = resultado.recognized
-              ? 'Comando nao disponivel nesta tela.'
-              : 'Comando nao reconhecido nesta tela.';
-        });
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
-    }
-  }
-
-  void _reiniciarEscutaContinuaSeNecessario() {
-    if (!_escutaContinuaAtiva ||
-        _paradaManualEscuta ||
-        _executandoComandoVoz ||
-        !mounted) {
-      return;
-    }
-
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted ||
-          _ouvindo ||
-          _paradaManualEscuta ||
-          _executandoComandoVoz ||
-          !_escutaContinuaAtiva) {
-        return;
-      }
-
-      unawaited(_iniciarEscutaVoz());
-    });
-  }
-
-  Future<void> _suspenderEscutaParaAcao({bool manterPausada = false}) async {
-    _paradaManualEscuta = manterPausada;
-    _escutaContinuaAtiva = false;
-
-    if (_ouvindo || _speechService.isListening) {
-      await _speechService.cancelListening();
-    }
-
+  Future<VoiceCommandPageResult> _handleVoltar(CommandResult _) async {
+    await suspendContextualVoiceListening();
     if (mounted) {
-      setState(() {
-        _ouvindo = false;
-      });
+      Navigator.maybePop(context);
     }
+    return VoiceCommandPageResult.handled(restartListening: false);
   }
 
-  Future<void> _registrarComando(CommandResult resultado) async {
-    final usuarioId = widget.usuario.id;
-    if (usuarioId == null || resultado.normalizedText.isEmpty) {
-      return;
+  Future<VoiceCommandPageResult> _handleAbrirDashboard(CommandResult _) async {
+    await suspendContextualVoiceListening();
+    if (!mounted) {
+      return VoiceCommandPageResult.handled(restartListening: false);
     }
+    await Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DashboardPage(usuario: widget.usuario),
+      ),
+    );
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
 
-    try {
-      await ComandoVozRepository.instance.registrarComando(
-        ComandoVoz(
-          usuarioId: usuarioId,
-          textoReconhecido: resultado.originalText,
-          tipoComando: resultado.tipoComando,
-          statusReconhecimento: resultado.statusReconhecimento,
-          acaoExecutada: resultado.acaoExecutada,
-          dataHora: DateTime.now().toIso8601String(),
-        ),
-      );
-    } catch (e) {
-      debugPrint('Erro ao registrar comando de voz: $e');
-    }
+  Future<VoiceCommandPageResult> _handleJaAberto(CommandResult _) async {
+    return VoiceCommandPageResult.handled(
+      message: 'Historico ja esta aberto.',
+    );
   }
 
   @override
   void dispose() {
-    _speechService.stopListening();
+    disposeContextualVoiceListening();
     super.dispose();
   }
 
@@ -509,9 +329,9 @@ class _HistoricoPageState extends State<HistoricoPage> {
         title: const Text('Historico'),
         actions: [
           IconButton(
-            tooltip: _ouvindo ? 'Parar escuta' : 'Comando de voz',
-            onPressed: _alternarEscutaVoz,
-            icon: Icon(_ouvindo ? Icons.mic : Icons.mic_none),
+            tooltip: voiceOuvindo ? 'Parar escuta' : 'Comando de voz',
+            onPressed: toggleContextualVoiceListening,
+            icon: Icon(voiceOuvindo ? Icons.mic : Icons.mic_none),
           ),
         ],
       ),
@@ -587,12 +407,12 @@ class _HistoricoPageState extends State<HistoricoPage> {
           },
         ),
       ),
-      bottomNavigationBar: _statusVoz == null
+      bottomNavigationBar: voiceStatusMessage == null
           ? null
           : VoiceStatusBar(
-              message: _statusVoz!,
-              listening: _ouvindo,
-              thinking: _iaPensando,
+              message: voiceStatusMessage!,
+              listening: voiceOuvindo,
+              thinking: voiceIaPensando,
             ),
     );
   }

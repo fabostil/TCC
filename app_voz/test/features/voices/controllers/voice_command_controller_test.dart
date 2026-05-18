@@ -1,6 +1,7 @@
 import 'package:app_voz/features/voices/controllers/voice_command_controller.dart';
 import 'package:app_voz/features/voices/services/ai_command_service.dart';
 import 'package:app_voz/features/voices/services/command_service.dart';
+import 'package:app_voz/features/voices/services/voice_feedback_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -15,6 +16,7 @@ void main() {
             return _geminiResponse('{"action":"nav_history"}');
           },
         ),
+        feedbackService: const NoopVoiceFeedbackService(),
       );
 
       final result = await controller.interpret('abrir dashboard');
@@ -32,6 +34,7 @@ void main() {
             return _geminiResponse('{"action":"nav_history"}');
           },
         ),
+        feedbackService: const NoopVoiceFeedbackService(),
       );
 
       final result = await controller.interpret('abre meu resumo criativo');
@@ -51,6 +54,7 @@ void main() {
             return _geminiResponse('{"action":"nav_history"}');
           },
         ),
+        feedbackService: const NoopVoiceFeedbackService(),
       );
 
       final result = await controller.interpret('abrir afinador');

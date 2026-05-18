@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/ui/app_logo.dart';
 import '../../../repositories/usuario_repository.dart';
 import 'login_page.dart';
 
@@ -95,11 +96,7 @@ class _CadastroPageState extends State<CadastroPage> {
             key: _formKey,
             child: Column(
               children: [
-                const Icon(
-                  Icons.music_note,
-                  size: 72,
-                  color: Colors.deepPurple,
-                ),
+                const AppLogo(height: 96),
 
                 const SizedBox(height: 16),
 

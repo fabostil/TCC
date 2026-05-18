@@ -72,6 +72,20 @@ void main() {
       expect(result.parametro, 'abacate');
     });
 
+    test('mapeia comando de tema escuro retornado pela Gemini', () async {
+      final service = AiCommandService(
+        apiKey: 'test-key',
+        httpPost: (uri, headers, body, timeout) async {
+          return _geminiResponse('{"action":"settings_dark_theme_on"}');
+        },
+      );
+
+      final result = await service.interpretUnknown('prefiro modo escuro');
+
+      expect(result.type, VoiceCommandType.ativarTemaEscuro);
+      expect(result.tipoComando, 'ativar_tema_escuro');
+    });
+
     test('respeita limite de requisicoes por minuto', () async {
       var calls = 0;
       final service = AiCommandService(

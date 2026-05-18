@@ -5,6 +5,13 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class SpeechService {
+  SpeechService._();
+
+  static final SpeechService instance = SpeechService._();
+
+  /// Mantém compatibilidade com código que ainda chama `SpeechService()`.
+  factory SpeechService() => instance;
+
   final stt.SpeechToText _speech = stt.SpeechToText();
 
   bool _initialized = false;

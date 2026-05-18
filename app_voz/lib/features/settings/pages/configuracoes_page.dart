@@ -5,14 +5,18 @@ import 'package:flutter/material.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
 import '../../../core/ui/voice_status_bar.dart';
-import '../../../models/comando_voz.dart';
+import '../../../core/theme/app_theme_controller.dart';
+import '../../../models/comando_personalizado.dart';
 import '../../../models/configuracao_app.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/comando_voz_repository.dart';
+import '../../../repositories/comando_personalizado_repository.dart';
 import '../../../repositories/configuracao_app_repository.dart';
-import '../../voices/controllers/voice_command_controller.dart';
+import '../../voices/coordination/contextual_voice_listening_mixin.dart';
+import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
-import '../../voices/services/speech_service.dart';
+import '../../voices/services/custom_command_service.dart';
+import '../../voices/services/voice_permission_service.dart';
 
 class ConfiguracoesPage extends StatefulWidget {
   final Usuario? usuario;
@@ -23,27 +27,47 @@ class ConfiguracoesPage extends StatefulWidget {
   State<ConfiguracoesPage> createState() => _ConfiguracoesPageState();
 }
 
-class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
-  final SpeechService _speechService = SpeechService();
-  final VoiceCommandController _commandController = VoiceCommandController();
+class _ConfiguracoesPageState extends State<ConfiguracoesPage>
+    with ContextualVoiceListeningMixin<ConfiguracoesPage> {
+  final VoicePermissionService _voicePermissionService =
+      const VoicePermissionService();
+  final TextEditingController _frasePersonalizadaController =
+      TextEditingController();
   bool _carregando = true;
-  bool _ouvindo = false;
-  bool _escutaContinuaAtiva = false;
-  bool _paradaManualEscuta = false;
-  bool _executandoComandoVoz = false;
-  bool _iaPensando = false;
   ConfiguracaoApp? _configuracao;
-  String? _statusVoz;
+  List<ComandoPersonalizado> _comandosPersonalizados = [];
+  String _tipoComandoPersonalizado =
+      CustomCommandCatalog.actions.first.tipoComando;
+
+  @override
+  String get voiceOwnerId => VoicePageOwners.configuracoes;
+
+  @override
+  int? get voiceUsuarioId => widget.usuario?.id;
+
+  @override
+  String get voiceListeningPrompt => 'Ouvindo comando de configuração...';
+
+  @override
+  bool get voiceHandlesGlobalCommands => false;
+
+  @override
+  late final VoiceCommandDispatcher voiceCommandDispatcher;
 
   @override
   void initState() {
     super.initState();
+    voiceCommandDispatcher = VoiceCommandDispatcher(
+      onFallback: _dispatchSettingsVoice,
+    );
     _carregarConfiguracao();
+    scheduleVoiceListeningOnFirstFrame();
   }
 
   Future<void> _carregarConfiguracao() async {
     final configuracao = await ConfiguracaoAppRepository.instance
         .buscarConfiguracao();
+    final comandosPersonalizados = await _listarComandosPersonalizados();
 
     if (!mounted) {
       return;
@@ -51,14 +75,12 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
 
     setState(() {
       _configuracao = configuracao;
+      _comandosPersonalizados = comandosPersonalizados;
       _carregando = false;
     });
 
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-    if (_escutaContinuaAtiva && !_ouvindo && !_paradaManualEscuta) {
-      await _iniciarEscutaVoz();
-    }
+    syncVoiceConfigFlags(configuracao);
+    await startContinuousVoiceListeningIfActive();
   }
 
   Future<void> _salvar(ConfiguracaoApp configuracao) async {
@@ -69,178 +91,200 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
     await ConfiguracaoAppRepository.instance.salvarConfiguracao(configuracao);
   }
 
-  Future<void> _alternarEscutaVoz() async {
-    if (_ouvindo) {
-      _paradaManualEscuta = true;
-      await _speechService.stopListening();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _ouvindo = false;
-        _statusVoz = 'Escuta encerrada.';
-      });
-      return;
+  Future<List<ComandoPersonalizado>> _listarComandosPersonalizados() async {
+    final usuarioId = widget.usuario?.id;
+    if (usuarioId == null) {
+      return [];
     }
 
-    _paradaManualEscuta = false;
-    await _iniciarEscutaVoz();
+    return ComandoPersonalizadoRepository.instance.listarPorUsuario(usuarioId);
   }
 
-  Future<void> _iniciarEscutaVoz() async {
-    final configuracao =
-        _configuracao ??
-        await ConfiguracaoAppRepository.instance.buscarConfiguracao();
+  Future<void> _recarregarComandosPersonalizados() async {
+    final comandos = await _listarComandosPersonalizados();
 
     if (!mounted) {
       return;
     }
 
-    _escutaContinuaAtiva =
-        configuracao.comandosVozAtivos && configuracao.escutaContinua;
-
-    if (!configuracao.comandosVozAtivos) {
-      setState(() {
-        _statusVoz = 'Comandos de voz desativados.';
-      });
-      return;
-    }
-
     setState(() {
-      _ouvindo = true;
-      _statusVoz = 'Ouvindo comando de configuracao...';
+      _comandosPersonalizados = comandos;
     });
-
-    await _speechService.startListening(
-      onResult: (texto) {
-        unawaited(_executarComandoVoz(texto));
-      },
-      onStatus: (status) {
-        if (!mounted) {
-          return;
-        }
-        if (status == 'done' || status == 'notListening') {
-          setState(() {
-            _ouvindo = false;
-          });
-          _reiniciarEscutaContinuaSeNecessario();
-        }
-      },
-      onError: (error) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _ouvindo = false;
-          _statusVoz = 'Erro no reconhecimento de voz: $error';
-        });
-        _reiniciarEscutaContinuaSeNecessario();
-      },
-    );
   }
 
-  Future<void> _executarComandoVoz(String texto) async {
-    if (_executandoComandoVoz) {
+  Future<void> _salvarComandoPersonalizado() async {
+    final usuarioId = widget.usuario?.id;
+    final frase = _frasePersonalizadaController.text.trim();
+
+    if (usuarioId == null) {
+      _atualizarStatus('Entre novamente para criar comandos personalizados.');
       return;
     }
 
-    _executandoComandoVoz = true;
-    final resultadoController = await _commandController.interpret(
-      texto,
-      onAiStarted: () {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _iaPensando = true;
-          _statusVoz = 'IA pensando...';
-        });
-      },
+    if (frase.length < 3) {
+      _atualizarStatus('Informe uma frase com pelo menos 3 caracteres.');
+      return;
+    }
+
+    final acao = CustomCommandCatalog.findByTipo(_tipoComandoPersonalizado);
+    if (acao == null) {
+      _atualizarStatus('Selecione uma ação válida.');
+      return;
+    }
+
+    await ComandoPersonalizadoRepository.instance.salvar(
+      ComandoPersonalizado(
+        usuarioId: usuarioId,
+        frase: frase,
+        tipoComando: acao.tipoComando,
+        ativo: true,
+        dataCriacao: DateTime.now().toIso8601String(),
+      ),
     );
-    final resultado = resultadoController.commandResult;
 
-    unawaited(_registrarComando(resultado));
+    _frasePersonalizadaController.clear();
+    await _recarregarComandosPersonalizados();
+    _atualizarStatus('Comando personalizado salvo.');
+  }
 
-    if (!mounted || resultado.normalizedText.isEmpty) {
-      _executandoComandoVoz = false;
-      _iaPensando = false;
+  Future<void> _alternarComandoPersonalizado(
+    ComandoPersonalizado comando,
+    bool ativo,
+  ) async {
+    final id = comando.id;
+    if (id == null) {
       return;
     }
 
-    setState(() {
-      _iaPensando = false;
-    });
+    await ComandoPersonalizadoRepository.instance.alternarAtivo(
+      id: id,
+      ativo: ativo,
+    );
+    await _recarregarComandosPersonalizados();
+  }
 
+  Future<void> _excluirComandoPersonalizado(
+    ComandoPersonalizado comando,
+  ) async {
+    final id = comando.id;
+    if (id == null) {
+      return;
+    }
+
+    await ComandoPersonalizadoRepository.instance.excluir(id);
+    await _recarregarComandosPersonalizados();
+    _atualizarStatus('Comando personalizado excluído.');
+  }
+
+  Future<void> _salvarTemaEscuro(bool ativo) async {
     final configuracao = _configuracao;
     if (configuracao == null) {
-      _executandoComandoVoz = false;
       return;
+    }
+
+    await _salvar(configuracao.copyWith(temaEscuro: ativo));
+    await AppThemeController.instance.definirTemaEscuro(ativo);
+  }
+
+  Future<void> _alterarControleVoz(bool ativo) async {
+    final configuracao = _configuracao;
+    if (configuracao == null) {
+      return;
+    }
+
+    if (!ativo) {
+      await _salvar(
+        configuracao.copyWith(comandosVozAtivos: false, escutaContinua: false),
+      );
+      await suspendContextualVoiceListening(keepManualPause: true);
+      _atualizarStatus('Controle por voz desativado.');
+      return;
+    }
+
+    final permissao = await _voicePermissionService.requestMicrophone();
+    if (permissao != VoicePermissionResult.granted) {
+      await _salvar(
+        configuracao.copyWith(comandosVozAtivos: false, escutaContinua: false),
+      );
+      _atualizarStatus(
+        permissao == VoicePermissionResult.permanentlyDenied
+            ? 'Microfone bloqueado nas configurações do Android.'
+            : 'Permissão de microfone negada.',
+      );
+      return;
+    }
+
+    await _salvar(
+      configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
+    );
+    syncVoiceConfigFlags(
+      configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
+    );
+    voiceParadaManual = false;
+    _atualizarStatus('Controle por voz ativado.');
+    scheduleVoiceContinuousRestart();
+  }
+
+  Future<VoiceCommandPageResult> _dispatchSettingsVoice(
+    CommandResult resultado,
+  ) async {
+    final configuracao = _configuracao;
+    if (configuracao == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Configuracao ainda carregando.',
+      );
     }
 
     switch (resultado.type) {
       case VoiceCommandType.ativarControleVoz:
-        await _salvar(configuracao.copyWith(comandosVozAtivos: true));
-        _atualizarStatus('Controle por voz ativado.');
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        await _alterarControleVoz(true);
+        return VoiceCommandPageResult.handled();
       case VoiceCommandType.desativarControleVoz:
-        await _salvar(
-          configuracao.copyWith(
-            comandosVozAtivos: false,
-            escutaContinua: false,
-          ),
-        );
-        _atualizarStatus('Controle por voz desativado.');
-        await _suspenderEscutaParaAcao(manterPausada: true);
-        _executandoComandoVoz = false;
-        return;
+        await _alterarControleVoz(false);
+        return VoiceCommandPageResult.handled(restartListening: false);
       case VoiceCommandType.ativarEscutaContinua:
         await _salvar(
           configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
         );
-        _atualizarStatus('Escuta continua ativada.');
-        _escutaContinuaAtiva = true;
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        syncVoiceConfigFlags(
+          configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
+        );
+        _atualizarStatus('Escuta contínua ativada.');
+        return VoiceCommandPageResult.handled();
       case VoiceCommandType.desativarEscutaContinua:
         await _salvar(configuracao.copyWith(escutaContinua: false));
-        _atualizarStatus('Escuta continua desativada.');
-        _escutaContinuaAtiva = false;
-        _executandoComandoVoz = false;
-        return;
+        syncVoiceConfigFlags(configuracao.copyWith(escutaContinua: false));
+        _atualizarStatus('Escuta contínua desativada.');
+        return VoiceCommandPageResult.handled(restartListening: false);
       case VoiceCommandType.ativarFeedbackSonoro:
         await _salvar(configuracao.copyWith(feedbackSonoro: true));
         _atualizarStatus('Feedback sonoro ativado.');
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return VoiceCommandPageResult.handled();
       case VoiceCommandType.desativarFeedbackSonoro:
         await _salvar(configuracao.copyWith(feedbackSonoro: false));
         _atualizarStatus('Feedback sonoro desativado.');
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        return VoiceCommandPageResult.handled();
+      case VoiceCommandType.ativarTemaEscuro:
+        await _salvarTemaEscuro(true);
+        _atualizarStatus('Tema escuro ativado.');
+        return VoiceCommandPageResult.handled();
+      case VoiceCommandType.desativarTemaEscuro:
+        await _salvarTemaEscuro(false);
+        _atualizarStatus('Tema claro ativado.');
+        return VoiceCommandPageResult.handled();
       case VoiceCommandType.ativarParadaSilencio:
         await _salvar(configuracao.copyWith(paradaSilencio: true));
-        _atualizarStatus('Parada por silencio ativada.');
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        _atualizarStatus('Parada por silêncio ativada.');
+        return VoiceCommandPageResult.handled();
       case VoiceCommandType.desativarParadaSilencio:
         await _salvar(configuracao.copyWith(paradaSilencio: false));
-        _atualizarStatus('Parada por silencio desativada.');
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        _atualizarStatus('Parada por silêncio desativada.');
+        return VoiceCommandPageResult.handled();
       case VoiceCommandType.definirTempoSilencio:
         final segundos = int.tryParse(resultado.parametro ?? '');
         if (segundos == null) {
-          _atualizarStatus('Diga o tempo de silencio entre 3 e 12 segundos.');
-          _executandoComandoVoz = false;
-          _reiniciarEscutaContinuaSeNecessario();
-          return;
+          _atualizarStatus('Diga o tempo de silêncio entre 3 e 12 segundos.');
+          return VoiceCommandPageResult.handled();
         }
         await _salvar(
           configuracao.copyWith(
@@ -248,19 +292,14 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
             tempoSilencioSegundos: segundos.clamp(3, 12).toInt(),
           ),
         );
-        _atualizarStatus('Tempo de silencio definido para $segundos segundos.');
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
+        _atualizarStatus('Tempo de silêncio definido para $segundos segundos.');
+        return VoiceCommandPageResult.handled();
       case VoiceCommandType.voltar:
-        await _suspenderEscutaParaAcao();
-        if (!mounted) {
-          _executandoComandoVoz = false;
-          return;
+        await suspendContextualVoiceListening();
+        if (mounted) {
+          Navigator.maybePop(context);
         }
-        Navigator.maybePop(context);
-        _executandoComandoVoz = false;
-        return;
+        return VoiceCommandPageResult.handled(restartListening: false);
       case VoiceCommandType.iniciarGravacao:
       case VoiceCommandType.pausarGravacao:
       case VoiceCommandType.retomarGravacao:
@@ -282,6 +321,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
+      case VoiceCommandType.abrirDetalhesGravacao:
       case VoiceCommandType.abrirConfiguracoes:
       case VoiceCommandType.abrirAssistente:
       case VoiceCommandType.abrirHistorico:
@@ -292,88 +332,22 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
       case VoiceCommandType.cancelarAcao:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
-        _atualizarStatus(
-          resultado.recognized
-              ? 'Comando nao disponivel nesta tela.'
-              : 'Comando nao reconhecido nesta tela.',
+        return VoiceCommandPageResult.unavailable(
+          recognized: resultado.recognized,
         );
-        _executandoComandoVoz = false;
-        _reiniciarEscutaContinuaSeNecessario();
-        return;
-    }
-  }
-
-  void _reiniciarEscutaContinuaSeNecessario() {
-    if (!_escutaContinuaAtiva ||
-        _paradaManualEscuta ||
-        _executandoComandoVoz ||
-        !mounted) {
-      return;
-    }
-
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted ||
-          _ouvindo ||
-          _paradaManualEscuta ||
-          _executandoComandoVoz ||
-          !_escutaContinuaAtiva) {
-        return;
-      }
-
-      unawaited(_iniciarEscutaVoz());
-    });
-  }
-
-  Future<void> _suspenderEscutaParaAcao({bool manterPausada = false}) async {
-    _paradaManualEscuta = manterPausada;
-    _escutaContinuaAtiva = false;
-
-    if (_ouvindo || _speechService.isListening) {
-      await _speechService.cancelListening();
-    }
-
-    if (mounted) {
-      setState(() {
-        _ouvindo = false;
-      });
     }
   }
 
   void _atualizarStatus(String status) {
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _statusVoz = status;
+    voiceSetState(() {
+      voiceStatusMessage = status;
     });
-  }
-
-  Future<void> _registrarComando(CommandResult resultado) async {
-    final usuarioId = widget.usuario?.id;
-    if (usuarioId == null || resultado.normalizedText.isEmpty) {
-      return;
-    }
-
-    try {
-      await ComandoVozRepository.instance.registrarComando(
-        ComandoVoz(
-          usuarioId: usuarioId,
-          textoReconhecido: resultado.originalText,
-          tipoComando: resultado.tipoComando,
-          statusReconhecimento: resultado.statusReconhecimento,
-          acaoExecutada: resultado.acaoExecutada,
-          dataHora: DateTime.now().toIso8601String(),
-        ),
-      );
-    } catch (e) {
-      debugPrint('Erro ao registrar comando de voz: $e');
-    }
   }
 
   @override
   void dispose() {
-    _speechService.stopListening();
+    disposeContextualVoiceListening();
+    _frasePersonalizadaController.dispose();
     super.dispose();
   }
 
@@ -386,9 +360,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
         title: const Text('Configurações'),
         actions: [
           IconButton(
-            tooltip: _ouvindo ? 'Parar escuta' : 'Comando de voz',
-            onPressed: _alternarEscutaVoz,
-            icon: Icon(_ouvindo ? Icons.mic : Icons.mic_none),
+            tooltip: voiceOuvindo ? 'Parar escuta' : 'Comando de voz',
+            onPressed: toggleContextualVoiceListening,
+            icon: Icon(voiceOuvindo ? Icons.mic : Icons.mic_none),
           ),
         ],
       ),
@@ -397,6 +371,20 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
           : ListView(
               padding: const EdgeInsets.all(AppSpacing.xl),
               children: [
+                Text(
+                  'Aparência',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                SwitchListTile(
+                  value: configuracao.temaEscuro,
+                  title: const Text('Tema escuro'),
+                  subtitle: const Text(
+                    'Alterna a interface entre tema claro e escuro.',
+                  ),
+                  onChanged: _salvarTemaEscuro,
+                ),
+                const SizedBox(height: AppSpacing.xl),
                 Text(
                   'Comandos de voz',
                   style: Theme.of(context).textTheme.titleLarge,
@@ -408,9 +396,16 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
                   subtitle: const Text(
                     'Permite controlar gravações, reprodução e navegação por comandos.',
                   ),
-                  onChanged: (value) =>
-                      _salvar(configuracao.copyWith(comandosVozAtivos: value)),
+                  onChanged: _alterarControleVoz,
                 ),
+                if (!configuracao.comandosVozAtivos) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  OutlinedButton.icon(
+                    onPressed: _voicePermissionService.openSystemSettings,
+                    icon: const Icon(Icons.settings_applications_outlined),
+                    label: const Text('Abrir permissões do Android'),
+                  ),
+                ],
                 SwitchListTile(
                   value: configuracao.escutaContinua,
                   title: const Text('Escuta contínua'),
@@ -432,6 +427,79 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
                   onChanged: (value) =>
                       _salvar(configuracao.copyWith(feedbackSonoro: value)),
                 ),
+                const SizedBox(height: AppSpacing.xl),
+                Text(
+                  'Comandos personalizados',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: _frasePersonalizadaController,
+                  decoration: const InputDecoration(
+                    labelText: 'Frase personalizada',
+                    hintText: 'Ex.: modo palco',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<String>(
+                  initialValue: _tipoComandoPersonalizado,
+                  decoration: const InputDecoration(
+                    labelText: 'Ação executada',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: CustomCommandCatalog.actions
+                      .map(
+                        (action) => DropdownMenuItem(
+                          value: action.tipoComando,
+                          child: Text(action.label),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+
+                    setState(() {
+                      _tipoComandoPersonalizado = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: AppSpacing.md),
+                ElevatedButton.icon(
+                  onPressed: _salvarComandoPersonalizado,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Salvar comando'),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                if (_comandosPersonalizados.isEmpty)
+                  Text(
+                    'Nenhum comando personalizado cadastrado.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  )
+                else
+                  ..._comandosPersonalizados.map((comando) {
+                    final acao = CustomCommandCatalog.findByTipo(
+                      comando.tipoComando,
+                    );
+
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(comando.frase),
+                      subtitle: Text(acao?.label ?? comando.tipoComando),
+                      leading: Switch(
+                        value: comando.ativo,
+                        onChanged: (value) =>
+                            _alternarComandoPersonalizado(comando, value),
+                      ),
+                      trailing: IconButton(
+                        tooltip: 'Excluir comando',
+                        onPressed: () => _excluirComandoPersonalizado(comando),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    );
+                  }),
                 const SizedBox(height: AppSpacing.xl),
                 Text('Gravação', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: AppSpacing.md),
@@ -471,12 +539,12 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
                 ),
               ],
             ),
-      bottomNavigationBar: _statusVoz == null
+      bottomNavigationBar: voiceStatusMessage == null
           ? null
           : VoiceStatusBar(
-              message: _statusVoz!,
-              listening: _ouvindo,
-              thinking: _iaPensando,
+              message: voiceStatusMessage!,
+              listening: voiceOuvindo,
+              thinking: voiceIaPensando,
             ),
     );
   }

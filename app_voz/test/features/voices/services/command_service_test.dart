@@ -135,6 +135,10 @@ void main() {
       expect(reproduzir.type, VoiceCommandType.reproduzirGravacao);
       expect(reproduzir.parametro, 'ideia um');
 
+      final detalhes = service.interpret('abrir detalhes da gravacao ideia um');
+      expect(detalhes.type, VoiceCommandType.abrirDetalhesGravacao);
+      expect(detalhes.parametro, 'ideia um');
+
       final renomear = service.interpret(
         'renomear gravacao ideia um para refrao final',
       );
@@ -174,6 +178,14 @@ void main() {
       expect(
         service.interpret('desativar parada por silencio').type,
         VoiceCommandType.desativarParadaSilencio,
+      );
+      expect(
+        service.interpret('ativar tema escuro').type,
+        VoiceCommandType.ativarTemaEscuro,
+      );
+      expect(
+        service.interpret('ativar tema claro').type,
+        VoiceCommandType.desativarTemaEscuro,
       );
     });
 
