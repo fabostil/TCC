@@ -2,18 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/comando_voz_repository.dart';
-import '../../../repositories/configuracao_app_repository.dart';
 import '../../dashboard/pages/dashboard_page.dart';
 import '../../history/pages/historico_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
-import 'login_page.dart';
-import '../controllers/voice_command_controller.dart';
+import '../coordination/contextual_voice_listening_mixin.dart';
+import '../coordination/voice_command_dispatcher.dart';
+import '../coordination/voice_page_owners.dart';
 import '../services/command_service.dart';
-import '../services/speech_service.dart';
+import 'login_page.dart';
 
 class VoicePage extends StatefulWidget {
   final Usuario usuario;
@@ -24,169 +24,69 @@ class VoicePage extends StatefulWidget {
   State<VoicePage> createState() => _VoicePageState();
 }
 
-class _VoicePageState extends State<VoicePage> {
-  final SpeechService speech = SpeechService();
-  final VoiceCommandController commandController = VoiceCommandController();
-
-  bool listening = false;
-  bool iaPensando = false;
+class _VoicePageState extends State<VoicePage>
+    with ContextualVoiceListeningMixin<VoicePage> {
   String text = 'Pressione o microfone e fale';
   String ultimoComando = 'Nenhum comando executado ainda.';
 
-  Future<void> toggleListening() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
+  @override
+  String get voiceOwnerId => VoicePageOwners.voicePage;
 
-    if (!configuracao.comandosVozAtivos) {
-      setState(() {
-        listening = false;
-        text = 'Comandos de voz desativados.';
-        ultimoComando =
-            'Ative o controle por voz em Configurações para usar o assistente.';
-      });
-      return;
-    }
+  @override
+  int? get voiceUsuarioId => widget.usuario.id;
 
-    if (!listening) {
-      setState(() {
-        listening = true;
-        text = 'Ouvindo... fale um comando.';
-        ultimoComando = 'Aguardando comando de voz...';
-      });
+  @override
+  String get voiceListeningPrompt => 'Ouvindo... fale um comando.';
 
-      await speech.startListening(
-        onResult: (result) {
-          setState(() {
-            text = result;
-          });
+  @override
+  String get voiceErrorPrompt => 'Nao foi possivel reconhecer a fala.';
 
-          unawaited(handleVoiceCommand(result));
-        },
-        onStatus: (status) {
-          if (!mounted) {
-            return;
-          }
+  @override
+  late final VoiceCommandDispatcher voiceCommandDispatcher;
 
-          if (status == 'listening') {
-            setState(() {
-              listening = true;
-              ultimoComando = 'Estou ouvindo...';
-            });
-          }
-
-          if (status == 'done' || status == 'notListening') {
-            setState(() {
-              listening = false;
-            });
-          }
-        },
-        onError: (error) {
-          if (!mounted) {
-            return;
-          }
-
-          if (error == 'error_speech_timeout') {
-            setState(() {
-              listening = false;
-              text = 'Nenhuma fala detectada. Tente novamente.';
-              ultimoComando = 'Tempo de escuta encerrado sem comando.';
-            });
-            return;
-          }
-
-          setState(() {
-            listening = false;
-            text = 'Não foi possível reconhecer a fala.';
-            ultimoComando = 'Erro no reconhecimento de voz: $error';
-          });
-        },
-      );
-    } else {
-      await speech.stopListening();
-
-      setState(() {
-        listening = false;
-        text = 'Pressione o microfone e fale';
-        ultimoComando = 'Escuta encerrada.';
-      });
-    }
-  }
-
-  void clearText() {
-    setState(() {
-      text = 'Pressione o microfone e fale';
-      ultimoComando = 'Texto limpo.';
-    });
-  }
-
-  Future<void> handleVoiceCommand(String command) async {
-    final resultadoController = await commandController.interpret(
-      command,
-      onAiStarted: () {
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-          iaPensando = true;
-          ultimoComando = 'IA pensando...';
-        });
+  @override
+  void initState() {
+    super.initState();
+    voiceCommandDispatcher = VoiceCommandDispatcher(
+      handlers: {
+        VoiceCommandType.limparTexto: _handleLimparTexto,
+        VoiceCommandType.listarGravacoes: _handleAbrirGravacoes,
+        VoiceCommandType.abrirNovoProjeto: _handleAbrirNovoProjeto,
+        VoiceCommandType.abrirDashboard: _handleAbrirDashboard,
+        VoiceCommandType.abrirProjetos: _handleAbrirProjetos,
+        VoiceCommandType.abrirGravacoes: _handleAbrirGravacoes,
+        VoiceCommandType.abrirConfiguracoes: _handleAbrirConfiguracoes,
+        VoiceCommandType.abrirAssistente: _handleAssistenteAberto,
+        VoiceCommandType.abrirEditor: _handleAbrirEditor,
+        VoiceCommandType.abrirHistorico: _handleAbrirHistorico,
+        VoiceCommandType.voltar: _handleVoltar,
+        VoiceCommandType.sair: _handleSair,
       },
+      onFallback: _dispatchVoicePageCommand,
     );
-    final resultado = resultadoController.commandResult;
+    voiceStatusMessage = ultimoComando;
+  }
 
-    if (!mounted) {
-      return;
-    }
-
-    if (iaPensando) {
-      setState(() {
-        iaPensando = false;
-      });
-    }
-
-    if (resultado.normalizedText.isEmpty) {
-      return;
-    }
-
-    if (resultado.recognized) {
-      registrarComandoVoz(
-        command,
-        tipoComando: resultado.tipoComando,
-        acaoExecutada: resultado.acaoExecutada,
-      );
-    }
+  Future<VoiceCommandPageResult> _dispatchVoicePageCommand(
+    CommandResult resultado,
+  ) async {
+    _atualizarTextoReconhecido(resultado);
 
     switch (resultado.type) {
-      case VoiceCommandType.limparTexto:
-        clearText();
-        return;
       case VoiceCommandType.iniciarGravacao:
-        setState(() {
-          ultimoComando = 'Comando reconhecido: iniciar gravacao';
-        });
-        return;
+        return _comandoReconhecido('Comando reconhecido: iniciar gravacao');
       case VoiceCommandType.pausarGravacao:
-        setState(() {
-          ultimoComando = 'Comando reconhecido: pausar gravacao';
-        });
-        return;
+        return _comandoReconhecido('Comando reconhecido: pausar gravacao');
       case VoiceCommandType.retomarGravacao:
-        setState(() {
-          ultimoComando = 'Comando reconhecido: retomar gravacao';
-        });
-        return;
+        return _comandoReconhecido('Comando reconhecido: retomar gravacao');
       case VoiceCommandType.encerrarGravacao:
-        setState(() {
-          ultimoComando = 'Comando reconhecido: encerrar gravacao';
-        });
-        return;
-      case VoiceCommandType.listarGravacoes:
-        _abrirGravacoes();
-        return;
-      case VoiceCommandType.abrirNovoProjeto:
-        _abrirNovoProjeto();
-        return;
+        return _comandoReconhecido('Comando reconhecido: encerrar gravacao');
+      case VoiceCommandType.criarMarcador:
+        return _comandoReconhecido('Comando reconhecido: criar marcador');
+      case VoiceCommandType.pararReproducao:
+        return _comandoReconhecido('Comando reconhecido: parar reproducao');
+      case VoiceCommandType.reproduzirGravacao:
+        return _comandoReconhecido('Comando reconhecido: reproduzir gravacao');
       case VoiceCommandType.criarProjeto:
       case VoiceCommandType.cancelarProjeto:
       case VoiceCommandType.definirNomeProjeto:
@@ -195,6 +95,7 @@ class _VoicePageState extends State<VoicePage> {
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
       case VoiceCommandType.renomearProjeto:
+      case VoiceCommandType.abrirDetalhesGravacao:
       case VoiceCommandType.renomearGravacao:
       case VoiceCommandType.excluirGravacao:
       case VoiceCommandType.confirmarAcao:
@@ -205,108 +106,74 @@ class _VoicePageState extends State<VoicePage> {
       case VoiceCommandType.desativarEscutaContinua:
       case VoiceCommandType.ativarFeedbackSonoro:
       case VoiceCommandType.desativarFeedbackSonoro:
+      case VoiceCommandType.ativarTemaEscuro:
+      case VoiceCommandType.desativarTemaEscuro:
       case VoiceCommandType.ativarParadaSilencio:
       case VoiceCommandType.desativarParadaSilencio:
       case VoiceCommandType.definirTempoSilencio:
-        setState(() {
-          ultimoComando = 'Comando contextual. Abra a tela correspondente.';
-        });
-        return;
-      case VoiceCommandType.criarMarcador:
-        setState(() {
-          ultimoComando = 'Comando reconhecido: criar marcador';
-        });
-        return;
-      case VoiceCommandType.pararReproducao:
-        setState(() {
-          ultimoComando = 'Comando reconhecido: parar reproducao';
-        });
-        return;
-      case VoiceCommandType.reproduzirGravacao:
-        setState(() {
-          ultimoComando = 'Comando reconhecido: reproduzir gravacao';
-        });
-        return;
+        return _comandoReconhecido(
+          'Comando contextual. Abra a tela correspondente.',
+        );
+      case VoiceCommandType.limparTexto:
+      case VoiceCommandType.listarGravacoes:
+      case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.abrirDashboard:
-        _abrirDashboard();
-        return;
       case VoiceCommandType.abrirProjetos:
-        _abrirProjetos();
-        return;
       case VoiceCommandType.abrirGravacoes:
-        _abrirGravacoes();
-        return;
       case VoiceCommandType.abrirConfiguracoes:
-        _abrirConfiguracoes();
-        return;
       case VoiceCommandType.abrirAssistente:
-        setState(() {
-          ultimoComando = 'Assistente de voz ja esta aberto.';
-        });
-        return;
       case VoiceCommandType.abrirEditor:
-        setState(() {
-          ultimoComando = 'Abra um projeto para acessar o editor.';
-        });
-        return;
       case VoiceCommandType.abrirHistorico:
-        _abrirHistorico();
-        return;
       case VoiceCommandType.voltar:
-        _voltar();
-        return;
       case VoiceCommandType.sair:
-        sair();
-        return;
       case VoiceCommandType.desconhecido:
         break;
     }
 
-    registrarComandoVoz(
-      command,
-      tipoComando: resultado.tipoComando,
-      statusReconhecimento: resultado.statusReconhecimento,
-    );
-
-    setState(() {
-      iaPensando = false;
-      ultimoComando = commandController.aiConfigured
-          ? 'Comando nao reconhecido pela IA.'
-          : 'Comando nao reconhecido. Configure GEMINI_API_KEY para NLU.';
-    });
+    final mensagem = voiceCommandController.aiConfigured
+        ? 'Comando nao reconhecido pela IA.'
+        : 'Comando nao reconhecido. Configure GEMINI_API_KEY para NLU.';
+    return _comandoReconhecido(mensagem);
   }
 
-  void _abrirDashboard() {
+  Future<VoiceCommandPageResult> _handleLimparTexto(
+    CommandResult result,
+  ) async {
+    _atualizarTextoReconhecido(result);
     setState(() {
-      ultimoComando = 'Abrindo dashboard...';
+      text = 'Pressione o microfone e fale';
     });
+    return _comandoReconhecido('Texto limpo.');
+  }
 
-    Navigator.push(
-      context,
+  Future<VoiceCommandPageResult> _handleAbrirDashboard(
+    CommandResult result,
+  ) async {
+    _atualizarTextoReconhecido(result);
+    _setUltimoComando('Abrindo dashboard...');
+    return _navegar(
       MaterialPageRoute(builder: (_) => DashboardPage(usuario: widget.usuario)),
     );
   }
 
-  void _abrirProjetos() {
-    setState(() {
-      ultimoComando = 'Abrindo projetos...';
-    });
-
-    Navigator.push(
-      context,
+  Future<VoiceCommandPageResult> _handleAbrirProjetos(
+    CommandResult result,
+  ) async {
+    _atualizarTextoReconhecido(result);
+    _setUltimoComando('Abrindo projetos...');
+    return _navegar(
       MaterialPageRoute(
         builder: (_) => MeusProjetosPage(usuario: widget.usuario),
       ),
     );
   }
 
-  void _abrirNovoProjeto() {
-    setState(() {
-      ultimoComando = 'Abrindo criacao de projeto...';
-    });
-
-    Navigator.push(
-      context,
+  Future<VoiceCommandPageResult> _handleAbrirNovoProjeto(
+    CommandResult result,
+  ) async {
+    _atualizarTextoReconhecido(result);
+    _setUltimoComando('Abrindo criacao de projeto...');
+    return _navegar(
       MaterialPageRoute(
         builder: (_) => MeusProjetosPage(
           usuario: widget.usuario,
@@ -316,95 +183,103 @@ class _VoicePageState extends State<VoicePage> {
     );
   }
 
-  void _abrirGravacoes() {
-    setState(() {
-      ultimoComando = 'Abrindo gravacoes...';
-    });
-
-    Navigator.push(
-      context,
+  Future<VoiceCommandPageResult> _handleAbrirGravacoes(
+    CommandResult result,
+  ) async {
+    _atualizarTextoReconhecido(result);
+    _setUltimoComando('Abrindo gravacoes...');
+    return _navegar(
       MaterialPageRoute(
         builder: (_) => MinhasGravacoesPage(usuario: widget.usuario),
       ),
     );
   }
 
-  void _abrirConfiguracoes() {
-    setState(() {
-      ultimoComando = 'Abrindo configuracoes...';
-    });
-
-    Navigator.push(
-      context,
+  Future<VoiceCommandPageResult> _handleAbrirConfiguracoes(
+    CommandResult result,
+  ) async {
+    _atualizarTextoReconhecido(result);
+    _setUltimoComando('Abrindo configuracoes...');
+    return _navegar(
       MaterialPageRoute(
         builder: (_) => ConfiguracoesPage(usuario: widget.usuario),
       ),
     );
   }
 
-  void _abrirHistorico() {
-    setState(() {
-      ultimoComando = 'Abrindo historico...';
-    });
-
-    Navigator.push(
-      context,
+  Future<VoiceCommandPageResult> _handleAbrirHistorico(
+    CommandResult result,
+  ) async {
+    _atualizarTextoReconhecido(result);
+    _setUltimoComando('Abrindo historico...');
+    return _navegar(
       MaterialPageRoute(builder: (_) => HistoricoPage(usuario: widget.usuario)),
     );
   }
 
-  void _voltar() {
+  Future<VoiceCommandPageResult> _handleAssistenteAberto(
+    CommandResult result,
+  ) async {
+    _atualizarTextoReconhecido(result);
+    return _comandoReconhecido('Assistente de voz ja esta aberto.');
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirEditor(
+    CommandResult result,
+  ) async {
+    _atualizarTextoReconhecido(result);
+    return _comandoReconhecido('Abra um projeto para acessar o editor.');
+  }
+
+  Future<VoiceCommandPageResult> _handleVoltar(CommandResult result) async {
+    _atualizarTextoReconhecido(result);
+    _setUltimoComando('Voltando...');
+
+    await suspendContextualVoiceListening();
+    if (mounted) {
+      Navigator.maybePop(context);
+    }
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
+  Future<VoiceCommandPageResult> _handleSair(CommandResult result) async {
+    _atualizarTextoReconhecido(result);
+    await suspendContextualVoiceListening();
+    if (mounted) {
+      sair();
+    }
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
+  Future<VoiceCommandPageResult> _navegar<T>(Route<T> route) async {
+    await suspendContextualVoiceListening();
+    if (mounted) {
+      unawaited(Navigator.push(context, route));
+    }
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
+  VoiceCommandPageResult _comandoReconhecido(String mensagem) {
+    _setUltimoComando(mensagem);
+    return VoiceCommandPageResult.handled(message: mensagem);
+  }
+
+  void _setUltimoComando(String mensagem) {
     setState(() {
-      ultimoComando = 'Voltando...';
+      ultimoComando = mensagem;
+      voiceStatusMessage = mensagem;
     });
-
-    Navigator.maybePop(context);
   }
 
-  void registrarComandoVoz(
-    String comando, {
-    required String tipoComando,
-    String statusReconhecimento = 'reconhecido',
-    String? acaoExecutada,
-  }) {
-    unawaited(
-      _registrarComandoVozPersistente(
-        comando,
-        tipoComando: tipoComando,
-        statusReconhecimento: statusReconhecimento,
-        acaoExecutada: acaoExecutada,
-      ),
-    );
-  }
-
-  Future<void> _registrarComandoVozPersistente(
-    String comando, {
-    required String tipoComando,
-    required String statusReconhecimento,
-    String? acaoExecutada,
-  }) async {
-    final usuarioId = widget.usuario.id;
-
-    if (usuarioId == null) {
-      return;
-    }
-
-    try {
-      await ComandoVozRepository.instance.registrar(
-        usuarioId: usuarioId,
-        textoReconhecido: comando,
-        tipoComando: tipoComando,
-        statusReconhecimento: statusReconhecimento,
-        acaoExecutada: acaoExecutada,
-      );
-    } catch (e) {
-      debugPrint('Erro ao registrar comando de voz: $e');
-    }
+  void _atualizarTextoReconhecido(CommandResult result) {
+    setState(() {
+      text = result.originalText;
+    });
   }
 
   @override
   void dispose() {
-    speech.stopListening();
+    disposeContextualVoiceListening();
     super.dispose();
   }
 
@@ -420,7 +295,7 @@ class _VoicePageState extends State<VoicePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Olá, ${widget.usuario.nome}'),
+        title: Text('Ola, ${widget.usuario.nome}'),
         centerTitle: true,
         actions: [
           IconButton(
@@ -443,7 +318,7 @@ class _VoicePageState extends State<VoicePage> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Use comandos como: iniciar gravação, pausar gravação, retomar gravação ou encerrar gravação.',
+              'Use comandos como: iniciar gravacao, pausar gravacao, retomar gravacao ou encerrar gravacao.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 15),
             ),
@@ -466,7 +341,7 @@ class _VoicePageState extends State<VoicePage> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                iaPensando ? 'IA pensando...' : ultimoComando,
+                voiceIaPensando ? 'IA pensando...' : ultimoComando,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 16),
               ),
@@ -476,14 +351,19 @@ class _VoicePageState extends State<VoicePage> {
               children: [
                 FloatingActionButton(
                   heroTag: 'micButtonVoicePage',
-                  onPressed: toggleListening,
-                  backgroundColor: listening ? Colors.red : Colors.blue,
-                  child: Icon(listening ? Icons.mic : Icons.mic_none),
+                  onPressed: toggleContextualVoiceListening,
+                  backgroundColor: voiceOuvindo ? Colors.red : Colors.blue,
+                  child: Icon(voiceOuvindo ? Icons.mic : Icons.mic_none),
                 ),
                 const SizedBox(width: 16),
                 FloatingActionButton(
                   heroTag: 'clearButtonVoicePage',
-                  onPressed: clearText,
+                  onPressed: () {
+                    setState(() {
+                      text = 'Pressione o microfone e fale';
+                    });
+                    _setUltimoComando('Texto limpo.');
+                  },
                   backgroundColor: Colors.grey,
                   child: const Icon(Icons.clear),
                 ),
@@ -493,6 +373,13 @@ class _VoicePageState extends State<VoicePage> {
           ],
         ),
       ),
+      bottomNavigationBar: voiceStatusMessage == null
+          ? null
+          : VoiceStatusBar(
+              message: voiceStatusMessage!,
+              listening: voiceOuvindo,
+              thinking: voiceIaPensando,
+            ),
     );
   }
 }
