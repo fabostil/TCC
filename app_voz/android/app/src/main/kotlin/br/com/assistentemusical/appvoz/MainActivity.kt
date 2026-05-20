@@ -1,4 +1,4 @@
-package com.example.app_voz
+package br.com.assistentemusical.appvoz
 
 import io.flutter.embedding.android.FlutterActivity
 

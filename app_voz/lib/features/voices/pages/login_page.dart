@@ -4,6 +4,9 @@ import '../../../core/ui/app_logo.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/usuario_repository.dart';
 import '../../home/pages/home_page.dart';
+import '../services/auth_validation_service.dart';
+import '../services/google_auth_service.dart';
+import '../widgets/google_sign_in_button.dart';
 import 'cadastro_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -18,8 +21,10 @@ class _LoginPageState extends State<LoginPage> {
 
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
+  final _authValidationService = const AuthValidationService();
 
   bool _carregando = false;
+  bool _carregandoGoogle = false;
   bool _mostrarSenha = false;
 
   Future<void> _entrar() async {
@@ -72,6 +77,57 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _entrarComGoogle() async {
+    setState(() {
+      _carregandoGoogle = true;
+    });
+
+    try {
+      final usuario = await GoogleAuthService.instance.entrarComGoogle();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      if (usuario == null) {
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HomePage(usuario: usuario)),
+      );
+    } on GoogleAuthException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao entrar com Google: $e')));
+    }
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -101,7 +157,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 8),
 
                 const Text(
-                  'Entre para controlar gravações por voz',
+                  'Entre para controlar gravacoes por voz',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16),
                 ),
@@ -116,17 +172,7 @@ class _LoginPageState extends State<LoginPage> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.email),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Informe seu e-mail.';
-                    }
-
-                    if (!value.contains('@') || !value.contains('.')) {
-                      return 'Informe um e-mail válido.';
-                    }
-
-                    return null;
-                  },
+                  validator: _authValidationService.validarEmail,
                 ),
 
                 const SizedBox(height: 16),
@@ -149,19 +195,13 @@ class _LoginPageState extends State<LoginPage> {
                       },
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Informe sua senha.';
-                    }
-
-                    return null;
-                  },
+                  validator: _authValidationService.validarSenhaLogin,
                 ),
 
                 const SizedBox(height: 24),
 
                 ElevatedButton(
-                  onPressed: _carregando ? null : _entrar,
+                  onPressed: _carregando || _carregandoGoogle ? null : _entrar,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 56),
                   ),
@@ -174,10 +214,17 @@ class _LoginPageState extends State<LoginPage> {
                       : const Text('Entrar'),
                 ),
 
+                const SizedBox(height: 12),
+
+                GoogleSignInButton(
+                  onPressed: _carregando ? null : _entrarComGoogle,
+                  loading: _carregandoGoogle,
+                ),
+
                 const SizedBox(height: 16),
 
                 TextButton(
-                  onPressed: _carregando
+                  onPressed: _carregando || _carregandoGoogle
                       ? null
                       : () {
                           Navigator.push(

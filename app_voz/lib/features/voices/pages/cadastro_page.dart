@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../core/ui/app_logo.dart';
 import '../../../repositories/usuario_repository.dart';
+import '../../home/pages/home_page.dart';
+import '../services/auth_validation_service.dart';
+import '../services/google_auth_service.dart';
+import '../widgets/google_sign_in_button.dart';
 import 'login_page.dart';
 
 class CadastroPage extends StatefulWidget {
@@ -18,8 +22,10 @@ class _CadastroPageState extends State<CadastroPage> {
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
   final _confirmarSenhaController = TextEditingController();
+  final _authValidationService = const AuthValidationService();
 
   bool _carregando = false;
+  bool _carregandoGoogle = false;
   bool _mostrarSenha = false;
 
   Future<void> _cadastrar() async {
@@ -48,13 +54,17 @@ class _CadastroPageState extends State<CadastroPage> {
 
       if (!sucesso) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Este e-mail já está cadastrado.')),
+          const SnackBar(content: Text('Este e-mail ja esta cadastrado.')),
         );
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cadastro realizado com sucesso.')),
+        const SnackBar(
+          content: Text(
+            'Cadastro criado. Para verificar a conta, entre com Google.',
+          ),
+        ),
       );
 
       Navigator.pushReplacement(
@@ -73,6 +83,57 @@ class _CadastroPageState extends State<CadastroPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Erro ao cadastrar: $e')));
+    }
+  }
+
+  Future<void> _cadastrarComGoogle() async {
+    setState(() {
+      _carregandoGoogle = true;
+    });
+
+    try {
+      final usuario = await GoogleAuthService.instance.entrarComGoogle();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      if (usuario == null) {
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HomePage(usuario: usuario)),
+      );
+    } on GoogleAuthException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao cadastrar com Google: $e')),
+      );
     }
   }
 
@@ -105,7 +166,22 @@ class _CadastroPageState extends State<CadastroPage> {
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 8),
+
+                const Text(
+                  'Use Google para criar uma conta verificada.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 15),
+                ),
+
+                const SizedBox(height: 24),
+
+                GoogleSignInButton(
+                  onPressed: _carregando ? null : _cadastrarComGoogle,
+                  loading: _carregandoGoogle,
+                ),
+
+                const SizedBox(height: 24),
 
                 TextFormField(
                   controller: _nomeController,
@@ -114,17 +190,7 @@ class _CadastroPageState extends State<CadastroPage> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.person),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Informe seu nome.';
-                    }
-
-                    if (value.trim().length < 3) {
-                      return 'O nome deve ter pelo menos 3 caracteres.';
-                    }
-
-                    return null;
-                  },
+                  validator: _authValidationService.validarNome,
                 ),
 
                 const SizedBox(height: 16),
@@ -137,17 +203,7 @@ class _CadastroPageState extends State<CadastroPage> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.email),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Informe seu e-mail.';
-                    }
-
-                    if (!value.contains('@') || !value.contains('.')) {
-                      return 'Informe um e-mail válido.';
-                    }
-
-                    return null;
-                  },
+                  validator: _authValidationService.validarEmail,
                 ),
 
                 const SizedBox(height: 16),
@@ -170,17 +226,7 @@ class _CadastroPageState extends State<CadastroPage> {
                       },
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Informe uma senha.';
-                    }
-
-                    if (value.length < 6) {
-                      return 'A senha deve ter pelo menos 6 caracteres.';
-                    }
-
-                    return null;
-                  },
+                  validator: _authValidationService.validarSenhaCadastro,
                 ),
 
                 const SizedBox(height: 16),
@@ -193,23 +239,16 @@ class _CadastroPageState extends State<CadastroPage> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.lock_outline),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Confirme sua senha.';
-                    }
-
-                    if (value != _senhaController.text) {
-                      return 'As senhas não conferem.';
-                    }
-
-                    return null;
-                  },
+                  validator: (value) => _authValidationService
+                      .validarConfirmacaoSenha(value, _senhaController.text),
                 ),
 
                 const SizedBox(height: 24),
 
                 ElevatedButton(
-                  onPressed: _carregando ? null : _cadastrar,
+                  onPressed: _carregando || _carregandoGoogle
+                      ? null
+                      : _cadastrar,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 56),
                   ),
@@ -219,13 +258,13 @@ class _CadastroPageState extends State<CadastroPage> {
                           height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Cadastrar'),
+                      : const Text('Cadastrar com e-mail'),
                 ),
 
                 const SizedBox(height: 16),
 
                 TextButton(
-                  onPressed: _carregando
+                  onPressed: _carregando || _carregandoGoogle
                       ? null
                       : () {
                           Navigator.pushReplacement(
@@ -235,7 +274,7 @@ class _CadastroPageState extends State<CadastroPage> {
                             ),
                           );
                         },
-                  child: const Text('Já tenho uma conta'),
+                  child: const Text('Ja tenho uma conta'),
                 ),
               ],
             ),
