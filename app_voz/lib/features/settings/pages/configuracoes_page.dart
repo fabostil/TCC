@@ -1,22 +1,20 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
 import '../../../core/ui/voice_status_bar.dart';
-import '../../../core/theme/app_theme_controller.dart';
 import '../../../models/comando_personalizado.dart';
 import '../../../models/configuracao_app.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/comando_personalizado_repository.dart';
-import '../../../repositories/configuracao_app_repository.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/custom_command_service.dart';
 import '../../voices/services/voice_permission_service.dart';
+import '../controllers/settings_controller.dart';
 
 class ConfiguracoesPage extends StatefulWidget {
   final Usuario? usuario;
@@ -31,13 +29,14 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     with ContextualVoiceListeningMixin<ConfiguracoesPage> {
   final VoicePermissionService _voicePermissionService =
       const VoicePermissionService();
+  final SettingsController _settingsController = SettingsController();
   final TextEditingController _frasePersonalizadaController =
       TextEditingController();
-  bool _carregando = true;
-  ConfiguracaoApp? _configuracao;
-  List<ComandoPersonalizado> _comandosPersonalizados = [];
+  VoicePermissionResult? _ultimoResultadoPermissao;
   String _tipoComandoPersonalizado =
       CustomCommandCatalog.actions.first.tipoComando;
+
+  SettingsState get _settingsState => _settingsController.state;
 
   @override
   String get voiceOwnerId => VoicePageOwners.configuracoes;
@@ -57,6 +56,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   @override
   void initState() {
     super.initState();
+    _settingsController.addListener(_onSettingsStateChanged);
     voiceCommandDispatcher = VoiceCommandDispatcher(
       onFallback: _dispatchSettingsVoice,
     );
@@ -64,130 +64,72 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     scheduleVoiceListeningOnFirstFrame();
   }
 
-  Future<void> _carregarConfiguracao() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
-    final comandosPersonalizados = await _listarComandosPersonalizados();
+  void _onSettingsStateChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
-    if (!mounted) {
+  Future<void> _carregarConfiguracao() async {
+    await _settingsController.load(usuarioId: widget.usuario?.id);
+    final configuracao = _settingsState.configuration;
+    if (configuracao == null || !mounted) {
       return;
     }
-
-    setState(() {
-      _configuracao = configuracao;
-      _comandosPersonalizados = comandosPersonalizados;
-      _carregando = false;
-    });
-
     syncVoiceConfigFlags(configuracao);
     await startContinuousVoiceListeningIfActive();
   }
 
   Future<void> _salvar(ConfiguracaoApp configuracao) async {
-    setState(() {
-      _configuracao = configuracao;
-    });
-
-    await ConfiguracaoAppRepository.instance.salvarConfiguracao(configuracao);
-  }
-
-  Future<List<ComandoPersonalizado>> _listarComandosPersonalizados() async {
-    final usuarioId = widget.usuario?.id;
-    if (usuarioId == null) {
-      return [];
-    }
-
-    return ComandoPersonalizadoRepository.instance.listarPorUsuario(usuarioId);
-  }
-
-  Future<void> _recarregarComandosPersonalizados() async {
-    final comandos = await _listarComandosPersonalizados();
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _comandosPersonalizados = comandos;
-    });
+    await _settingsController.saveConfiguration(configuracao);
   }
 
   Future<void> _salvarComandoPersonalizado() async {
-    final usuarioId = widget.usuario?.id;
-    final frase = _frasePersonalizadaController.text.trim();
-
-    if (usuarioId == null) {
-      _atualizarStatus('Entre novamente para criar comandos personalizados.');
-      return;
+    try {
+      await _settingsController.saveCustomCommand(
+        usuarioId: widget.usuario?.id,
+        phrase: _frasePersonalizadaController.text,
+        commandType: _tipoComandoPersonalizado,
+      );
+      _frasePersonalizadaController.clear();
+      _atualizarStatus('Comando personalizado salvo.');
+    } catch (e) {
+      _atualizarStatus(e.toString());
     }
-
-    if (frase.length < 3) {
-      _atualizarStatus('Informe uma frase com pelo menos 3 caracteres.');
-      return;
-    }
-
-    final acao = CustomCommandCatalog.findByTipo(_tipoComandoPersonalizado);
-    if (acao == null) {
-      _atualizarStatus('Selecione uma ação válida.');
-      return;
-    }
-
-    await ComandoPersonalizadoRepository.instance.salvar(
-      ComandoPersonalizado(
-        usuarioId: usuarioId,
-        frase: frase,
-        tipoComando: acao.tipoComando,
-        ativo: true,
-        dataCriacao: DateTime.now().toIso8601String(),
-      ),
-    );
-
-    _frasePersonalizadaController.clear();
-    await _recarregarComandosPersonalizados();
-    _atualizarStatus('Comando personalizado salvo.');
   }
 
   Future<void> _alternarComandoPersonalizado(
     ComandoPersonalizado comando,
     bool ativo,
   ) async {
-    final id = comando.id;
-    if (id == null) {
-      return;
-    }
-
-    await ComandoPersonalizadoRepository.instance.alternarAtivo(
-      id: id,
-      ativo: ativo,
+    await _settingsController.toggleCustomCommand(
+      comando,
+      ativo,
+      usuarioId: widget.usuario?.id,
     );
-    await _recarregarComandosPersonalizados();
   }
 
   Future<void> _excluirComandoPersonalizado(
     ComandoPersonalizado comando,
   ) async {
-    final id = comando.id;
-    if (id == null) {
-      return;
-    }
-
-    await ComandoPersonalizadoRepository.instance.excluir(id);
-    await _recarregarComandosPersonalizados();
-    _atualizarStatus('Comando personalizado excluído.');
+    await _settingsController.deleteCustomCommand(
+      comando,
+      usuarioId: widget.usuario?.id,
+    );
+    _atualizarStatus('Comando personalizado excluido.');
   }
 
   Future<void> _salvarTemaEscuro(bool ativo) async {
-    final configuracao = _configuracao;
+    final configuracao = _settingsState.configuration;
     if (configuracao == null) {
       return;
     }
 
-    await _salvar(configuracao.copyWith(temaEscuro: ativo));
-    await AppThemeController.instance.definirTemaEscuro(ativo);
+    await _settingsController.setDarkTheme(ativo);
   }
 
   Future<void> _alterarControleVoz(bool ativo) async {
-    final configuracao = _configuracao;
+    final configuracao = _settingsState.configuration;
     if (configuracao == null) {
       return;
     }
@@ -206,6 +148,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       await _salvar(
         configuracao.copyWith(comandosVozAtivos: false, escutaContinua: false),
       );
+      setState(() {
+        _ultimoResultadoPermissao = permissao;
+      });
       _atualizarStatus(
         permissao == VoicePermissionResult.permanentlyDenied
             ? 'Microfone bloqueado nas configurações do Android.'
@@ -214,6 +159,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       return;
     }
 
+    setState(() {
+      _ultimoResultadoPermissao = VoicePermissionResult.granted;
+    });
     await _salvar(
       configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
     );
@@ -228,7 +176,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   Future<VoiceCommandPageResult> _dispatchSettingsVoice(
     CommandResult resultado,
   ) async {
-    final configuracao = _configuracao;
+    final configuracao = _settingsState.configuration;
     if (configuracao == null) {
       return VoiceCommandPageResult.handled(
         message: 'Configuracao ainda carregando.',
@@ -292,7 +240,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
             tempoSilencioSegundos: segundos.clamp(3, 12).toInt(),
           ),
         );
-        _atualizarStatus('Tempo de silêncio definido para $segundos segundos.');
+        _atualizarStatus(
+          'Tempo de silêncio definido para $segundos segundos.',
+        );
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.voltar:
         await suspendContextualVoiceListening();
@@ -307,6 +257,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       case VoiceCommandType.pararReproducao:
       case VoiceCommandType.reproduzirGravacao:
       case VoiceCommandType.listarGravacoes:
+      case VoiceCommandType.buscarGravacoes:
+      case VoiceCommandType.buscarProjetos:
+      case VoiceCommandType.limparBusca:
       case VoiceCommandType.criarMarcador:
       case VoiceCommandType.limparTexto:
       case VoiceCommandType.definirNomeProjeto:
@@ -315,6 +268,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
       case VoiceCommandType.renomearProjeto:
+      case VoiceCommandType.excluirProjeto:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
       case VoiceCommandType.cancelarProjeto:
@@ -348,12 +302,15 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   void dispose() {
     disposeContextualVoiceListening();
     _frasePersonalizadaController.dispose();
+    _settingsController.removeListener(_onSettingsStateChanged);
+    _settingsController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final configuracao = _configuracao;
+    final settingsState = _settingsState;
+    final configuracao = settingsState.configuration;
 
     return Scaffold(
       appBar: AppBar(
@@ -366,7 +323,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
           ),
         ],
       ),
-      body: _carregando || configuracao == null
+      body: settingsState.loading || configuracao == null
           ? const AppLoadingView(message: 'Carregando configurações...')
           : ListView(
               padding: const EdgeInsets.all(AppSpacing.xl),
@@ -399,6 +356,29 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                   onChanged: _alterarControleVoz,
                 ),
                 if (!configuracao.comandosVozAtivos) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            _voicePermissionService.guidanceMessage(
+                              _ultimoResultadoPermissao ??
+                                  VoicePermissionResult.denied,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          OutlinedButton.icon(
+                            onPressed: () => _alterarControleVoz(true),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Tentar ativar novamente'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   OutlinedButton.icon(
                     onPressed: _voicePermissionService.openSystemSettings,
@@ -473,13 +453,13 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                   label: const Text('Salvar comando'),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                if (_comandosPersonalizados.isEmpty)
+                if (settingsState.customCommands.isEmpty)
                   Text(
                     'Nenhum comando personalizado cadastrado.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   )
                 else
-                  ..._comandosPersonalizados.map((comando) {
+                  ...settingsState.customCommands.map((comando) {
                     final acao = CustomCommandCatalog.findByTipo(
                       comando.tipoComando,
                     );
@@ -501,7 +481,10 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                     );
                   }),
                 const SizedBox(height: AppSpacing.xl),
-                Text('Gravação', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'Gravação',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: AppSpacing.md),
                 SwitchListTile(
                   value: configuracao.paradaSilencio,
@@ -521,11 +504,11 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                     divisions: 9,
                     label: '${configuracao.tempoSilencioSegundos}s',
                     onChanged: configuracao.paradaSilencio
-                        ? (value) => setState(() {
-                            _configuracao = configuracao.copyWith(
+                        ? (value) => _salvar(
+                            configuracao.copyWith(
                               tempoSilencioSegundos: value.round(),
-                            );
-                          })
+                            ),
+                          )
                         : null,
                     onChangeEnd: configuracao.paradaSilencio
                         ? (value) => _salvar(

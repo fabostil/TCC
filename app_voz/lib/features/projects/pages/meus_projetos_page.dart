@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -108,7 +108,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     final data = DateTime.tryParse(dataIso);
 
     if (data == null) {
-      return 'Data invÃ¡lida';
+      return 'Data inválida';
     }
 
     final dia = data.day.toString().padLeft(2, '0');
@@ -627,7 +627,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
                     icon: Icons.folder_open_outlined,
                     title: 'Nenhum projeto criado ainda',
                     subtitle:
-                        'Crie um projeto para comeÃ§ar a organizar suas gravaÃ§Ãµes.',
+                        'Crie um projeto para começar a organizar suas gravações.',
                   ),
                 ],
               );

@@ -9,5 +9,4 @@ abstract final class VoicePageOwners {
   static const detalhesGravacao = 'detalhes_gravacao';
   static const configuracoes = 'configuracoes';
   static const editor = 'editor';
-  static const voicePage = 'voice_page';
 }

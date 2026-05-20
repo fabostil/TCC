@@ -72,6 +72,39 @@ void main() {
       expect(result.parametro, 'abacate');
     });
 
+    test('mapeia buscas retornadas pela Gemini', () async {
+      final service = AiCommandService(
+        apiKey: 'test-key',
+        httpPost: (uri, headers, body, timeout) async {
+          return _geminiResponse(
+            '{"action":"recording_search","parametro":"refrao"}',
+          );
+        },
+      );
+
+      final result = await service.interpretUnknown(
+        'procura minhas ideias de refrao',
+      );
+
+      expect(result.type, VoiceCommandType.buscarGravacoes);
+      expect(result.parametro, 'refrao');
+      expect(result.tipoComando, 'buscar_gravacoes');
+    });
+
+    test('mapeia limpar busca retornado pela Gemini', () async {
+      final service = AiCommandService(
+        apiKey: 'test-key',
+        httpPost: (uri, headers, body, timeout) async {
+          return _geminiResponse('{"action":"search_clear"}');
+        },
+      );
+
+      final result = await service.interpretUnknown('mostra tudo de novo');
+
+      expect(result.type, VoiceCommandType.limparBusca);
+      expect(result.tipoComando, 'limpar_busca');
+    });
+
     test('mapeia comando de tema escuro retornado pela Gemini', () async {
       final service = AiCommandService(
         apiKey: 'test-key',

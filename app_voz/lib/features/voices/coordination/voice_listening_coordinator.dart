@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../services/speech_service.dart';
 
 enum VoiceRestartReason { normal, afterError }
@@ -23,6 +25,13 @@ class VoiceListeningCoordinator {
   String? get activeOwnerId => _activeOwnerId;
 
   bool get recordingModeActive => _recordingModeActive;
+
+  @visibleForTesting
+  void resetForTesting() {
+    _activeOwnerId = null;
+    _recordingModeActive = false;
+    _restartGeneration++;
+  }
 
   Duration restartDelayFor(VoiceRestartReason reason) {
     return reason == VoiceRestartReason.afterError

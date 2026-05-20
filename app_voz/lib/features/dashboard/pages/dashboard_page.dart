@@ -14,6 +14,7 @@ import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
+import '../controllers/dashboard_controller.dart';
 import '../services/dashboard_service.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -27,11 +28,9 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage>
     with ContextualVoiceListeningMixin<DashboardPage> {
-  final DashboardService _dashboardService = DashboardService();
+  final DashboardController _dashboardController = DashboardController();
 
-  bool _carregando = true;
-  String? _erro;
-  DashboardData? _dashboard;
+  DashboardState get _dashboardState => _dashboardController.state;
 
   @override
   String get voiceOwnerId => VoicePageOwners.dashboard;
@@ -48,6 +47,7 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void initState() {
     super.initState();
+    _dashboardController.addListener(_onDashboardStateChanged);
     voiceCommandDispatcher = VoiceCommandDispatcher(
       handlers: {
         VoiceCommandType.voltar: _handleVoltar,
@@ -67,54 +67,25 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Future<VoiceCommandPageResult> _handleJaAberto(CommandResult _) async {
-    return VoiceCommandPageResult.handled(
-      message: 'Dashboard ja esta aberto.',
-    );
+    return VoiceCommandPageResult.handled(message: 'Dashboard ja esta aberto.');
   }
 
   @override
   void dispose() {
     disposeContextualVoiceListening();
+    _dashboardController.removeListener(_onDashboardStateChanged);
+    _dashboardController.dispose();
     super.dispose();
   }
 
-  Future<void> _carregarDashboard() async {
-    final usuarioId = widget.usuario.id;
-
-    if (usuarioId == null) {
-      setState(() {
-        _carregando = false;
-        _erro = 'Usuario sem identificacao para carregar o dashboard.';
-      });
-      return;
+  void _onDashboardStateChanged() {
+    if (mounted) {
+      setState(() {});
     }
+  }
 
-    setState(() {
-      _carregando = true;
-      _erro = null;
-    });
-
-    try {
-      final dashboard = await _dashboardService.carregar(usuarioId);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _dashboard = dashboard;
-        _carregando = false;
-      });
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _carregando = false;
-        _erro = 'Nao foi possivel carregar o dashboard: $e';
-      });
-    }
+  Future<void> _carregarDashboard() {
+    return _dashboardController.load(widget.usuario.id);
   }
 
   String _formatarDuracao(int segundos) {
@@ -213,19 +184,21 @@ class _DashboardPageState extends State<DashboardPage>
         onRefresh: _carregarDashboard,
         child: Builder(
           builder: (context) {
-            if (_carregando) {
+            final dashboardState = _dashboardState;
+
+            if (dashboardState.loading) {
               return const AppLoadingView(
                 message: 'Carregando indicadores do dashboard...',
               );
             }
 
-            if (_erro != null) {
+            if (dashboardState.error != null) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
                   Text(
-                    _erro!,
+                    dashboardState.error!,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyLarge,
                   ),
@@ -238,7 +211,7 @@ class _DashboardPageState extends State<DashboardPage>
               );
             }
 
-            final dashboard = _dashboard;
+            final dashboard = dashboardState.data;
 
             if (dashboard == null || dashboard.estaVazio) {
               return ListView(
@@ -326,7 +299,7 @@ class _DashboardPageState extends State<DashboardPage>
                   corPorTipo: (tipo) => _corPorTipo(context, tipo),
                 ),
                 const SizedBox(height: AppSpacing.xl),
-                const _InsightsPlaceholder(),
+                _InsightsCard(insights: dashboard.insights),
               ],
             );
           },
@@ -660,45 +633,148 @@ class _EventTile extends StatelessWidget {
   }
 }
 
-class _InsightsPlaceholder extends StatelessWidget {
-  const _InsightsPlaceholder();
+class _InsightsCard extends StatelessWidget {
+  final List<DashboardInsight> insights;
+
+  const _InsightsCard({required this.insights});
+
+  IconData _iconePorTipo(DashboardInsightType tipo) {
+    switch (tipo) {
+      case DashboardInsightType.producao:
+        return Icons.music_note_outlined;
+      case DashboardInsightType.organizacao:
+        return Icons.folder_copy_outlined;
+      case DashboardInsightType.voz:
+        return Icons.record_voice_over_outlined;
+      case DashboardInsightType.alerta:
+        return Icons.warning_amber_rounded;
+      case DashboardInsightType.historico:
+        return Icons.timeline_outlined;
+    }
+  }
+
+  Color _corPorPrioridade(
+    BuildContext context,
+    DashboardInsightPriority prioridade,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    switch (prioridade) {
+      case DashboardInsightPriority.alta:
+        return colorScheme.error;
+      case DashboardInsightPriority.media:
+        return Colors.orange.shade700;
+      case DashboardInsightPriority.baixa:
+        return colorScheme.primary;
+    }
+  }
+
+  String _rotuloPrioridade(DashboardInsightPriority prioridade) {
+    switch (prioridade) {
+      case DashboardInsightPriority.alta:
+        return 'Alta';
+      case DashboardInsightPriority.media:
+        return 'Media';
+      case DashboardInsightPriority.baixa:
+        return 'Baixa';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: theme.colorScheme.secondary.withAlpha(28),
-              child: Icon(
-                Icons.auto_awesome_outlined,
-                color: theme.colorScheme.secondary,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Insights inteligentes',
-                    style: theme.textTheme.titleMedium,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Insights inteligentes', style: theme.textTheme.titleLarge),
+        const SizedBox(height: AppSpacing.md),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: insights.isEmpty
+                ? const Text(
+                    'Ainda nao ha padroes suficientes para gerar recomendacoes.',
+                  )
+                : Column(
+                    children: insights.map((insight) {
+                      final color = _corPorPrioridade(
+                        context,
+                        insight.prioridade,
+                      );
+
+                      return _InsightTile(
+                        icon: _iconePorTipo(insight.tipo),
+                        color: color,
+                        title: insight.titulo,
+                        subtitle: insight.descricao,
+                        priority: _rotuloPrioridade(insight.prioridade),
+                      );
+                    }).toList(),
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'Estrutura pronta para gerar recomendacoes futuras a partir das metricas, sem acoplar Gemini diretamente a UI.',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
+      ],
+    );
+  }
+}
+
+class _InsightTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final String priority;
+
+  const _InsightTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.priority,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: color.withAlpha(28),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(title, style: theme.textTheme.titleMedium),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      priority,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(subtitle, style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

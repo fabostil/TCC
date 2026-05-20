@@ -106,6 +106,9 @@ class VoiceGlobalCommandService {
       case VoiceCommandType.pararReproducao:
       case VoiceCommandType.reproduzirGravacao:
       case VoiceCommandType.listarGravacoes:
+      case VoiceCommandType.buscarGravacoes:
+      case VoiceCommandType.buscarProjetos:
+      case VoiceCommandType.limparBusca:
       case VoiceCommandType.criarMarcador:
       case VoiceCommandType.limparTexto:
       case VoiceCommandType.definirNomeProjeto:
@@ -113,6 +116,7 @@ class VoiceGlobalCommandService {
       case VoiceCommandType.substituirNomeProjeto:
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.renomearProjeto:
+      case VoiceCommandType.excluirProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
