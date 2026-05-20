@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
+import '../core/search/sql_search.dart';
 import '../database/app_database.dart';
 import '../database/tables/projeto_table.dart';
 import '../models/projeto.dart';
@@ -20,13 +21,24 @@ class ProjetoRepository {
     );
   }
 
-  Future<List<Projeto>> listarProjetosPorUsuario(int usuarioId) async {
+  Future<List<Projeto>> listarProjetosPorUsuario(
+    int usuarioId, {
+    String? termoBusca,
+  }) async {
     final db = await _database;
+    final where = <String>['usuario_id = ?'];
+    final whereArgs = <Object?>[usuarioId];
+
+    if (SqlSearch.hasTerm(termoBusca)) {
+      final pattern = SqlSearch.containsPattern(termoBusca!);
+      where.add('(nome LIKE ? ESCAPE ? OR descricao LIKE ? ESCAPE ?)');
+      whereArgs.addAll([pattern, r'\', pattern, r'\']);
+    }
 
     final resultado = await db.query(
       ProjetoTable.tableName,
-      where: 'usuario_id = ?',
-      whereArgs: [usuarioId],
+      where: where.join(' AND '),
+      whereArgs: whereArgs,
       orderBy: 'data_criacao DESC',
     );
 
@@ -67,10 +79,6 @@ class ProjetoRepository {
 
   Future<int> removerProjeto(int id) async {
     final db = await _database;
-    return db.delete(
-      ProjetoTable.tableName,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return db.delete(ProjetoTable.tableName, where: 'id = ?', whereArgs: [id]);
   }
 }

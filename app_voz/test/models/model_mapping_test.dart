@@ -15,6 +15,10 @@ void main() {
         nome: 'Alex',
         email: 'alex@example.com',
         senhaHash: 'hash',
+        authProvider: 'google',
+        googleId: 'google-123',
+        fotoUrl: 'https://example.com/foto.png',
+        dataCadastro: '2026-05-18T10:00:00.000',
       );
 
       final map = usuario.toMap();
@@ -24,6 +28,24 @@ void main() {
       expect(parsed.nome, 'Alex');
       expect(parsed.email, 'alex@example.com');
       expect(parsed.senhaHash, 'hash');
+      expect(parsed.authProvider, 'google');
+      expect(parsed.googleId, 'google-123');
+      expect(parsed.fotoUrl, 'https://example.com/foto.png');
+      expect(parsed.dataCadastro, '2026-05-18T10:00:00.000');
+    });
+
+    test('Usuario fromMap tolera banco antigo sem campos de autenticacao', () {
+      final parsed = Usuario.fromMap({
+        'id': 1,
+        'nome': 'Alex',
+        'email': 'alex@example.com',
+        'senha_hash': 'hash',
+      });
+
+      expect(parsed.authProvider, 'local');
+      expect(parsed.googleId, isNull);
+      expect(parsed.fotoUrl, isNull);
+      expect(parsed.dataCadastro, isNull);
     });
 
     test('Projeto round-trip preserva descricao opcional', () {
@@ -44,7 +66,7 @@ void main() {
       expect(parsed.dataCriacao, '2026-05-18T10:00:00.000');
     });
 
-    test('Gravacao usa duracao zero quando coluna antiga nao existe', () {
+    test('Gravacao usa defaults quando colunas antigas nao existem', () {
       final parsed = Gravacao.fromMap({
         'id': 3,
         'usuario_id': 1,
@@ -57,7 +79,11 @@ void main() {
       expect(parsed.id, 3);
       expect(parsed.projetoId, 2);
       expect(parsed.duracaoSegundos, 0);
+      expect(parsed.status, 'concluida');
+      expect(parsed.tamanhoBytes, 0);
+      expect(parsed.formatoAudio, 'm4a');
       expect(parsed.toMap()['duracao_segundos'], 0);
+      expect(parsed.toMap()['status'], 'concluida');
     });
 
     test('ComandoVoz round-trip preserva status e acao opcional', () {

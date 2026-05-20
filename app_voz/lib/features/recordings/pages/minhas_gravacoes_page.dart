@@ -1,22 +1,21 @@
-import 'dart:async';
-import 'dart:io';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_feedback.dart';
 import '../../../core/ui/app_loading_view.dart';
+import '../../../core/ui/app_search_field.dart';
 import '../../../core/ui/app_spacing.dart';
 import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/gravacao_repository.dart';
-import '../../../repositories/historico_repository.dart';
-import '../../editor/services/audio_player_service.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
+import '../controllers/recordings_list_controller.dart';
+import '../widgets/recording_status_chip.dart';
 import 'detalhes_gravacao_page.dart';
 
 class MinhasGravacoesPage extends StatefulWidget {
@@ -30,15 +29,14 @@ class MinhasGravacoesPage extends StatefulWidget {
 
 class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     with ContextualVoiceListeningMixin<MinhasGravacoesPage> {
-  final CommandService _commandService = const CommandService();
-  final List<Gravacao> _gravacoes = [];
-  final AudioPlayerService _playerService = AudioPlayerService();
+  final RecordingsListController _recordingsController =
+      RecordingsListController();
+  final TextEditingController _buscaController = TextEditingController();
 
-  bool _carregando = true;
-  String? _erro;
-  int? _gravacaoReproduzindoId;
-  Gravacao? _gravacaoPendenteExclusao;
   StreamSubscription? _playerStateSubscription;
+  Timer? _buscaDebounce;
+
+  RecordingsListState get _recordingsState => _recordingsController.state;
 
   @override
   String get voiceOwnerId => VoicePageOwners.minhasGravacoes;
@@ -58,61 +56,52 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     voiceCommandDispatcher = VoiceCommandDispatcher(
       onFallback: _dispatchContextualVoice,
     );
-    _playerStateSubscription = _playerService.playerStateStream.listen((state) {
+    _recordingsController.addListener(_onRecordingsStateChanged);
+    _playerStateSubscription = _recordingsController.playerStateStream.listen((
+      state,
+    ) {
       if (!mounted) {
         return;
       }
 
       if (!state.playing) {
-        setState(() {
-          _gravacaoReproduzindoId = null;
-        });
+        _recordingsController.markPlaybackStopped();
       }
     });
     _carregarGravacoes();
     scheduleVoiceListeningOnFirstFrame();
   }
 
-  Future<void> _carregarGravacoes() async {
-    final usuarioId = widget.usuario.id;
+  void _onRecordingsStateChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
-    if (usuarioId == null) {
-      setState(() {
-        _carregando = false;
-        _erro = 'Usuário sem identificação para buscar gravações.';
-      });
+  Future<void> _carregarGravacoes() {
+    return _recordingsController.load(
+      usuarioId: widget.usuario.id,
+      searchTerm: _buscaController.text,
+    );
+  }
+
+  void _onBuscaAlterada(String termo) {
+    _buscaDebounce?.cancel();
+    _buscaDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) {
+        _carregarGravacoes();
+      }
+    });
+  }
+
+  void _limparBusca() {
+    if (_buscaController.text.isEmpty) {
       return;
     }
 
-    setState(() {
-      _carregando = true;
-      _erro = null;
-    });
-
-    try {
-      final gravacoes = await GravacaoRepository.instance
-          .listarGravacoesPorUsuario(usuarioId);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _gravacoes
-          ..clear()
-          ..addAll(gravacoes);
-        _carregando = false;
-      });
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _carregando = false;
-        _erro = 'Erro ao carregar gravações: $e';
-      });
-    }
+    _buscaDebounce?.cancel();
+    _buscaController.clear();
+    _carregarGravacoes();
   }
 
   String _formatarData(String dataIso) {
@@ -147,37 +136,19 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   }
 
   Future<void> _alternarReproducao(Gravacao gravacao) async {
+    if (gravacao.status == GravacaoStatus.arquivoAusente ||
+        gravacao.tamanhoBytes <= 0) {
+      AppFeedback.showMessage(
+        context,
+        'Arquivo de audio indisponivel para reproducao.',
+      );
+      return;
+    }
+
     try {
-      if (_gravacaoReproduzindoId == gravacao.id && _playerService.isPlaying) {
-        await _playerService.stop();
-
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-          _gravacaoReproduzindoId = null;
-        });
-        return;
-      }
-
-      await _playerService.play(gravacao.caminhoArquivo);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _gravacaoReproduzindoId = gravacao.id;
-      });
-
-      unawaited(
-        _registrarHistorico(
-          tipo: 'gravacao_reproduzida',
-          descricao: 'Reproduziu a gravação "${gravacao.nome}"',
-          gravacaoId: gravacao.id,
-          projetoId: gravacao.projetoId,
-        ),
+      await _recordingsController.togglePlayback(
+        gravacao,
+        usuarioId: widget.usuario.id,
       );
     } catch (e) {
       if (!mounted) {
@@ -200,38 +171,11 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       return;
     }
 
-    final nomeFinal = _gerarNomeGravacaoUnico(novoNome, ignorarId: gravacao.id);
-    final gravacaoAtualizada = Gravacao(
-      id: gravacao.id,
-      usuarioId: gravacao.usuarioId,
-      projetoId: gravacao.projetoId,
-      nome: nomeFinal,
-      caminhoArquivo: gravacao.caminhoArquivo,
-      dataCriacao: gravacao.dataCriacao,
-      duracaoSegundos: gravacao.duracaoSegundos,
-    );
-
     try {
-      await GravacaoRepository.instance.atualizarGravacao(gravacaoAtualizada);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        final index = _gravacoes.indexWhere((item) => item.id == gravacao.id);
-        if (index != -1) {
-          _gravacoes[index] = gravacaoAtualizada;
-        }
-      });
-
-      unawaited(
-        _registrarHistorico(
-          tipo: 'gravacao_renomeada',
-          descricao: 'Renomeou "${gravacao.nome}" para "$nomeFinal"',
-          gravacaoId: gravacao.id,
-          projetoId: gravacao.projetoId,
-        ),
+      await _recordingsController.renameRecording(
+        gravacao: gravacao,
+        newName: novoNome,
+        usuarioId: widget.usuario.id,
       );
     } catch (e) {
       if (!mounted) {
@@ -252,41 +196,21 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       return;
     }
 
-    final nomeFinal = _gerarNomeGravacaoUnico(novoNome, ignorarId: gravacao.id);
-    final gravacaoAtualizada = Gravacao(
-      id: gravacao.id,
-      usuarioId: gravacao.usuarioId,
-      projetoId: gravacao.projetoId,
-      nome: nomeFinal,
-      caminhoArquivo: gravacao.caminhoArquivo,
-      dataCriacao: gravacao.dataCriacao,
-      duracaoSegundos: gravacao.duracaoSegundos,
+    final gravacaoAtualizada = await _recordingsController.renameRecording(
+      gravacao: gravacao,
+      newName: novoNome,
+      usuarioId: widget.usuario.id,
+      byVoice: true,
     );
-
-    await GravacaoRepository.instance.atualizarGravacao(gravacaoAtualizada);
 
     if (!mounted) {
       return;
     }
 
-    setState(() {
-      final index = _gravacoes.indexWhere((item) => item.id == gravacao.id);
-      if (index != -1) {
-        _gravacoes[index] = gravacaoAtualizada;
-      }
-    });
     voiceSetState(() {
-      voiceStatusMessage = 'Gravacao renomeada para $nomeFinal.';
+      voiceStatusMessage =
+          'Gravacao renomeada para ${gravacaoAtualizada.nome}.';
     });
-
-    unawaited(
-      _registrarHistorico(
-        tipo: 'gravacao_renomeada',
-        descricao: 'Renomeou "${gravacao.nome}" para "$nomeFinal" por voz',
-        gravacaoId: gravacao.id,
-        projetoId: gravacao.projetoId,
-      ),
-    );
   }
 
   Future<void> _excluirGravacao(Gravacao gravacao) async {
@@ -304,37 +228,16 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     }
 
     try {
-      if (_gravacaoReproduzindoId == gravacao.id) {
-        await _playerService.stop();
-      }
-
-      await GravacaoRepository.instance.removerGravacao(gravacao.id!);
-
-      final arquivo = File(gravacao.caminhoArquivo);
-      if (await arquivo.exists()) {
-        await arquivo.delete();
-      }
+      await _recordingsController.deleteRecording(
+        gravacao: gravacao,
+        usuarioId: widget.usuario.id,
+      );
 
       if (!mounted) {
         return;
       }
 
-      setState(() {
-        _gravacoes.removeWhere((item) => item.id == gravacao.id);
-        if (_gravacaoReproduzindoId == gravacao.id) {
-          _gravacaoReproduzindoId = null;
-        }
-      });
-
       AppFeedback.showMessage(context, 'Gravação excluída com sucesso.');
-
-      unawaited(
-        _registrarHistorico(
-          tipo: 'gravacao_excluida',
-          descricao: 'Excluiu a gravação "${gravacao.nome}"',
-          projetoId: gravacao.projetoId,
-        ),
-      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -378,8 +281,11 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   @override
   void dispose() {
     disposeContextualVoiceListening();
+    _buscaDebounce?.cancel();
+    _buscaController.dispose();
     _playerStateSubscription?.cancel();
-    _playerService.dispose();
+    _recordingsController.removeListener(_onRecordingsStateChanged);
+    _recordingsController.dispose();
     super.dispose();
   }
 
@@ -392,13 +298,13 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       case VoiceCommandType.reproduzirGravacao:
         return _handleReproduzirPorNome(resultado.parametro);
       case VoiceCommandType.pararReproducao:
-        await _playerService.stop();
-        if (mounted) {
-          setState(() {
-            _gravacaoReproduzindoId = null;
-          });
-        }
+        await _recordingsController.stopPlayback();
         return VoiceCommandPageResult.handled(message: 'Reproducao parada.');
+      case VoiceCommandType.buscarGravacoes:
+        return _buscarGravacoesPorVoz(resultado.parametro);
+      case VoiceCommandType.limparBusca:
+        _limparBusca();
+        return VoiceCommandPageResult.handled(message: 'Busca limpa.');
       case VoiceCommandType.renomearGravacao:
         return _handleRenomearPorVoz(
           resultado.parametro,
@@ -410,7 +316,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         return _handleConfirmarExclusaoPendente();
       case VoiceCommandType.cancelarAcao:
         voiceSetState(() {
-          _gravacaoPendenteExclusao = null;
+          _recordingsController.cancelPendingDeletion();
           voiceStatusMessage = 'Exclusao cancelada.';
         });
         return VoiceCommandPageResult.handled(message: 'Exclusao cancelada.');
@@ -432,7 +338,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       case VoiceCommandType.substituirNomeProjeto:
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.buscarProjetos:
       case VoiceCommandType.renomearProjeto:
+      case VoiceCommandType.excluirProjeto:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
       case VoiceCommandType.cancelarProjeto:
@@ -465,7 +373,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   Future<VoiceCommandPageResult> _handleReproduzirPorNome(String? nome) async {
     final gravacao =
         _buscarGravacaoPorNome(nome) ??
-        (_gravacoes.isNotEmpty ? _gravacoes.first : null);
+        (_recordingsState.recordings.isNotEmpty
+            ? _recordingsState.recordings.first
+            : null);
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
@@ -477,10 +387,14 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     return VoiceCommandPageResult.handled();
   }
 
-  Future<VoiceCommandPageResult> _handleAbrirDetalhesPorVoz(String? nome) async {
+  Future<VoiceCommandPageResult> _handleAbrirDetalhesPorVoz(
+    String? nome,
+  ) async {
     final gravacao =
         _buscarGravacaoPorNome(nome) ??
-        (_gravacoes.isNotEmpty ? _gravacoes.first : null);
+        (_recordingsState.recordings.isNotEmpty
+            ? _recordingsState.recordings.first
+            : null);
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
@@ -490,6 +404,22 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     await _abrirDetalhesGravacao(gravacao);
     return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
+  Future<VoiceCommandPageResult> _buscarGravacoesPorVoz(String? termo) async {
+    final termoBusca = termo?.trim() ?? '';
+    if (termoBusca.isEmpty) {
+      return VoiceCommandPageResult.handled(
+        message: 'Diga o termo para buscar nas gravacoes.',
+      );
+    }
+
+    _buscaDebounce?.cancel();
+    _buscaController.text = termoBusca;
+    await _carregarGravacoes();
+    return VoiceCommandPageResult.handled(
+      message: 'Busca por $termoBusca aplicada nas gravacoes.',
+    );
   }
 
   Future<VoiceCommandPageResult> _handleRenomearPorVoz(
@@ -517,8 +447,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       );
     }
 
+    _recordingsController.requestDeletion(gravacao);
     voiceSetState(() {
-      _gravacaoPendenteExclusao = gravacao;
       voiceStatusMessage =
           'Confirmar exclusao de ${gravacao.nome}? Diga confirmar exclusao ou cancelar exclusao.';
     });
@@ -529,7 +459,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   }
 
   Future<VoiceCommandPageResult> _handleConfirmarExclusaoPendente() async {
-    final gravacao = _gravacaoPendenteExclusao;
+    final gravacao = _recordingsState.pendingDeletion;
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
@@ -540,46 +470,25 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     if (gravacao.id == null) {
       voiceSetState(() {
         voiceStatusMessage = 'Gravacao invalida para exclusao.';
-        _gravacaoPendenteExclusao = null;
       });
+      _recordingsController.cancelPendingDeletion();
       return VoiceCommandPageResult.handled(
         message: 'Gravacao invalida para exclusao.',
       );
     }
 
     try {
-      if (_gravacaoReproduzindoId == gravacao.id) {
-        await _playerService.stop();
-      }
-
-      await GravacaoRepository.instance.removerGravacao(gravacao.id!);
-
-      final arquivo = File(gravacao.caminhoArquivo);
-      if (await arquivo.exists()) {
-        await arquivo.delete();
-      }
+      await _recordingsController.deleteRecording(
+        gravacao: gravacao,
+        usuarioId: widget.usuario.id,
+        byVoice: true,
+      );
 
       if (!mounted) {
         return VoiceCommandPageResult.handled(
           message: 'Gravacao ${gravacao.nome} excluida.',
         );
       }
-
-      setState(() {
-        _gravacoes.removeWhere((item) => item.id == gravacao.id);
-        _gravacaoPendenteExclusao = null;
-        if (_gravacaoReproduzindoId == gravacao.id) {
-          _gravacaoReproduzindoId = null;
-        }
-      });
-
-      unawaited(
-        _registrarHistorico(
-          tipo: 'gravacao_excluida',
-          descricao: 'Excluiu a gravacao "${gravacao.nome}" por voz',
-          projetoId: gravacao.projetoId,
-        ),
-      );
 
       return VoiceCommandPageResult.handled(
         message: 'Gravacao ${gravacao.nome} excluida.',
@@ -593,8 +502,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
       voiceSetState(() {
         voiceStatusMessage = 'Nao foi possivel excluir a gravacao: $e';
-        _gravacaoPendenteExclusao = null;
       });
+      _recordingsController.cancelPendingDeletion();
       return VoiceCommandPageResult.handled(
         message: 'Nao foi possivel excluir a gravacao: $e',
       );
@@ -602,64 +511,17 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   }
 
   Gravacao? _buscarGravacaoPorNome(String? nome) {
-    final nomeNormalizado = _commandService.normalize(nome ?? '');
-    if (nomeNormalizado.isEmpty) {
-      return null;
-    }
-
-    for (final gravacao in _gravacoes) {
-      if (_commandService.normalize(gravacao.nome).contains(nomeNormalizado)) {
-        return gravacao;
-      }
-    }
-
-    return null;
+    return _recordingsController.findByName(nome);
   }
 
-  String _gerarNomeGravacaoUnico(String nomeBase, {int? ignorarId}) {
-    final base = nomeBase.trim();
-    if (base.isEmpty) {
-      return base;
-    }
-
-    final nomesExistentes = _gravacoes
-        .where((gravacao) => gravacao.id != ignorarId)
-        .map((gravacao) => _commandService.normalize(gravacao.nome))
-        .toSet();
-
-    var candidato = base;
-    var contador = 1;
-    while (nomesExistentes.contains(_commandService.normalize(candidato))) {
-      candidato = '$base$contador';
-      contador++;
-    }
-
-    return candidato;
-  }
-
-  Future<void> _registrarHistorico({
-    required String tipo,
-    required String descricao,
-    int? gravacaoId,
-    int? projetoId,
-  }) async {
-    final usuarioId = widget.usuario.id;
-
-    if (usuarioId == null) {
-      return;
-    }
-
-    try {
-      await HistoricoRepository.instance.registrar(
-        usuarioId: usuarioId,
-        tipo: tipo,
-        descricao: descricao,
-        gravacaoId: gravacaoId,
-        projetoId: projetoId,
-      );
-    } catch (e) {
-      debugPrint('Erro ao registrar histórico persistente: $e');
-    }
+  Widget _buildBuscaGravacoes() {
+    return AppSearchField(
+      controller: _buscaController,
+      hintText: 'Buscar por nome ou formato',
+      onChanged: _onBuscaAlterada,
+      onClear: _limparBusca,
+      enabled: !_recordingsState.loading,
+    );
   }
 
   @override
@@ -680,19 +542,23 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         onRefresh: _carregarGravacoes,
         child: Builder(
           builder: (context) {
-            if (_carregando) {
+            final recordingsState = _recordingsState;
+            final gravacoes = recordingsState.recordings;
+            final gravacaoPendenteExclusao = recordingsState.pendingDeletion;
+
+            if (recordingsState.loading) {
               return const AppLoadingView(
                 message: 'Carregando suas gravações...',
               );
             }
 
-            if (_erro != null) {
+            if (recordingsState.error != null) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
                   Text(
-                    _erro!,
+                    recordingsState.error!,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
@@ -705,20 +571,22 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
               );
             }
 
-            if (_gravacoes.isEmpty) {
+            if (gravacoes.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
-                  if (_gravacaoPendenteExclusao != null) ...[
+                  _buildBuscaGravacoes(),
+                  const SizedBox(height: AppSpacing.xl),
+                  if (gravacaoPendenteExclusao != null) ...[
                     _ConfirmacaoExclusaoCard(
-                      gravacao: _gravacaoPendenteExclusao!,
+                      gravacao: gravacaoPendenteExclusao,
                       onConfirmar: () {
                         unawaited(_handleConfirmarExclusaoPendente());
                       },
                       onCancelar: () {
+                        _recordingsController.cancelPendingDeletion();
                         voiceSetState(() {
-                          _gravacaoPendenteExclusao = null;
                           voiceStatusMessage = 'Exclusao cancelada.';
                         });
                       },
@@ -739,31 +607,37 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.lg),
               itemCount:
-                  _gravacoes.length +
-                  (_gravacaoPendenteExclusao != null ? 1 : 0),
+                  gravacoes.length +
+                  (gravacaoPendenteExclusao != null ? 1 : 0) +
+                  1,
               separatorBuilder: (context, index) =>
                   const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
-                if (_gravacaoPendenteExclusao != null && index == 0) {
+                if (index == 0) {
+                  return _buildBuscaGravacoes();
+                }
+
+                if (gravacaoPendenteExclusao != null && index == 1) {
                   return _ConfirmacaoExclusaoCard(
-                    gravacao: _gravacaoPendenteExclusao!,
+                    gravacao: gravacaoPendenteExclusao,
                     onConfirmar: () {
                       unawaited(_handleConfirmarExclusaoPendente());
                     },
                     onCancelar: () {
+                      _recordingsController.cancelPendingDeletion();
                       voiceSetState(() {
-                        _gravacaoPendenteExclusao = null;
                         voiceStatusMessage = 'Exclusao cancelada.';
                       });
                     },
                   );
                 }
 
-                final gravacaoIndex = _gravacaoPendenteExclusao != null
-                    ? index - 1
-                    : index;
-                final gravacao = _gravacoes[gravacaoIndex];
-                final reproduzindo = _gravacaoReproduzindoId == gravacao.id;
+                final gravacaoIndex = gravacaoPendenteExclusao != null
+                    ? index - 2
+                    : index - 1;
+                final gravacao = gravacoes[gravacaoIndex];
+                final reproduzindo =
+                    recordingsState.playingRecordingId == gravacao.id;
 
                 return Card(
                   shape: RoundedRectangleBorder(
@@ -796,6 +670,11 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                           const SizedBox(height: 4),
                           Text(
                             'Duração: ${_formatarDuracao(gravacao.duracaoSegundos)}',
+                          ),
+                          const SizedBox(height: 8),
+                          RecordingStatusChip(
+                            status: gravacao.status,
+                            compact: true,
                           ),
                         ],
                       ),

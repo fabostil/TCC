@@ -10,7 +10,6 @@ import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/historico_acao.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/gravacao_repository.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../editor/services/audio_player_service.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
@@ -18,6 +17,7 @@ import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
 import '../services/recording_management_service.dart';
+import '../widgets/recording_status_chip.dart';
 
 class DetalhesGravacaoPage extends StatefulWidget {
   const DetalhesGravacaoPage({
@@ -144,17 +144,24 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   ) async {
     final projetoId = gravacao.projetoId;
     if (projetoId != null) {
-      return GravacaoRepository.instance.listarGravacoesPorProjeto(projetoId);
+      return _recordingService.listByProjectWithFileState(projetoId);
     }
 
-    return GravacaoRepository.instance.listarGravacoesPorUsuario(
-      gravacao.usuarioId,
-    );
+    return _recordingService.listByUserWithFileState(gravacao.usuarioId);
   }
 
   Future<void> _alternarReproducao() async {
     final gravacao = _details?.gravacao;
     if (gravacao == null) {
+      return;
+    }
+
+    if (gravacao.status == GravacaoStatus.arquivoAusente ||
+        gravacao.tamanhoBytes <= 0) {
+      AppFeedback.showMessage(
+        context,
+        'Arquivo de audio indisponivel para reproducao.',
+      );
       return;
     }
 
@@ -363,6 +370,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       case VoiceCommandType.retomarGravacao:
       case VoiceCommandType.encerrarGravacao:
       case VoiceCommandType.listarGravacoes:
+      case VoiceCommandType.buscarGravacoes:
       case VoiceCommandType.criarMarcador:
       case VoiceCommandType.limparTexto:
       case VoiceCommandType.definirNomeProjeto:
@@ -370,7 +378,10 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       case VoiceCommandType.substituirNomeProjeto:
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.buscarProjetos:
+      case VoiceCommandType.limparBusca:
       case VoiceCommandType.renomearProjeto:
+      case VoiceCommandType.excluirProjeto:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
       case VoiceCommandType.cancelarProjeto:
@@ -468,6 +479,21 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     return '${(kb / 1024).toStringAsFixed(1)} MB';
   }
 
+  String _formatarStatus(String status) {
+    switch (status) {
+      case GravacaoStatus.concluida:
+        return 'Concluida';
+      case GravacaoStatus.interrompida:
+        return 'Interrompida';
+      case GravacaoStatus.arquivoAusente:
+        return 'Arquivo ausente';
+      case GravacaoStatus.excluida:
+        return 'Excluida';
+      default:
+        return 'Indefinida';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final details = _details;
@@ -543,6 +569,8 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
                           details.gravacao.nome,
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
+                        const SizedBox(height: AppSpacing.sm),
+                        RecordingStatusChip(status: details.gravacao.status),
                         const SizedBox(height: AppSpacing.md),
                         Wrap(
                           spacing: AppSpacing.sm,
@@ -578,14 +606,22 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
                   title: 'Arquivo',
                   children: [
                     _InfoRow(
-                      label: 'Status',
+                      label: 'Arquivo',
                       value: details.fileInfo.exists
                           ? 'Arquivo encontrado'
                           : 'Arquivo ausente',
                     ),
                     _InfoRow(
+                      label: 'Status',
+                      value: _formatarStatus(details.gravacao.status),
+                    ),
+                    _InfoRow(
                       label: 'Tamanho',
-                      value: _formatarTamanho(details.fileInfo.sizeBytes),
+                      value: _formatarTamanho(details.gravacao.tamanhoBytes),
+                    ),
+                    _InfoRow(
+                      label: 'Formato',
+                      value: details.gravacao.formatoAudio.toUpperCase(),
                     ),
                     _InfoRow(label: 'Caminho', value: details.fileInfo.path),
                   ],

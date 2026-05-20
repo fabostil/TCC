@@ -1,5 +1,4 @@
-import 'dart:async';
-import 'dart:io';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -11,11 +10,10 @@ import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/projeto.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/gravacao_repository.dart';
-import '../../../repositories/historico_repository.dart';
 import '../../editor/pages/editor_page.dart';
-import '../../editor/services/audio_player_service.dart';
 import '../../recordings/pages/detalhes_gravacao_page.dart';
+import '../../recordings/controllers/recordings_list_controller.dart';
+import '../../recordings/widgets/recording_status_chip.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_page_owners.dart';
@@ -37,14 +35,12 @@ class ProjetoDetalhesPage extends StatefulWidget {
 
 class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
     with ContextualVoiceListeningMixin<ProjetoDetalhesPage> {
-  final CommandService _commandService = const CommandService();
-  final List<Gravacao> _gravacoes = [];
-  final AudioPlayerService _playerService = AudioPlayerService();
+  final RecordingsListController _recordingsController =
+      RecordingsListController();
 
-  bool _carregando = true;
-  String? _erro;
-  int? _gravacaoReproduzindoId;
   StreamSubscription? _playerStateSubscription;
+
+  RecordingsListState get _recordingsState => _recordingsController.state;
 
   @override
   String get voiceOwnerId => VoicePageOwners.projetoDetalhes;
@@ -64,61 +60,30 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
     voiceCommandDispatcher = VoiceCommandDispatcher(
       onFallback: _dispatchContextualVoice,
     );
-    _playerStateSubscription = _playerService.playerStateStream.listen((state) {
+    _recordingsController.addListener(_onRecordingsStateChanged);
+    _playerStateSubscription = _recordingsController.playerStateStream.listen((
+      state,
+    ) {
       if (!mounted) {
         return;
       }
 
       if (!state.playing) {
-        setState(() {
-          _gravacaoReproduzindoId = null;
-        });
+        _recordingsController.markPlaybackStopped();
       }
     });
     _carregarGravacoes();
     scheduleVoiceListeningOnFirstFrame();
   }
 
-  Future<void> _carregarGravacoes() async {
-    final projetoId = widget.projeto.id;
-
-    if (projetoId == null) {
-      setState(() {
-        _carregando = false;
-        _erro = 'Projeto sem identificação para buscar gravações.';
-      });
-      return;
+  void _onRecordingsStateChanged() {
+    if (mounted) {
+      setState(() {});
     }
+  }
 
-    setState(() {
-      _carregando = true;
-      _erro = null;
-    });
-
-    try {
-      final gravacoes = await GravacaoRepository.instance
-          .listarGravacoesPorProjeto(projetoId);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _gravacoes
-          ..clear()
-          ..addAll(gravacoes);
-        _carregando = false;
-      });
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _carregando = false;
-        _erro = 'Erro ao carregar gravações do projeto: $e';
-      });
-    }
+  Future<void> _carregarGravacoes() {
+    return _recordingsController.loadByProject(projetoId: widget.projeto.id);
   }
 
   String _formatarData(String dataIso) {
@@ -152,42 +117,25 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
         '${segundosRestantes.toString().padLeft(2, '0')}';
   }
 
-  int get _duracaoTotalSegundos =>
-      _gravacoes.fold(0, (total, item) => total + item.duracaoSegundos);
+  int get _duracaoTotalSegundos => _recordingsState.recordings.fold(
+    0,
+    (total, item) => total + item.duracaoSegundos,
+  );
 
   Future<void> _alternarReproducao(Gravacao gravacao) async {
+    if (gravacao.status == GravacaoStatus.arquivoAusente ||
+        gravacao.tamanhoBytes <= 0) {
+      AppFeedback.showMessage(
+        context,
+        'Arquivo de audio indisponivel para reproducao.',
+      );
+      return;
+    }
+
     try {
-      if (_gravacaoReproduzindoId == gravacao.id && _playerService.isPlaying) {
-        await _playerService.stop();
-
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-          _gravacaoReproduzindoId = null;
-        });
-        return;
-      }
-
-      await _playerService.play(gravacao.caminhoArquivo);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _gravacaoReproduzindoId = gravacao.id;
-      });
-
-      unawaited(
-        _registrarHistorico(
-          tipo: 'gravacao_reproduzida',
-          descricao:
-              'Reproduziu a gravação "${gravacao.nome}" no projeto "${widget.projeto.nome}"',
-          gravacaoId: gravacao.id,
-          projetoId: gravacao.projetoId,
-        ),
+      await _recordingsController.togglePlayback(
+        gravacao,
+        usuarioId: widget.usuario.id,
       );
     } catch (e) {
       if (!mounted) {
@@ -210,39 +158,11 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       return;
     }
 
-    final nomeFinal = _gerarNomeGravacaoUnico(novoNome, ignorarId: gravacao.id);
-    final gravacaoAtualizada = Gravacao(
-      id: gravacao.id,
-      usuarioId: gravacao.usuarioId,
-      projetoId: gravacao.projetoId,
-      nome: nomeFinal,
-      caminhoArquivo: gravacao.caminhoArquivo,
-      dataCriacao: gravacao.dataCriacao,
-      duracaoSegundos: gravacao.duracaoSegundos,
-    );
-
     try {
-      await GravacaoRepository.instance.atualizarGravacao(gravacaoAtualizada);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        final index = _gravacoes.indexWhere((item) => item.id == gravacao.id);
-        if (index != -1) {
-          _gravacoes[index] = gravacaoAtualizada;
-        }
-      });
-
-      unawaited(
-        _registrarHistorico(
-          tipo: 'gravacao_renomeada',
-          descricao:
-              'Renomeou "${gravacao.nome}" para "$nomeFinal" no projeto "${widget.projeto.nome}"',
-          gravacaoId: gravacao.id,
-          projetoId: gravacao.projetoId,
-        ),
+      await _recordingsController.renameRecording(
+        gravacao: gravacao,
+        newName: novoNome,
+        usuarioId: widget.usuario.id,
       );
     } catch (e) {
       if (!mounted) {
@@ -270,40 +190,18 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
     }
 
     try {
-      if (_gravacaoReproduzindoId == gravacao.id) {
-        await _playerService.stop();
-      }
-
-      await GravacaoRepository.instance.removerGravacao(gravacao.id!);
-
-      final arquivo = File(gravacao.caminhoArquivo);
-      if (await arquivo.exists()) {
-        await arquivo.delete();
-      }
+      await _recordingsController.deleteRecording(
+        gravacao: gravacao,
+        usuarioId: widget.usuario.id,
+      );
 
       if (!mounted) {
         return;
       }
 
-      setState(() {
-        _gravacoes.removeWhere((item) => item.id == gravacao.id);
-        if (_gravacaoReproduzindoId == gravacao.id) {
-          _gravacaoReproduzindoId = null;
-        }
-      });
-
       AppFeedback.showMessage(
         context,
         'Gravação removida deste projeto com sucesso.',
-      );
-
-      unawaited(
-        _registrarHistorico(
-          tipo: 'gravacao_excluida',
-          descricao:
-              'Excluiu a gravação "${gravacao.nome}" do projeto "${widget.projeto.nome}"',
-          projetoId: gravacao.projetoId ?? widget.projeto.id,
-        ),
       );
     } catch (e) {
       if (!mounted) {
@@ -370,7 +268,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
   void dispose() {
     disposeContextualVoiceListening();
     _playerStateSubscription?.cancel();
-    _playerService.dispose();
+    _recordingsController.removeListener(_onRecordingsStateChanged);
+    _recordingsController.dispose();
     super.dispose();
   }
 
@@ -386,12 +285,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       case VoiceCommandType.reproduzirGravacao:
         return _handleReproduzirPorNome(resultado.parametro);
       case VoiceCommandType.pararReproducao:
-        await _playerService.stop();
-        if (mounted) {
-          setState(() {
-            _gravacaoReproduzindoId = null;
-          });
-        }
+        await _recordingsController.stopPlayback();
         return VoiceCommandPageResult.handled(message: 'Reproducao parada.');
       case VoiceCommandType.renomearGravacao:
         return _handleRenomearPorVoz(
@@ -411,6 +305,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       case VoiceCommandType.retomarGravacao:
       case VoiceCommandType.encerrarGravacao:
       case VoiceCommandType.listarGravacoes:
+      case VoiceCommandType.buscarGravacoes:
       case VoiceCommandType.criarMarcador:
       case VoiceCommandType.limparTexto:
       case VoiceCommandType.definirNomeProjeto:
@@ -418,7 +313,10 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       case VoiceCommandType.substituirNomeProjeto:
       case VoiceCommandType.substituirDescricaoProjeto:
       case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.buscarProjetos:
+      case VoiceCommandType.limparBusca:
       case VoiceCommandType.renomearProjeto:
+      case VoiceCommandType.excluirProjeto:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
       case VoiceCommandType.cancelarProjeto:
@@ -452,7 +350,9 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
   Future<VoiceCommandPageResult> _handleReproduzirPorNome(String? nome) async {
     final gravacao =
         _buscarGravacaoPorNome(nome) ??
-        (_gravacoes.isNotEmpty ? _gravacoes.first : null);
+        (_recordingsState.recordings.isNotEmpty
+            ? _recordingsState.recordings.first
+            : null);
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
@@ -464,10 +364,14 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
     return VoiceCommandPageResult.handled();
   }
 
-  Future<VoiceCommandPageResult> _handleAbrirDetalhesPorVoz(String? nome) async {
+  Future<VoiceCommandPageResult> _handleAbrirDetalhesPorVoz(
+    String? nome,
+  ) async {
     final gravacao =
         _buscarGravacaoPorNome(nome) ??
-        (_gravacoes.isNotEmpty ? _gravacoes.first : null);
+        (_recordingsState.recordings.isNotEmpty
+            ? _recordingsState.recordings.first
+            : null);
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
@@ -509,18 +413,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
   }
 
   Gravacao? _buscarGravacaoPorNome(String? nome) {
-    final nomeNormalizado = _commandService.normalize(nome ?? '');
-    if (nomeNormalizado.isEmpty) {
-      return null;
-    }
-
-    for (final gravacao in _gravacoes) {
-      if (_commandService.normalize(gravacao.nome).contains(nomeNormalizado)) {
-        return gravacao;
-      }
-    }
-
-    return null;
+    return _recordingsController.findByName(nome);
   }
 
   Future<void> _salvarNovoNomeGravacao(
@@ -531,88 +424,21 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       return;
     }
 
-    final nomeFinal = _gerarNomeGravacaoUnico(novoNome, ignorarId: gravacao.id);
-    final gravacaoAtualizada = Gravacao(
-      id: gravacao.id,
-      usuarioId: gravacao.usuarioId,
-      projetoId: gravacao.projetoId,
-      nome: nomeFinal,
-      caminhoArquivo: gravacao.caminhoArquivo,
-      dataCriacao: gravacao.dataCriacao,
-      duracaoSegundos: gravacao.duracaoSegundos,
+    final gravacaoAtualizada = await _recordingsController.renameRecording(
+      gravacao: gravacao,
+      newName: novoNome,
+      usuarioId: widget.usuario.id,
+      byVoice: true,
     );
-
-    await GravacaoRepository.instance.atualizarGravacao(gravacaoAtualizada);
 
     if (!mounted) {
       return;
     }
 
-    setState(() {
-      final index = _gravacoes.indexWhere((item) => item.id == gravacao.id);
-      if (index != -1) {
-        _gravacoes[index] = gravacaoAtualizada;
-      }
-    });
     voiceSetState(() {
-      voiceStatusMessage = 'Gravacao renomeada para $nomeFinal.';
+      voiceStatusMessage =
+          'Gravacao renomeada para ${gravacaoAtualizada.nome}.';
     });
-
-    unawaited(
-      _registrarHistorico(
-        tipo: 'gravacao_renomeada',
-        descricao:
-            'Renomeou "${gravacao.nome}" para "$nomeFinal" no projeto "${widget.projeto.nome}" por voz',
-        gravacaoId: gravacao.id,
-        projetoId: gravacao.projetoId,
-      ),
-    );
-  }
-
-  String _gerarNomeGravacaoUnico(String nomeBase, {int? ignorarId}) {
-    final base = nomeBase.trim();
-    if (base.isEmpty) {
-      return base;
-    }
-
-    final nomesExistentes = _gravacoes
-        .where((gravacao) => gravacao.id != ignorarId)
-        .map((gravacao) => _commandService.normalize(gravacao.nome))
-        .toSet();
-
-    var candidato = base;
-    var contador = 1;
-    while (nomesExistentes.contains(_commandService.normalize(candidato))) {
-      candidato = '$base$contador';
-      contador++;
-    }
-
-    return candidato;
-  }
-
-  Future<void> _registrarHistorico({
-    required String tipo,
-    required String descricao,
-    int? gravacaoId,
-    int? projetoId,
-  }) async {
-    final usuarioId = widget.usuario.id;
-
-    if (usuarioId == null) {
-      return;
-    }
-
-    try {
-      await HistoricoRepository.instance.registrar(
-        usuarioId: usuarioId,
-        tipo: tipo,
-        descricao: descricao,
-        gravacaoId: gravacaoId,
-        projetoId: projetoId,
-      );
-    } catch (e) {
-      debugPrint('Erro ao registrar histórico persistente: $e');
-    }
   }
 
   @override
@@ -638,19 +464,22 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
         onRefresh: _carregarGravacoes,
         child: Builder(
           builder: (context) {
-            if (_carregando) {
+            final recordingsState = _recordingsState;
+            final gravacoes = recordingsState.recordings;
+
+            if (recordingsState.loading) {
               return const AppLoadingView(
                 message: 'Carregando detalhes do projeto...',
               );
             }
 
-            if (_erro != null) {
+            if (recordingsState.error != null) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
                   Text(
-                    _erro!,
+                    recordingsState.error!,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
@@ -695,7 +524,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
                             Expanded(
                               child: _ResumoCard(
                                 titulo: 'Gravações',
-                                valor: _gravacoes.length.toString(),
+                                valor: gravacoes.length.toString(),
                               ),
                             ),
                             const SizedBox(width: AppSpacing.sm),
@@ -717,7 +546,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                if (_gravacoes.isEmpty)
+                if (gravacoes.isEmpty)
                   const Card(
                     child: Padding(
                       padding: EdgeInsets.all(AppSpacing.xl),
@@ -729,9 +558,10 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
                       ),
                     ),
                   ),
-                if (_gravacoes.isNotEmpty)
-                  ..._gravacoes.map((gravacao) {
-                    final reproduzindo = _gravacaoReproduzindoId == gravacao.id;
+                if (gravacoes.isNotEmpty)
+                  ...gravacoes.map((gravacao) {
+                    final reproduzindo =
+                        recordingsState.playingRecordingId == gravacao.id;
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -770,6 +600,11 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
                                 const SizedBox(height: 4),
                                 Text(
                                   'Duração: ${_formatarDuracao(gravacao.duracaoSegundos)}',
+                                ),
+                                const SizedBox(height: 8),
+                                RecordingStatusChip(
+                                  status: gravacao.status,
+                                  compact: true,
                                 ),
                               ],
                             ),

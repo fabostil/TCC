@@ -14,6 +14,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._internal();
 
   Database? _database;
+  String _databaseName = 'assistente_musical.db';
 
   Future<Database> get database async {
     if (_database != null) {
@@ -26,11 +27,11 @@ class AppDatabase {
 
   Future<Database> _initDatabase() async {
     final databasePath = await getDatabasesPath();
-    final path = join(databasePath, 'assistente_musical.db');
+    final path = join(databasePath, _databaseName);
 
     return openDatabase(
       path,
-      version: 6,
+      version: 8,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -45,7 +46,11 @@ class AppDatabase {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
-        senha_hash TEXT NOT NULL
+        senha_hash TEXT NOT NULL,
+        auth_provider TEXT NOT NULL DEFAULT 'local',
+        google_id TEXT UNIQUE,
+        foto_url TEXT,
+        data_cadastro TEXT
       )
     ''');
 
@@ -76,6 +81,11 @@ class AppDatabase {
     for (final index in HistoricoAcaoTable.indexes) {
       await db.execute(index);
     }
+
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_google_id '
+      'ON usuario(google_id) WHERE google_id IS NOT NULL',
+    );
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -150,6 +160,65 @@ class AppDatabase {
       await db.execute(ComandoPersonalizadoTable.createTable);
 
       for (final index in ComandoPersonalizadoTable.indexes) {
+        await db.execute(index);
+      }
+    }
+
+    if (oldVersion < 7) {
+      await _addColumnIfMissing(
+        db,
+        tableName: 'usuario',
+        columnName: 'auth_provider',
+        definition: "TEXT NOT NULL DEFAULT 'local'",
+      );
+      await _addColumnIfMissing(
+        db,
+        tableName: 'usuario',
+        columnName: 'google_id',
+        definition: 'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        tableName: 'usuario',
+        columnName: 'foto_url',
+        definition: 'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        tableName: 'usuario',
+        columnName: 'data_cadastro',
+        definition: 'TEXT',
+      );
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_google_id '
+        'ON usuario(google_id) WHERE google_id IS NOT NULL',
+      );
+    }
+
+    if (oldVersion < 8) {
+      await _addColumnIfMissing(
+        db,
+        tableName: GravacaoTable.tableName,
+        columnName: 'status',
+        definition:
+            "TEXT NOT NULL DEFAULT 'concluida' "
+            "CHECK (status IN ('concluida', 'interrompida', "
+            "'arquivo_ausente', 'excluida'))",
+      );
+      await _addColumnIfMissing(
+        db,
+        tableName: GravacaoTable.tableName,
+        columnName: 'tamanho_bytes',
+        definition: 'INTEGER NOT NULL DEFAULT 0 CHECK (tamanho_bytes >= 0)',
+      );
+      await _addColumnIfMissing(
+        db,
+        tableName: GravacaoTable.tableName,
+        columnName: 'formato_audio',
+        definition: "TEXT NOT NULL DEFAULT 'm4a'",
+      );
+
+      for (final index in GravacaoTable.indexes) {
         await db.execute(index);
       }
     }
@@ -228,5 +297,10 @@ class AppDatabase {
       await db.close();
       _database = null;
     }
+  }
+
+  Future<void> setDatabaseNameForTesting(String databaseName) async {
+    await close();
+    _databaseName = databaseName;
   }
 }
