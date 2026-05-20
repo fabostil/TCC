@@ -64,12 +64,15 @@ flutter run --dart-define=GEMINI_API_KEY=SUA_CHAVE --dart-define=GEMINI_MODEL=ge
 ```powershell
 flutter analyze
 flutter test
+flutter build apk --debug
 ```
 
 Estado atual verificado:
 
 - `flutter analyze`: sem issues.
-- `flutter test`: 17 testes passando.
+- `flutter test`: 34 testes passando.
+- `flutter build apk --debug`: gera APK com sucesso.
+- Checklist manual Android: `docs/ANDROID_MANUAL_TEST_CHECKLIST.md`.
 
 ## Comandos Exemplos
 
@@ -165,6 +168,7 @@ Tabelas:
 ## Pendencias Principais
 
 - Teste manual completo em Android real (gravacao + escuta continua + navegacao).
+- Executar e registrar o checklist manual Android.
 - Centralizar escuta de voz (evitar multiplas instancias `SpeechService`) — ver `docs/VOICE_ARCHITECTURE.md`.
 - Melhorar fluxo de permissao negada.
 - Feedback sonoro/TTS opcional (hoje: click/haptic).
