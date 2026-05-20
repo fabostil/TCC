@@ -6,6 +6,9 @@ enum VoiceCommandType {
   pararReproducao,
   reproduzirGravacao,
   listarGravacoes,
+  buscarGravacoes,
+  buscarProjetos,
+  limparBusca,
   criarMarcador,
   limparTexto,
   definirNomeProjeto,
@@ -13,6 +16,7 @@ enum VoiceCommandType {
   substituirNomeProjeto,
   substituirDescricaoProjeto,
   renomearProjeto,
+  excluirProjeto,
   abrirProjetoPorNome,
   abrirNovoProjeto,
   criarProjeto,
@@ -179,6 +183,48 @@ class CommandService {
       );
     }
 
+    final buscaGravacoes = _extractAfterAny(normalizedText, const [
+      'buscar gravacoes por',
+      'buscar gravacao por',
+      'buscar gravacoes',
+      'buscar gravacao',
+      'procurar gravacoes por',
+      'procurar gravacao por',
+      'procurar gravacoes',
+      'procurar gravacao',
+      'filtrar gravacoes por',
+      'filtrar gravacao por',
+      'filtrar gravacoes',
+      'filtrar gravacao',
+    ]);
+    if (buscaGravacoes != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.buscarGravacoes,
+        tipoComando: 'buscar_gravacoes',
+        acaoExecutada: 'Buscar gravacoes',
+        parametro: _cleanShortName(buscaGravacoes),
+      );
+    }
+
+    if (_containsAny(normalizedText, const [
+      'limpar busca',
+      'limpar filtro',
+      'remover busca',
+      'remover filtro',
+      'mostrar tudo',
+      'mostrar todos',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.limparBusca,
+        tipoComando: 'limpar_busca',
+        acaoExecutada: 'Limpar busca',
+      );
+    }
+
     if (_containsAny(normalizedText, const ['criar marcador']) ||
         _containsWord(normalizedText, 'marcar')) {
       return _recognized(
@@ -303,6 +349,23 @@ class CommandService {
       );
     }
 
+    final projetoParaExcluir = _extractAfterAny(normalizedText, const [
+      'excluir projeto',
+      'apagar projeto',
+      'remover projeto',
+      'deletar projeto',
+    ]);
+    if (projetoParaExcluir != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.excluirProjeto,
+        tipoComando: 'excluir_projeto',
+        acaoExecutada: 'Excluir projeto',
+        parametro: _cleanShortName(projetoParaExcluir),
+      );
+    }
+
     final projetoParaAbrir = _extractAfterAny(normalizedText, const [
       'abrir projeto',
       'entrar no projeto',
@@ -320,6 +383,31 @@ class CommandService {
         tipoComando: 'abrir_projeto_por_nome',
         acaoExecutada: 'Abrir projeto por nome',
         parametro: projetoParaAbrir,
+      );
+    }
+
+    final buscaProjetos = _extractAfterAny(normalizedText, const [
+      'buscar projetos por',
+      'buscar projeto por',
+      'buscar projetos',
+      'buscar projeto',
+      'procurar projetos por',
+      'procurar projeto por',
+      'procurar projetos',
+      'procurar projeto',
+      'filtrar projetos por',
+      'filtrar projeto por',
+      'filtrar projetos',
+      'filtrar projeto',
+    ]);
+    if (buscaProjetos != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.buscarProjetos,
+        tipoComando: 'buscar_projetos',
+        acaoExecutada: 'Buscar projetos',
+        parametro: _cleanShortName(buscaProjetos),
       );
     }
 

@@ -9,7 +9,7 @@ class SpeechService {
 
   static final SpeechService instance = SpeechService._();
 
-  /// Mantém compatibilidade com código que ainda chama `SpeechService()`.
+  /// Mantem compatibilidade com codigo que ainda chama `SpeechService()`.
   factory SpeechService() => instance;
 
   final stt.SpeechToText _speech = stt.SpeechToText();
@@ -20,6 +20,8 @@ class SpeechService {
   String? _pendingText;
   String? _lastDeliveredText;
   DateTime? _lastDeliveredAt;
+  Function(String status)? _currentOnStatus;
+  Function(String error)? _currentOnError;
 
   bool get isListening => _speech.isListening;
 
@@ -27,10 +29,16 @@ class SpeechService {
     Function(String status)? onStatus,
     Function(String error)? onError,
   }) async {
-    final microphoneStatus = await Permission.microphone.request();
+    _currentOnStatus = onStatus;
+    _currentOnError = onError;
+
+    var microphoneStatus = await Permission.microphone.status;
+    if (!microphoneStatus.isGranted) {
+      microphoneStatus = await Permission.microphone.request();
+    }
 
     if (!microphoneStatus.isGranted) {
-      onError?.call('Permissão de microfone negada.');
+      _currentOnError?.call('Permissao de microfone negada.');
       return false;
     }
 
@@ -41,16 +49,18 @@ class SpeechService {
     _initialized = await _speech.initialize(
       onStatus: (status) {
         debugPrint('Status reconhecimento de voz: $status');
-        onStatus?.call(status);
+        _currentOnStatus?.call(status);
       },
       onError: (error) {
         debugPrint('Erro reconhecimento de voz: ${error.errorMsg}');
-        onError?.call(error.errorMsg);
+        _currentOnError?.call(error.errorMsg);
       },
     );
 
     if (!_initialized) {
-      onError?.call('Reconhecimento de voz indisponível neste dispositivo.');
+      _currentOnError?.call(
+        'Reconhecimento de voz indisponivel neste dispositivo.',
+      );
       return false;
     }
 
@@ -72,7 +82,7 @@ class SpeechService {
     return true;
   }
 
-  Future<void> startListening({
+  Future<bool> startListening({
     required Function(String text) onResult,
     Function(String status)? onStatus,
     Function(String error)? onError,
@@ -80,7 +90,7 @@ class SpeechService {
     final available = await initialize(onStatus: onStatus, onError: onError);
 
     if (!available) {
-      return;
+      return false;
     }
 
     if (_speech.isListening) {
@@ -90,27 +100,34 @@ class SpeechService {
 
     _resetResultState();
 
-    await _speech.listen(
-      localeId: _localeId,
-      listenFor: const Duration(minutes: 2),
-      pauseFor: const Duration(seconds: 10),
-      listenOptions: stt.SpeechListenOptions(
-        listenMode: stt.ListenMode.dictation,
-        partialResults: true,
-        cancelOnError: false,
-      ),
-      onResult: (result) {
-        final text = result.recognizedWords.trim();
+    try {
+      await _speech.listen(
+        localeId: _localeId,
+        listenFor: const Duration(minutes: 2),
+        pauseFor: const Duration(seconds: 10),
+        listenOptions: stt.SpeechListenOptions(
+          listenMode: stt.ListenMode.dictation,
+          partialResults: true,
+          cancelOnError: false,
+        ),
+        onResult: (result) {
+          final text = result.recognizedWords.trim();
 
-        if (text.isNotEmpty) {
-          _handleResultText(
-            text,
-            finalResult: result.finalResult,
-            onResult: onResult,
-          );
-        }
-      },
-    );
+          if (text.isNotEmpty) {
+            _handleResultText(
+              text,
+              finalResult: result.finalResult,
+              onResult: onResult,
+            );
+          }
+        },
+      );
+    } catch (e) {
+      onError?.call('Nao foi possivel iniciar a escuta de voz: $e');
+      return false;
+    }
+
+    return true;
   }
 
   Future<void> stopListening() async {

@@ -13,6 +13,7 @@ import '../services/speech_service.dart';
 import '../services/voice_global_command_service.dart';
 import 'voice_command_dispatcher.dart';
 import 'voice_listening_coordinator.dart';
+import 'voice_session_state.dart';
 
 /// Escuta contínua + interpretação compartilhada para telas contextuais (Fase 2).
 mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
@@ -29,7 +30,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
   bool voiceParadaManual = false;
   bool voiceExecutandoComando = false;
   bool voiceIaPensando = false;
+  bool _voiceLifecycleObserverRegistered = false;
+  AppLifecycleListener? _voiceLifecycleListener;
   String? voiceStatusMessage;
+  VoiceSessionState voiceSessionState = const VoiceSessionState.idle();
 
   String get voiceOwnerId;
 
@@ -54,7 +58,27 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
     }
   }
 
+  void setVoiceSession(
+    VoiceSessionPhase phase, {
+    String? message,
+    bool? listening,
+    bool? thinking,
+    bool? processing,
+  }) {
+    voiceSessionState = voiceSessionState.transitionTo(
+      phase,
+      message: message ?? voiceStatusMessage,
+    );
+    voiceOuvindo = listening ?? voiceSessionState.isListening;
+    voiceIaPensando = thinking ?? voiceSessionState.isThinking;
+    if (processing != null) {
+      voiceExecutandoComando = processing;
+    }
+    voiceStatusMessage = voiceSessionState.message;
+  }
+
   void scheduleVoiceListeningOnFirstFrame() {
+    _ensureVoiceLifecycleObserver();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         unawaited(startContinuousVoiceListeningIfActive());
@@ -63,7 +87,29 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
   }
 
   void disposeContextualVoiceListening() {
+    if (_voiceLifecycleObserverRegistered) {
+      _voiceLifecycleListener?.dispose();
+      _voiceLifecycleListener = null;
+      _voiceLifecycleObserverRegistered = false;
+    }
     unawaited(voiceCoordinator.releaseAndStop(voiceOwnerId));
+  }
+
+  void _ensureVoiceLifecycleObserver() {
+    if (_voiceLifecycleObserverRegistered) {
+      return;
+    }
+
+    _voiceLifecycleListener = AppLifecycleListener(
+      onResume: () {
+        if (!mounted) {
+          return;
+        }
+
+        unawaited(startContinuousVoiceListeningIfActive());
+      },
+    );
+    _voiceLifecycleObserverRegistered = true;
   }
 
   Future<void> toggleContextualVoiceListening() async {
@@ -74,8 +120,12 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
         return;
       }
       voiceSetState(() {
-        voiceOuvindo = false;
-        voiceStatusMessage = 'Escuta encerrada.';
+        setVoiceSession(
+          VoiceSessionPhase.manualPaused,
+          message: 'Escuta encerrada.',
+          listening: false,
+          thinking: false,
+        );
       });
       return;
     }
@@ -85,6 +135,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
   }
 
   Future<void> startContinuousVoiceListeningIfActive() async {
+    _ensureVoiceLifecycleObserver();
     final configuracao = await ConfiguracaoAppRepository.instance
         .buscarConfiguracao();
 
@@ -105,6 +156,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
   }
 
   Future<void> startContextualVoiceListening() async {
+    _ensureVoiceLifecycleObserver();
     final configuracao = await ConfiguracaoAppRepository.instance
         .buscarConfiguracao();
 
@@ -116,7 +168,12 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
 
     if (!configuracao.comandosVozAtivos) {
       voiceSetState(() {
-        voiceStatusMessage = 'Comandos de voz desativados.';
+        setVoiceSession(
+          VoiceSessionPhase.manualPaused,
+          message: 'Comandos de voz desativados.',
+          listening: false,
+          thinking: false,
+        );
       });
       return;
     }
@@ -126,11 +183,15 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
     }
 
     voiceSetState(() {
-      voiceOuvindo = true;
-      voiceStatusMessage = voiceListeningPrompt;
+      setVoiceSession(
+        VoiceSessionPhase.listening,
+        message: voiceListeningPrompt,
+        listening: true,
+        thinking: false,
+      );
     });
 
-    await speechService.startListening(
+    final started = await speechService.startListening(
       onResult: (texto) {
         unawaited(processContextualVoiceInput(texto));
       },
@@ -141,7 +202,12 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
 
         if (status == 'done' || status == 'notListening') {
           voiceSetState(() {
-            voiceOuvindo = false;
+            setVoiceSession(
+              VoiceSessionPhase.idle,
+              message: voiceStatusMessage,
+              listening: false,
+              thinking: false,
+            );
           });
           scheduleVoiceContinuousRestart();
         }
@@ -152,12 +218,33 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
         }
 
         voiceSetState(() {
-          voiceOuvindo = false;
-          voiceStatusMessage = voiceErrorPrompt;
+          setVoiceSession(
+            VoiceSessionPhase.error,
+            message: voiceErrorPrompt,
+            listening: false,
+            thinking: false,
+          );
         });
         scheduleVoiceContinuousRestart(reason: VoiceRestartReason.afterError);
       },
     );
+
+    if (!started) {
+      voiceCoordinator.releaseOwner(voiceOwnerId);
+      if (!mounted) {
+        return;
+      }
+
+      voiceSetState(() {
+        setVoiceSession(
+          VoiceSessionPhase.error,
+          message: voiceErrorPrompt,
+          listening: false,
+          thinking: false,
+        );
+      });
+      scheduleVoiceContinuousRestart(reason: VoiceRestartReason.afterError);
+    }
   }
 
   Future<void> processContextualVoiceInput(String texto) async {
@@ -166,14 +253,23 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
     }
 
     voiceExecutandoComando = true;
+    voiceSessionState = voiceSessionState.transitionTo(
+      VoiceSessionPhase.processingCommand,
+      message: voiceStatusMessage,
+    );
 
     final resultadoController = await voiceCommandController.interpret(
       texto,
       usuarioId: voiceUsuarioId,
       onAiStarted: () {
         voiceSetState(() {
-          voiceIaPensando = true;
-          voiceStatusMessage = 'IA pensando...';
+          setVoiceSession(
+            VoiceSessionPhase.aiThinking,
+            message: 'IA pensando...',
+            listening: false,
+            thinking: true,
+            processing: true,
+          );
         });
       },
     );
@@ -186,11 +282,21 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
     if (!mounted || resultado.normalizedText.isEmpty) {
       voiceExecutandoComando = false;
       voiceIaPensando = false;
+      voiceSessionState = voiceSessionState.transitionTo(
+        VoiceSessionPhase.idle,
+        message: voiceStatusMessage,
+      );
       return;
     }
 
     voiceSetState(() {
-      voiceIaPensando = false;
+      setVoiceSession(
+        VoiceSessionPhase.processingCommand,
+        message: voiceStatusMessage,
+        listening: false,
+        thinking: false,
+        processing: true,
+      );
     });
 
     if (voiceHandlesGlobalCommands) {
@@ -213,6 +319,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
         }
 
         voiceExecutandoComando = false;
+        voiceSessionState = voiceSessionState.transitionTo(
+          VoiceSessionPhase.idle,
+          message: voiceStatusMessage,
+        );
         if (!globalResult.shouldStopListening) {
           scheduleVoiceContinuousRestart();
         }
@@ -233,6 +343,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
     }
 
     voiceExecutandoComando = false;
+    voiceSessionState = voiceSessionState.transitionTo(
+      VoiceSessionPhase.idle,
+      message: voiceStatusMessage,
+    );
 
     if (pageResult.restartListening) {
       scheduleVoiceContinuousRestart();
@@ -267,7 +381,14 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
     voiceCoordinator.releaseOwner(voiceOwnerId);
 
     voiceSetState(() {
-      voiceOuvindo = false;
+      setVoiceSession(
+        keepManualPause
+            ? VoiceSessionPhase.manualPaused
+            : VoiceSessionPhase.idle,
+        message: voiceStatusMessage,
+        listening: false,
+        thinking: false,
+      );
     });
   }
 

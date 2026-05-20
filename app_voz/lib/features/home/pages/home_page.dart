@@ -17,6 +17,7 @@ import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/pages/login_page.dart';
 import '../../voices/services/command_service.dart';
+import '../../voices/services/google_auth_service.dart';
 import '../../voices/services/voice_permission_service.dart';
 
 class HomePage extends StatefulWidget {
@@ -82,6 +83,10 @@ class _HomePageState extends State<HomePage>
     setState(() {
       _configuracao = configuracao;
     });
+
+    if (configuracao.comandosVozAtivos && configuracao.escutaContinua) {
+      _agendarEscutaInicial();
+    }
   }
 
   Future<void> _carregarConfiguracaoInicial() async {
@@ -137,10 +142,45 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
-    final mensagem = permissao == VoicePermissionResult.permanentlyDenied
-        ? 'Microfone bloqueado nas configuracoes do Android.'
-        : 'Permissao de microfone negada. O app continuara em modo manual.';
+    await _orientarPermissaoNegada(permissao);
+  }
+
+  Future<void> _orientarPermissaoNegada(VoicePermissionResult permissao) async {
+    final mensagem = _voicePermissionService.guidanceMessage(permissao);
     AppFeedback.showMessage(context, mensagem);
+
+    final abrirConfiguracoesSistema = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Microfone indisponivel'),
+        content: Text(mensagem),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Continuar manual'),
+          ),
+          if (_voicePermissionService.shouldOpenSystemSettings(permissao))
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.settings_applications_outlined),
+              label: const Text('Abrir permissoes'),
+            )
+          else
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context, false);
+                _abrirConfiguracoes();
+              },
+              icon: const Icon(Icons.settings_outlined),
+              label: const Text('Ver configuracoes'),
+            ),
+        ],
+      ),
+    );
+
+    if (abrirConfiguracoesSistema == true) {
+      await _voicePermissionService.openSystemSettings();
+    }
   }
 
   void _agendarEscutaInicial() {
@@ -150,6 +190,7 @@ class _HomePageState extends State<HomePage>
 
     _escutaInicialSolicitada = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _escutaInicialSolicitada = false;
       if (mounted) {
         unawaited(startContinuousVoiceListeningIfActive());
       }
@@ -180,6 +221,21 @@ class _HomePageState extends State<HomePage>
     );
 
     if (confirmar != true || !context.mounted) {
+      return;
+    }
+
+    try {
+      await GoogleAuthService.instance.sair();
+    } catch (_) {
+      if (context.mounted) {
+        AppFeedback.showMessage(
+          context,
+          'Sessao local encerrada. Nao foi possivel sair do Google.',
+        );
+      }
+    }
+
+    if (!context.mounted) {
       return;
     }
 

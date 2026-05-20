@@ -131,6 +131,10 @@ void main() {
       expect(renomearProjeto.parametro, 'tomate');
       expect(renomearProjeto.parametroSecundario, 'alface');
 
+      final excluirProjeto = service.interpret('excluir projeto demo acustica');
+      expect(excluirProjeto.type, VoiceCommandType.excluirProjeto);
+      expect(excluirProjeto.parametro, 'demo acustica');
+
       final reproduzir = service.interpret('reproduzir gravacao ideia um');
       expect(reproduzir.type, VoiceCommandType.reproduzirGravacao);
       expect(reproduzir.parametro, 'ideia um');
@@ -149,6 +153,19 @@ void main() {
       final tempo = service.interpret('tempo de silencio 9 segundos');
       expect(tempo.type, VoiceCommandType.definirTempoSilencio);
       expect(tempo.parametro, '9');
+
+      final buscarProjeto = service.interpret('buscar projeto demo');
+      expect(buscarProjeto.type, VoiceCommandType.buscarProjetos);
+      expect(buscarProjeto.parametro, 'demo');
+
+      final buscarGravacao = service.interpret('filtrar gravacoes refrao');
+      expect(buscarGravacao.type, VoiceCommandType.buscarGravacoes);
+      expect(buscarGravacao.parametro, 'refrao');
+
+      expect(
+        service.interpret('limpar busca').type,
+        VoiceCommandType.limparBusca,
+      );
     });
 
     test('reconhece frases naturais frequentes sem acionar IA', () {

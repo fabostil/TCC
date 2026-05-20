@@ -318,6 +318,15 @@ class AiCommandService {
           acaoExecutada: 'Abrir projeto por nome',
           parametro: parsed?.parametro,
         );
+      case 'project_search':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.buscarProjetos,
+          tipoComando: 'buscar_projetos',
+          acaoExecutada: 'Buscar projetos',
+          parametro: parsed?.parametro,
+        );
       case 'project_rename_named':
         return _recognized(
           originalText,
@@ -327,6 +336,15 @@ class AiCommandService {
           acaoExecutada: 'Renomear projeto',
           parametro: parsed?.parametro,
           parametroSecundario: parsed?.parametroSecundario,
+        );
+      case 'project_delete_named':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.excluirProjeto,
+          tipoComando: 'excluir_projeto',
+          acaoExecutada: 'Excluir projeto',
+          parametro: parsed?.parametro,
         );
       case 'recording_delete_named':
         return _recognized(
@@ -355,6 +373,23 @@ class AiCommandService {
           tipoComando: 'abrir_detalhes_gravacao',
           acaoExecutada: 'Abrir detalhes da gravacao',
           parametro: parsed?.parametro,
+        );
+      case 'recording_search':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.buscarGravacoes,
+          tipoComando: 'buscar_gravacoes',
+          acaoExecutada: 'Buscar gravacoes',
+          parametro: parsed?.parametro,
+        );
+      case 'search_clear':
+        return _recognized(
+          originalText,
+          normalizedText,
+          VoiceCommandType.limparBusca,
+          tipoComando: 'limpar_busca',
+          acaoExecutada: 'Limpar busca',
         );
       case 'settings_voice_on':
         return _recognized(
@@ -646,10 +681,14 @@ Intents permitidas:
 - project_create: salvar ou criar o projeto atual.
 - project_cancel: cancelar a criacao do projeto atual.
 - project_open_named: abrir um projeto pelo nome.
+- project_search: buscar ou filtrar projetos por termo.
 - project_rename_named: renomear projeto; parametro e nome atual, parametro_secundario e novo nome.
+- project_delete_named: excluir, remover ou apagar projeto pelo nome.
 - recording_delete_named: excluir/remover/apagar gravacao pelo nome.
 - recording_rename_named: renomear gravacao pelo nome.
 - recording_details_named: abrir detalhes, informacoes ou metadados de gravacao pelo nome.
+- recording_search: buscar ou filtrar gravacoes por termo.
+- search_clear: limpar busca ou filtro atual.
 - settings_voice_on: ativar comandos ou controle por voz.
 - settings_voice_off: desativar comandos ou controle por voz.
 - settings_continuous_on: ativar escuta continua.
