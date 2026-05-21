@@ -8,6 +8,20 @@ enum VoiceSessionPhase {
   error,
 }
 
+extension VoiceSessionPhaseLabel on VoiceSessionPhase {
+  String get diagnosticName {
+    return switch (this) {
+      VoiceSessionPhase.idle => 'idle',
+      VoiceSessionPhase.listening => 'listening',
+      VoiceSessionPhase.processingCommand => 'processing',
+      VoiceSessionPhase.aiThinking => 'processing',
+      VoiceSessionPhase.manualPaused => 'paused',
+      VoiceSessionPhase.recordingLocked => 'recording',
+      VoiceSessionPhase.error => 'error',
+    };
+  }
+}
+
 class VoiceSessionState {
   const VoiceSessionState({required this.phase, this.message, this.updatedAt});
 

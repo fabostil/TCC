@@ -1,111 +1,78 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
-import '../services/speech_service.dart';
+import 'voice_session_manager.dart';
 
 enum VoiceRestartReason { normal, afterError }
 
-/// Coordena propriedade do microfone/STT entre telas (Fase 1).
+/// Fachada de compatibilidade para o codigo existente.
+///
+/// A decisao central de ownership, conflito de microfone, recovery e logging
+/// agora vive em [VoiceSessionManager]. Esta classe permanece para manter as
+/// paginas atuais funcionando enquanto a refatoracao de voz avanca por etapas.
 class VoiceListeningCoordinator {
   VoiceListeningCoordinator._();
 
   static final VoiceListeningCoordinator instance =
       VoiceListeningCoordinator._();
 
-  static const Duration restartDelayDefault = Duration(milliseconds: 700);
-  static const Duration restartDelayAfterError = Duration(seconds: 2);
+  static const Duration restartDelayDefault =
+      VoiceSessionManager.restartDelayDefault;
+  static const Duration restartDelayAfterError =
+      VoiceSessionManager.restartDelayAfterError;
 
-  final SpeechService speech = SpeechService.instance;
+  final VoiceSessionManager sessionManager = VoiceSessionManager.instance;
 
-  String? _activeOwnerId;
-  bool _recordingModeActive = false;
-  int _restartGeneration = 0;
+  String? get activeOwnerId => sessionManager.activeOwnerId;
 
-  String? get activeOwnerId => _activeOwnerId;
-
-  bool get recordingModeActive => _recordingModeActive;
+  bool get recordingModeActive => sessionManager.recordingActive;
 
   @visibleForTesting
   void resetForTesting() {
-    _activeOwnerId = null;
-    _recordingModeActive = false;
-    _restartGeneration++;
+    sessionManager.resetForTesting();
   }
 
   Duration restartDelayFor(VoiceRestartReason reason) {
-    return reason == VoiceRestartReason.afterError
-        ? restartDelayAfterError
-        : restartDelayDefault;
+    return sessionManager.restartDelayFor(reason._toRecoveryReason());
   }
 
   bool canStartListening(String ownerId) {
-    if (_recordingModeActive) {
-      return false;
-    }
-    if (_activeOwnerId != null && _activeOwnerId != ownerId) {
-      return false;
-    }
-    return true;
+    return sessionManager.canClaimListening(ownerId);
   }
 
-  /// Reserva a escuta para [ownerId]. Retorna false se outra tela já possui.
   bool claimListening(String ownerId) {
-    if (_recordingModeActive) {
-      return false;
-    }
-    if (_activeOwnerId != null && _activeOwnerId != ownerId) {
-      return false;
-    }
-    _activeOwnerId = ownerId;
-    return true;
+    return sessionManager.claimListening(ownerId);
   }
 
   void releaseOwner(String ownerId) {
-    if (_activeOwnerId == ownerId) {
-      _activeOwnerId = null;
-    }
+    sessionManager.releaseOwner(ownerId);
   }
 
-  Future<void> releaseAndStop(String ownerId) async {
-    releaseOwner(ownerId);
-    if (speech.isListening) {
-      await speech.stopListening();
-    }
+  Future<void> releaseAndStop(String ownerId) {
+    return sessionManager.stopListening(ownerId);
   }
 
-  Future<void> cancelActiveListening() async {
-    _restartGeneration++;
-    await speech.cancelListening();
-    _activeOwnerId = null;
+  Future<void> cancelActiveListening() {
+    return sessionManager.cancelListening();
   }
 
-  /// Antes de navegar por voz: libera microfone para a próxima rota.
-  Future<void> prepareForNavigation() async {
-    await cancelActiveListening();
+  Future<void> prepareForNavigation() {
+    return sessionManager.prepareForNavigation();
   }
 
-  /// Chamado pelo [VoiceRouteObserver] ao empilhar rota.
   void onRouteDidPush() {
-    _restartGeneration++;
-    unawaited(speech.cancelListening());
-    _activeOwnerId = null;
+    sessionManager.onRouteDidPush();
   }
 
-  /// Chamado pelo [VoiceRouteObserver] ao desempilhar rota.
   void onRouteDidPop() {
-    _restartGeneration++;
+    sessionManager.onRouteDidPop();
   }
 
   void enterRecordingMode() {
-    _recordingModeActive = true;
-    _restartGeneration++;
-    unawaited(speech.cancelListening());
-    _activeOwnerId = null;
+    sessionManager.enterRecordingMode();
   }
 
   void exitRecordingMode() {
-    _recordingModeActive = false;
+    sessionManager.exitRecordingMode();
   }
 
   void scheduleContinuousRestart({
@@ -114,20 +81,20 @@ class VoiceListeningCoordinator {
     required Future<void> Function() onRestart,
     VoiceRestartReason reason = VoiceRestartReason.normal,
   }) {
-    final generation = _restartGeneration;
-    final delay = restartDelayFor(reason);
+    sessionManager.scheduleRecovery(
+      ownerId: ownerId,
+      reason: reason._toRecoveryReason(),
+      shouldRecover: shouldRestart,
+      onRecover: onRestart,
+    );
+  }
+}
 
-    Future.delayed(delay, () async {
-      if (generation != _restartGeneration) {
-        return;
-      }
-      if (!shouldRestart()) {
-        return;
-      }
-      if (!canStartListening(ownerId)) {
-        return;
-      }
-      await onRestart();
-    });
+extension on VoiceRestartReason {
+  VoiceRecoveryReason _toRecoveryReason() {
+    return switch (this) {
+      VoiceRestartReason.normal => VoiceRecoveryReason.normal,
+      VoiceRestartReason.afterError => VoiceRecoveryReason.afterError,
+    };
   }
 }

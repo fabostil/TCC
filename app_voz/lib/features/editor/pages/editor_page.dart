@@ -11,14 +11,13 @@ import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../recordings/services/recording_management_service.dart';
 import '../../voices/controllers/voice_command_controller.dart';
-import '../../voices/coordination/voice_listening_coordinator.dart';
 import '../../voices/coordination/voice_page_owners.dart';
+import '../../voices/coordination/voice_session_manager.dart';
 import '../../voices/coordination/voice_session_state.dart';
+import '../../voices/coordination/voice_state_machine.dart';
 import '../../voices/services/command_service.dart';
-import '../../voices/services/speech_service.dart';
 import '../../voices/services/voice_global_command_service.dart';
-import '../services/audio_player_service.dart';
-import '../services/audio_recording_service.dart';
+import '../controllers/recording_realtime_coordinator.dart';
 
 enum EditorInteractionMode { normal, recording }
 
@@ -33,34 +32,20 @@ class EditorPage extends StatefulWidget {
 }
 
 class _EditorPageState extends State<EditorPage> {
-  final SpeechService speech = SpeechService.instance;
-  final VoiceListeningCoordinator _voiceCoordinator =
-      VoiceListeningCoordinator.instance;
+  final VoiceSessionManager _voiceSessionManager = VoiceSessionManager.instance;
   static const String _voiceOwnerId = VoicePageOwners.editor;
   final CommandService commandService = const CommandService();
   final VoiceCommandController commandController = VoiceCommandController();
   final VoiceGlobalCommandService _globalCommandService =
       VoiceGlobalCommandService();
-  final AudioRecordingService audioService = AudioRecordingService();
-  final AudioPlayerService playerService = AudioPlayerService();
+  final RecordingRealtimeCoordinator _recordingCoordinator =
+      RecordingRealtimeCoordinator(ownerId: _voiceOwnerId);
   final RecordingManagementService _recordingService =
       const RecordingManagementService();
-  StreamSubscription? playerStateSubscription;
 
   bool ouvindo = false;
-  bool gravando = false;
-  bool pausado = false;
-  bool reproduzindo = false;
-  bool carregandoAudio = false;
-
-  Timer? monitorSilencioTimer;
-
-  double nivelAudioAtual = -160.0;
-  int tempoSilencioMs = 0;
 
   int limiteSilencioMs = 6000;
-  final int intervaloMonitoramentoMs = 500;
-  final double limiteSilencioDb = -36.0;
 
   bool paradaAutomaticaPorSilencio = true;
   bool escutaContinuaAtiva = false;
@@ -74,25 +59,38 @@ class _EditorPageState extends State<EditorPage> {
   String textoReconhecido = 'Pressione o microfone e fale um comando.';
   String statusProjeto = 'Projeto pronto para gravar.';
   String nomeProjeto = 'Projeto sem nome';
-  String? caminhoGravacaoAtual;
-  DateTime? inicioGravacaoEm;
 
   final List<Gravacao> faixas = [];
   final List<String> historicoComandos = [];
 
+  RecordingRealtimeState get recordingState => _recordingCoordinator.state;
+
+  bool get gravando => recordingState.recording;
+
+  bool get pausado => recordingState.paused;
+
+  bool get reproduzindo => recordingState.playing;
+
+  bool get carregandoAudio => recordingState.processing;
+
+  double get nivelAudioAtual => recordingState.currentAmplitude;
+
+  int get tempoSilencioMs => recordingState.silenceMs;
+
+  String? get caminhoGravacaoAtual => recordingState.currentPath;
+
   bool get _podeIniciarGravacao =>
-      !gravando && !carregandoAudio && !reproduzindo;
+      recordingState.canStartRecording;
 
-  bool get _podePausarGravacao => gravando && !pausado && !carregandoAudio;
+  bool get _podePausarGravacao => recordingState.canPauseRecording;
 
-  bool get _podeRetomarGravacao => gravando && pausado && !carregandoAudio;
+  bool get _podeRetomarGravacao => recordingState.canResumeRecording;
 
-  bool get _podeEncerrarGravacao => gravando && !carregandoAudio;
+  bool get _podeEncerrarGravacao => recordingState.canStopRecording;
 
-  bool get _podeReproduzirAudio =>
-      !gravando && !carregandoAudio && !reproduzindo && faixas.isNotEmpty;
+  bool get _podeReproduzirAudio => recordingState.canPlay && faixas.isNotEmpty;
 
-  bool get _podePararAudio => reproduzindo && !carregandoAudio;
+  bool get _podePararAudio => recordingState.canStopPlayback;
 
   bool get _escutaBloqueadaPorGravacao =>
       _voiceSessionState.phase == VoiceSessionPhase.recordingLocked ||
@@ -108,28 +106,32 @@ class _EditorPageState extends State<EditorPage> {
       message: message,
     );
     ouvindo = listening ?? _voiceSessionState.isListening;
+    _voiceSessionManager.stateMachine.transitionTo(
+      phase._toVoiceState(),
+      ownerId: _voiceOwnerId,
+      message: message,
+      reason: 'editor_${phase.diagnosticName}',
+      force: true,
+    );
   }
 
   @override
   void initState() {
     super.initState();
     nomeProjeto = widget.projeto?.nome ?? nomeProjeto;
-    playerStateSubscription = playerService.playerStateStream.listen((state) {
-      if (!mounted) {
-        return;
-      }
-
-      if (!state.playing && reproduzindo) {
-        setState(() {
-          reproduzindo = false;
-          if (!carregandoAudio) {
-            statusProjeto = 'Reprodução finalizada.';
-          }
-        });
-      }
-    });
+    _recordingCoordinator.addListener(_onRecordingStateChanged);
     _carregarConfiguracoes();
     _carregarGravacoes();
+  }
+
+  void _onRecordingStateChanged() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      statusProjeto = recordingState.statusMessage;
+    });
   }
 
   Future<void> _carregarConfiguracoes() async {
@@ -154,6 +156,11 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   void _aplicarConfiguracao(ConfiguracaoApp configuracao) {
+    _recordingCoordinator.applySettings(
+      automaticSilenceStop: configuracao.paradaSilencio,
+      silenceLimitMs: configuracao.tempoSilencioSegundos * 1000,
+    );
+
     setState(() {
       paradaAutomaticaPorSilencio = configuracao.paradaSilencio;
       limiteSilencioMs = configuracao.tempoSilencioSegundos * 1000;
@@ -217,7 +224,7 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    if (gravando || _voiceCoordinator.recordingModeActive) {
+    if (gravando || _voiceSessionManager.recordingActive) {
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.recordingLocked,
@@ -236,10 +243,6 @@ class _EditorPageState extends State<EditorPage> {
       _aplicarConfiguracao(configuracao);
       _paradaManualEscuta = false;
 
-      if (!_voiceCoordinator.claimListening(_voiceOwnerId)) {
-        return;
-      }
-
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.listening,
@@ -249,7 +252,8 @@ class _EditorPageState extends State<EditorPage> {
         statusProjeto = 'Aguardando comando de voz...';
       });
 
-      final started = await speech.startListening(
+      final started = await _voiceSessionManager.startListening(
+        ownerId: _voiceOwnerId,
         onResult: (resultado) {
           setState(() {
             _setVoiceSession(
@@ -305,7 +309,7 @@ class _EditorPageState extends State<EditorPage> {
               statusProjeto = 'Tempo de escuta encerrado sem comando.';
             });
             _reiniciarEscutaContinuaSeNecessario(
-              reason: VoiceRestartReason.afterError,
+              reason: VoiceRecoveryReason.afterError,
             );
             return;
           }
@@ -322,7 +326,6 @@ class _EditorPageState extends State<EditorPage> {
       );
 
       if (!started) {
-        _voiceCoordinator.releaseOwner(_voiceOwnerId);
         if (!mounted) {
           return;
         }
@@ -336,12 +339,12 @@ class _EditorPageState extends State<EditorPage> {
           statusProjeto = 'Verifique a permissao de microfone do app.';
         });
         _reiniciarEscutaContinuaSeNecessario(
-          reason: VoiceRestartReason.afterError,
+          reason: VoiceRecoveryReason.afterError,
         );
       }
     } else {
       _paradaManualEscuta = true;
-      await speech.stopListening();
+      await _voiceSessionManager.stopListening(_voiceOwnerId, manual: true);
 
       setState(() {
         _setVoiceSession(
@@ -355,29 +358,35 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   void _reiniciarEscutaContinuaSeNecessario({
-    VoiceRestartReason reason = VoiceRestartReason.normal,
+    VoiceRecoveryReason reason = VoiceRecoveryReason.normal,
   }) {
-    _voiceCoordinator.scheduleContinuousRestart(
+    _voiceSessionManager.scheduleRecovery(
       ownerId: _voiceOwnerId,
       reason: reason,
-      shouldRestart: () =>
+      shouldRecover: () =>
           mounted &&
           escutaContinuaAtiva &&
           !_paradaManualEscuta &&
           !gravando &&
           !carregandoAudio &&
           !ouvindo &&
-          !_voiceCoordinator.recordingModeActive,
-      onRestart: alternarMicrofone,
+          !_voiceSessionManager.recordingActive,
+      onRecover: alternarMicrofone,
     );
   }
 
   Future<void> _pausarEscutaParaModoGravacao() async {
     _paradaManualEscuta = false;
-    _voiceCoordinator.enterRecordingMode();
+    _voiceSessionManager.enterRecordingMode(
+      ownerId: _voiceOwnerId,
+      reason: 'editor_prepare_recording',
+    );
 
-    if (ouvindo || speech.isListening) {
-      await speech.cancelListening();
+    if (ouvindo || _voiceSessionManager.isSpeechListening) {
+      await _voiceSessionManager.cancelListening(
+        ownerId: _voiceOwnerId,
+        reason: 'recording_mode',
+      );
       await Future.delayed(const Duration(milliseconds: 500));
     }
 
@@ -397,7 +406,10 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   Future<void> _retomarEscutaContinuaAposModoGravacao() async {
-    _voiceCoordinator.exitRecordingMode();
+    _voiceSessionManager.exitRecordingMode(
+      ownerId: _voiceOwnerId,
+      reason: 'editor_recording_finished',
+    );
 
     if (!mounted || _paradaManualEscuta || gravando || carregandoAudio) {
       return;
@@ -422,7 +434,7 @@ class _EditorPageState extends State<EditorPage> {
     if (configuracao.comandosVozAtivos &&
         configuracao.escutaContinua &&
         !ouvindo &&
-        !speech.isListening) {
+        !_voiceSessionManager.isSpeechListening) {
       Future.delayed(const Duration(milliseconds: 900), () {
         if (!mounted || gravando || carregandoAudio || ouvindo) {
           return;
@@ -518,8 +530,12 @@ class _EditorPageState extends State<EditorPage> {
         _aplicarConfiguracao(updatedConfig);
       }
 
-      if (globalResult.shouldStopListening && (ouvindo || speech.isListening)) {
-        await speech.cancelListening();
+      if (globalResult.shouldStopListening &&
+          (ouvindo || _voiceSessionManager.isSpeechListening)) {
+        await _voiceSessionManager.cancelListening(
+          ownerId: _voiceOwnerId,
+          reason: 'global_command_stop',
+        );
       }
 
       if (!mounted) {
@@ -640,75 +656,68 @@ class _EditorPageState extends State<EditorPage> {
     });
   }
 
-  Future<void> iniciarGravacao(String comando) async {
-    if (gravando) {
-      setState(() {
-        statusProjeto = 'Já existe uma gravação em andamento.';
-      });
-      return;
+  Future<Gravacao> _finalizarGravacao({
+    required String path,
+    required DateTime startedAt,
+    required bool automatic,
+  }) async {
+    final usuarioId = widget.usuario.id;
+
+    if (usuarioId == null) {
+      throw StateError('Usuario sem identificacao para salvar gravacao.');
     }
 
-    if (carregandoAudio) {
+    final numeroFaixa = faixas.length + 1;
+    final nomeFaixa = _gerarNomeGravacaoUnico('Gravacao $numeroFaixa');
+    final agora = DateTime.now();
+    final gravacaoSalva = await _recordingService.createCompletedRecording(
+      usuarioId: usuarioId,
+      projetoId: widget.projeto?.id,
+      nome: nomeFaixa,
+      caminhoArquivo: path,
+      dataCriacao: agora,
+      duracaoSegundos: agora.difference(startedAt).inSeconds,
+    );
+
+    if (mounted) {
       setState(() {
-        statusProjeto = 'Aguarde o processamento atual terminar.';
+        faixas.insert(0, gravacaoSalva);
       });
-      return;
     }
 
-    if (reproduzindo) {
-      await pararReproducao('parar audio antes de gravar');
+    return gravacaoSalva;
+  }
+
+  RecordingHistoryWriter _historicoDaGravacao(String comando) {
+    return (acao, tipo, {recordingId, projectId}) {
       if (!mounted) {
         return;
       }
-    }
 
+      adicionarHistorico(
+        comandoOriginal: comando,
+        acao: acao,
+        tipo: tipo,
+        gravacaoId: recordingId,
+        projetoId: projectId,
+      );
+    };
+  }
+
+  Future<void> iniciarGravacao(String comando) async {
     _executandoComandoVoz = true;
 
-    await _pausarEscutaParaModoGravacao();
-
-    if (!mounted) {
-      _executandoComandoVoz = false;
-      return;
-    }
-
-    if (ouvindo || speech.isListening) {
-      _paradaManualEscuta = false;
-      await speech.cancelListening();
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      if (!mounted) {
-        _executandoComandoVoz = false;
-        return;
-      }
-
-      setState(() {
-        _setVoiceSession(
-          VoiceSessionPhase.recordingLocked,
-          message: 'Escuta pausada para gravacao.',
-        );
-      });
-    }
-
-    if (reproduzindo) {
-      await playerService.stop();
-
-      if (!mounted) {
-        _executandoComandoVoz = false;
-        return;
-      }
-
-      setState(() {
-        reproduzindo = false;
-      });
-    }
-
-    setState(() {
-      carregandoAudio = true;
-      statusProjeto = 'Preparando gravação...';
-    });
-
     try {
-      final path = await audioService.startRecording();
+      await _pausarEscutaParaModoGravacao();
+      if (!mounted) {
+        return;
+      }
+
+      await _recordingCoordinator.startRecording(
+        finalizeRecording: _finalizarGravacao,
+        onHistory: _historicoDaGravacao(comando),
+        onAutomaticStop: _retomarEscutaContinuaAposModoGravacao,
+      );
 
       if (!mounted) {
         return;
@@ -719,447 +728,184 @@ class _EditorPageState extends State<EditorPage> {
           VoiceSessionPhase.recordingLocked,
           message: 'Microfone reservado para gravacao.',
         );
-        caminhoGravacaoAtual = path;
-        inicioGravacaoEm = DateTime.now();
-        gravando = true;
         _interactionMode = EditorInteractionMode.recording;
-        pausado = false;
-        reproduzindo = false;
-        carregandoAudio = false;
-        tempoSilencioMs = 0;
-        nivelAudioAtual = -160.0;
-        statusProjeto = 'Gravação real iniciada.';
-        textoReconhecido = 'Gravação iniciada.';
+        textoReconhecido = 'Gravacao iniciada.';
       });
-
-      iniciarMonitoramentoSilencio();
-
-      adicionarHistorico(
-        comandoOriginal: comando,
-        acao: 'Iniciou gravação real',
-        tipo: 'gravacao_iniciada',
-      );
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _setVoiceSession(
-            VoiceSessionPhase.error,
-            message: 'Erro ao iniciar gravacao.',
-          );
-          carregandoAudio = false;
-          _interactionMode = EditorInteractionMode.normal;
-          statusProjeto = 'Erro ao iniciar gravação: $e';
-        });
-        _retomarEscutaContinuaAposModoGravacao();
+      if (!mounted) {
+        return;
       }
+
+      setState(() {
+        _setVoiceSession(
+          VoiceSessionPhase.error,
+          message: 'Erro ao iniciar gravacao.',
+        );
+        _interactionMode = EditorInteractionMode.normal;
+        statusProjeto = 'Erro ao iniciar gravacao: $e';
+      });
+      unawaited(_retomarEscutaContinuaAposModoGravacao());
     } finally {
       _executandoComandoVoz = false;
     }
   }
 
   Future<void> pausarGravacao(String comando) async {
-    if (!gravando) {
-      setState(() {
-        statusProjeto = 'Não existe gravação em andamento para pausar.';
-      });
-      return;
-    }
-
-    if (pausado) {
-      setState(() {
-        statusProjeto = 'A gravação já está pausada.';
-      });
-      return;
-    }
-
-    setState(() {
-      carregandoAudio = true;
-      statusProjeto = 'Pausando gravação...';
-    });
-
     try {
-      await audioService.pauseRecording();
-      pararMonitoramentoSilencio();
+      await _recordingCoordinator.pauseRecording(
+        onHistory: (acao, tipo) {
+          if (!mounted) {
+            return;
+          }
+
+          adicionarHistorico(
+            comandoOriginal: comando,
+            acao: acao,
+            tipo: tipo,
+          );
+        },
+      );
+    } catch (e) {
       if (!mounted) {
         return;
       }
 
       setState(() {
-        pausado = true;
-        carregandoAudio = false;
-        tempoSilencioMs = 0;
-        statusProjeto = 'Gravação pausada.';
-      });
-
-      adicionarHistorico(
-        comandoOriginal: comando,
-        acao: 'Pausou gravação',
-        tipo: 'gravacao_pausada',
-      );
-    } catch (e) {
-      setState(() {
-        carregandoAudio = false;
-        statusProjeto = 'Erro ao pausar gravação: $e';
+        statusProjeto = 'Erro ao pausar gravacao: $e';
       });
     }
   }
 
   Future<void> retomarGravacao(String comando) async {
-    if (!gravando || !pausado) {
-      setState(() {
-        statusProjeto = 'Não existe gravação pausada para retomar.';
-      });
-      return;
-    }
-
-    setState(() {
-      carregandoAudio = true;
-      statusProjeto = 'Retomando gravação...';
-    });
-
     try {
-      await audioService.resumeRecording();
+      await _recordingCoordinator.resumeRecording(
+        finalizeRecording: _finalizarGravacao,
+        onHistory: _historicoDaGravacao(comando),
+        onAutomaticStop: _retomarEscutaContinuaAposModoGravacao,
+      );
+    } catch (e) {
       if (!mounted) {
         return;
       }
 
       setState(() {
-        pausado = false;
-        carregandoAudio = false;
-        tempoSilencioMs = 0;
-        statusProjeto = 'Gravação retomada.';
-      });
-
-      adicionarHistorico(
-        comandoOriginal: comando,
-        acao: 'Retomou gravação',
-        tipo: 'gravacao_retomada',
-      );
-      iniciarMonitoramentoSilencio();
-    } catch (e) {
-      setState(() {
-        carregandoAudio = false;
-        statusProjeto = 'Erro ao retomar gravação: $e';
+        statusProjeto = 'Erro ao retomar gravacao: $e';
       });
     }
   }
 
   Future<void> encerrarGravacao(String comando) async {
-    if (!gravando) {
-      setState(() {
-        statusProjeto = 'Não existe gravação em andamento para encerrar.';
-      });
-      return;
-    }
-
-    pararMonitoramentoSilencio();
-
-    setState(() {
-      carregandoAudio = true;
-      statusProjeto = 'Salvando gravação...';
-    });
+    final paradaAutomatica = comando == 'parada automatica por silencio' ||
+        comando == 'parada automática por silêncio';
 
     try {
-      final path = await audioService.stopRecording();
-
-      if (path == null || path.isEmpty) {
-        setState(() {
-          _setVoiceSession(
-            VoiceSessionPhase.error,
-            message: 'Falha ao salvar gravacao.',
-          );
-          gravando = false;
-          _interactionMode = EditorInteractionMode.normal;
-          pausado = false;
-          carregandoAudio = false;
-          inicioGravacaoEm = null;
-          statusProjeto = 'Não foi possível salvar a gravação.';
-        });
-        _retomarEscutaContinuaAposModoGravacao();
-        return;
-      }
-
-      final usuarioId = widget.usuario.id;
-
-      if (usuarioId == null) {
-        setState(() {
-          _setVoiceSession(
-            VoiceSessionPhase.error,
-            message: 'Usuario sem identificacao para salvar gravacao.',
-          );
-          gravando = false;
-          _interactionMode = EditorInteractionMode.normal;
-          pausado = false;
-          carregandoAudio = false;
-          caminhoGravacaoAtual = null;
-          inicioGravacaoEm = null;
-          tempoSilencioMs = 0;
-          nivelAudioAtual = -160.0;
-          statusProjeto = 'Usuário sem identificação para salvar a gravação.';
-        });
-        _retomarEscutaContinuaAposModoGravacao();
-        return;
-      }
-
-      final numeroFaixa = faixas.length + 1;
-      final nomeFaixa = _gerarNomeGravacaoUnico('Gravação $numeroFaixa');
-      final agora = DateTime.now();
-      final duracaoSegundos = inicioGravacaoEm == null
-          ? 0
-          : agora.difference(inicioGravacaoEm!).inSeconds;
-      final gravacaoSalva = await _recordingService.createCompletedRecording(
-        usuarioId: usuarioId,
-        projetoId: widget.projeto?.id,
-        nome: nomeFaixa,
-        caminhoArquivo: path,
-        dataCriacao: agora,
-        duracaoSegundos: duracaoSegundos,
+      await _recordingCoordinator.stopRecording(
+        finalizeRecording: _finalizarGravacao,
+        onHistory: _historicoDaGravacao(comando),
+        automatic: paradaAutomatica,
       );
 
-      final foiParadaAutomatica = comando == 'parada automática por silêncio';
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.idle,
           message: 'Gravacao finalizada.',
         );
-        gravando = false;
         _interactionMode = EditorInteractionMode.normal;
-        pausado = false;
-        carregandoAudio = false;
-        caminhoGravacaoAtual = null;
-        inicioGravacaoEm = null;
-        tempoSilencioMs = 0;
-        nivelAudioAtual = -160.0;
-        faixas.insert(0, gravacaoSalva);
-        statusProjeto = foiParadaAutomatica
-            ? '$nomeFaixa salva automaticamente após silêncio.'
-            : '$nomeFaixa salva no projeto.';
       });
-
-      adicionarHistorico(
-        comandoOriginal: comando,
-        acao: foiParadaAutomatica
-            ? 'Encerrou gravação por silêncio'
-            : 'Encerrou gravação real e criou $nomeFaixa',
-        tipo: foiParadaAutomatica
-            ? 'gravacao_finalizada_por_silencio'
-            : 'gravacao_finalizada',
-        gravacaoId: gravacaoSalva.id,
-        projetoId: gravacaoSalva.projetoId,
-      );
     } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.error,
           message: 'Erro ao encerrar gravacao.',
         );
-        gravando = false;
         _interactionMode = EditorInteractionMode.normal;
-        pausado = false;
-        carregandoAudio = false;
-        caminhoGravacaoAtual = null;
-        inicioGravacaoEm = null;
-        statusProjeto = 'Erro ao encerrar gravação: $e';
+        statusProjeto = 'Erro ao encerrar gravacao: $e';
       });
+    } finally {
+      await _retomarEscutaContinuaAposModoGravacao();
     }
-    _retomarEscutaContinuaAposModoGravacao();
-  }
-
-  void iniciarMonitoramentoSilencio() {
-    monitorSilencioTimer?.cancel();
-
-    tempoSilencioMs = 0;
-    nivelAudioAtual = -160.0;
-
-    monitorSilencioTimer = Timer.periodic(
-      Duration(milliseconds: intervaloMonitoramentoMs),
-      (timer) async {
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-
-        if (!gravando || pausado || carregandoAudio) {
-          return;
-        }
-
-        if (!paradaAutomaticaPorSilencio) {
-          return;
-        }
-
-        try {
-          final amplitude = await audioService.getAmplitude();
-          final nivelAtual = amplitude.current;
-          if (!mounted) {
-            timer.cancel();
-            return;
-          }
-
-          setState(() {
-            nivelAudioAtual = nivelAtual;
-          });
-
-          if (nivelAtual <= limiteSilencioDb) {
-            tempoSilencioMs += intervaloMonitoramentoMs;
-          } else {
-            tempoSilencioMs = 0;
-          }
-
-          if (tempoSilencioMs >= limiteSilencioMs) {
-            timer.cancel();
-
-            if (mounted && gravando) {
-              await encerrarGravacao('parada automática por silêncio');
-            }
-          }
-        } catch (e) {
-          debugPrint('Erro ao monitorar silêncio: $e');
-        }
-      },
-    );
-  }
-
-  void pararMonitoramentoSilencio() {
-    monitorSilencioTimer?.cancel();
-    monitorSilencioTimer = null;
-    tempoSilencioMs = 0;
   }
 
   Future<void> reproduzirProjeto(String comando) async {
     if (faixas.isEmpty) {
       setState(() {
-        statusProjeto = 'Ainda não há gravações para reproduzir.';
+        statusProjeto = 'Ainda nao ha gravacoes para reproduzir.';
       });
       return;
     }
 
     final ultimaFaixa = faixas.first;
-    final caminho = ultimaFaixa.caminhoArquivo;
-    final nome = ultimaFaixa.nome;
-
-    if (caminho.isEmpty) {
-      setState(() {
-        statusProjeto = 'Arquivo da gravação não encontrado.';
-      });
-      return;
-    }
-
-    if (gravando) {
-      setState(() {
-        statusProjeto = 'Pare a gravação antes de reproduzir áudio.';
-      });
-      return;
-    }
-
-    setState(() {
-      carregandoAudio = true;
-      statusProjeto = 'Preparando reprodução...';
-    });
-
-    try {
-      await playerService.play(caminho);
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        reproduzindo = true;
-        carregandoAudio = false;
-        statusProjeto = 'Reproduzindo $nome.';
-      });
-
-      adicionarHistorico(
-        comandoOriginal: comando,
-        acao: 'Reproduziu gravação real',
-        tipo: 'gravacao_reproduzida',
-        gravacaoId: ultimaFaixa.id,
-        projetoId: ultimaFaixa.projetoId,
-      );
-    } catch (e) {
-      setState(() {
-        reproduzindo = false;
-        carregandoAudio = false;
-        statusProjeto = 'Erro ao reproduzir áudio: $e';
-      });
-    }
+    await _reproduzirFaixa(
+      ultimaFaixa,
+      comandoOriginal: comando,
+      acaoHistorico: 'Reproduziu gravacao real',
+    );
   }
 
   Future<void> reproduzirFaixa(Gravacao faixa) async {
-    final caminho = faixa.caminhoArquivo;
-    final nome = faixa.nome;
+    await _reproduzirFaixa(
+      faixa,
+      comandoOriginal: 'botao play da faixa',
+      acaoHistorico: 'Reproduziu ${faixa.nome}',
+    );
+  }
 
-    if (caminho.isEmpty) {
-      setState(() {
-        statusProjeto = 'Arquivo da gravação não encontrado.';
-      });
-      return;
-    }
+  Future<void> _reproduzirFaixa(
+    Gravacao faixa, {
+    required String comandoOriginal,
+    required String acaoHistorico,
+  }) async {
+    await _recordingCoordinator.play(
+      path: faixa.caminhoArquivo,
+      name: faixa.nome,
+      emptyPathMessage: 'Arquivo da gravacao nao encontrado.',
+      recordingActiveMessage: 'Pare a gravacao antes de reproduzir audio.',
+      onHistory: () {
+        if (!mounted) {
+          return;
+        }
 
-    if (gravando) {
-      setState(() {
-        statusProjeto = 'Pare a gravação antes de reproduzir áudio.';
-      });
-      return;
-    }
-
-    setState(() {
-      carregandoAudio = true;
-      statusProjeto = 'Preparando reprodução...';
-    });
-
-    try {
-      await playerService.play(caminho);
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        reproduzindo = true;
-        carregandoAudio = false;
-        statusProjeto = 'Reproduzindo $nome.';
-      });
-
-      adicionarHistorico(
-        comandoOriginal: 'botão play da faixa',
-        acao: 'Reproduziu $nome',
-        tipo: 'gravacao_reproduzida',
-        gravacaoId: faixa.id,
-        projetoId: faixa.projetoId,
-      );
-    } catch (e) {
-      setState(() {
-        reproduzindo = false;
-        carregandoAudio = false;
-        statusProjeto = 'Erro ao reproduzir áudio: $e';
-      });
-    }
+        adicionarHistorico(
+          comandoOriginal: comandoOriginal,
+          acao: acaoHistorico,
+          tipo: 'gravacao_reproduzida',
+          gravacaoId: faixa.id,
+          projetoId: faixa.projetoId,
+        );
+      },
+    );
   }
 
   Future<void> pararReproducao(String comando) async {
     try {
-      await playerService.stop();
+      await _recordingCoordinator.stopPlayback();
+      if (!mounted) {
+        return;
+      }
+
+      adicionarHistorico(
+        comandoOriginal: comando,
+        acao: 'Parou reproducao',
+        tipo: 'reproducao_parada',
+      );
+    } catch (e) {
       if (!mounted) {
         return;
       }
 
       setState(() {
-        reproduzindo = false;
-        statusProjeto = 'Reprodução parada.';
-      });
-
-      adicionarHistorico(
-        comandoOriginal: comando,
-        acao: 'Parou reprodução',
-        tipo: 'reproducao_parada',
-      );
-    } catch (e) {
-      setState(() {
-        statusProjeto = 'Erro ao parar reprodução: $e';
+        statusProjeto = 'Erro ao parar reproducao: $e';
       });
     }
   }
-
   void criarMarcador(String comando) {
     adicionarHistorico(
       comandoOriginal: comando,
@@ -1327,12 +1073,13 @@ class _EditorPageState extends State<EditorPage> {
 
   @override
   void dispose() {
-    playerStateSubscription?.cancel();
-    pararMonitoramentoSilencio();
-    _voiceCoordinator.exitRecordingMode();
-    unawaited(_voiceCoordinator.releaseAndStop(_voiceOwnerId));
-    audioService.dispose();
-    playerService.dispose();
+    _recordingCoordinator.removeListener(_onRecordingStateChanged);
+    _voiceSessionManager.exitRecordingMode(
+      ownerId: _voiceOwnerId,
+      reason: 'editor_dispose',
+    );
+    unawaited(_voiceSessionManager.stopListening(_voiceOwnerId));
+    _recordingCoordinator.dispose();
     super.dispose();
   }
 
@@ -1530,8 +1277,11 @@ class _EditorPageState extends State<EditorPage> {
                   : (value) {
                       setState(() {
                         paradaAutomaticaPorSilencio = value;
-                        tempoSilencioMs = 0;
                       });
+                      _recordingCoordinator.applySettings(
+                        automaticSilenceStop: value,
+                        silenceLimitMs: limiteSilencioMs,
+                      );
                       unawaited(
                         ConfiguracaoAppRepository.instance
                             .atualizarParadaSilencio(value),
@@ -1806,5 +1556,19 @@ class _EditorPageState extends State<EditorPage> {
         ),
       ),
     );
+  }
+}
+
+extension on VoiceSessionPhase {
+  VoiceState _toVoiceState() {
+    return switch (this) {
+      VoiceSessionPhase.idle => VoiceState.idle,
+      VoiceSessionPhase.listening => VoiceState.listening,
+      VoiceSessionPhase.processingCommand => VoiceState.processing,
+      VoiceSessionPhase.aiThinking => VoiceState.processing,
+      VoiceSessionPhase.manualPaused => VoiceState.paused,
+      VoiceSessionPhase.recordingLocked => VoiceState.recording,
+      VoiceSessionPhase.error => VoiceState.error,
+    };
   }
 }
