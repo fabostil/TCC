@@ -79,8 +79,7 @@ class _EditorPageState extends State<EditorPage> {
 
   String? get caminhoGravacaoAtual => recordingState.currentPath;
 
-  bool get _podeIniciarGravacao =>
-      recordingState.canStartRecording;
+  bool get _podeIniciarGravacao => recordingState.canStartRecording;
 
   bool get _podePausarGravacao => recordingState.canPauseRecording;
 
@@ -758,11 +757,7 @@ class _EditorPageState extends State<EditorPage> {
             return;
           }
 
-          adicionarHistorico(
-            comandoOriginal: comando,
-            acao: acao,
-            tipo: tipo,
-          );
+          adicionarHistorico(comandoOriginal: comando, acao: acao, tipo: tipo);
         },
       );
     } catch (e) {
@@ -795,7 +790,8 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   Future<void> encerrarGravacao(String comando) async {
-    final paradaAutomatica = comando == 'parada automatica por silencio' ||
+    final paradaAutomatica =
+        comando == 'parada automatica por silencio' ||
         comando == 'parada automática por silêncio';
 
     try {
@@ -906,6 +902,7 @@ class _EditorPageState extends State<EditorPage> {
       });
     }
   }
+
   void criarMarcador(String comando) {
     adicionarHistorico(
       comandoOriginal: comando,

@@ -1,13 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../../voices/realtime/voice_realtime_events.dart';
 import '../../voices/coordination/voice_session_manager.dart';
 import '../../voices/coordination/voice_state_machine.dart';
+import 'audio_recording_capture.dart';
 
-class AudioRecordingService {
+class AudioRecordingService implements AudioRecordingCapture {
   AudioRecordingService({
     VoiceSessionManager? sessionManager,
     String ownerId = 'audio_recorder',
@@ -17,13 +20,21 @@ class AudioRecordingService {
   final AudioRecorder _recorder = AudioRecorder();
   final VoiceSessionManager _sessionManager;
   final String _ownerId;
+  final StreamController<Uint8List> _rawAudioChunkController =
+      StreamController<Uint8List>.broadcast(sync: true);
 
   String? _currentPath;
+  bool _disposed = false;
 
+  @override
+  Stream<Uint8List> get rawAudioChunks => _rawAudioChunkController.stream;
+
+  @override
   Future<bool> hasPermission() async {
     return _recorder.hasPermission();
   }
 
+  @override
   Future<String> startRecording() async {
     _sessionManager.enterRecordingMode(
       ownerId: _ownerId,
@@ -71,6 +82,7 @@ class AudioRecordingService {
     return filePath;
   }
 
+  @override
   Future<void> pauseRecording() async {
     final isRecording = await _recorder.isRecording();
 
@@ -92,6 +104,7 @@ class AudioRecordingService {
     }
   }
 
+  @override
   Future<void> resumeRecording() async {
     final isPaused = await _recorder.isPaused();
 
@@ -113,6 +126,7 @@ class AudioRecordingService {
     }
   }
 
+  @override
   Future<String?> stopRecording() async {
     final path = await _recorder.stop();
     _sessionManager.exitRecordingMode(
@@ -128,6 +142,7 @@ class AudioRecordingService {
     return _currentPath;
   }
 
+  @override
   Future<void> cancelRecording() async {
     await _recorder.cancel();
     _currentPath = null;
@@ -137,23 +152,40 @@ class AudioRecordingService {
     );
   }
 
+  @override
   Future<Amplitude> getAmplitude() async {
     return _recorder.getAmplitude();
   }
 
+  @override
   Future<bool> isRecording() async {
     return _recorder.isRecording();
   }
 
+  @override
   Future<bool> isPaused() async {
     return _recorder.isPaused();
   }
 
+  @override
   Future<void> dispose() async {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+
+    await _rawAudioChunkController.close();
     _sessionManager.exitRecordingMode(
       ownerId: _ownerId,
       reason: 'audio_recorder_dispose',
     );
     await _recorder.dispose();
+  }
+
+  @visibleForTesting
+  void publishRawAudioChunkForTesting(Uint8List chunk) {
+    if (!_rawAudioChunkController.isClosed) {
+      _rawAudioChunkController.add(chunk);
+    }
   }
 }

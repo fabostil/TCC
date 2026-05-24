@@ -30,7 +30,10 @@ void main() {
       expect(snapshot.ownerId, 'home');
       expect(snapshot.updatedAt, now);
       expect(snapshot.microphoneReserved, isTrue);
-      expect(diagnostics.latest?.type, VoiceDiagnosticEventType.stateTransition);
+      expect(
+        diagnostics.latest?.type,
+        VoiceDiagnosticEventType.stateTransition,
+      );
       expect(diagnostics.latest?.reason, 'auto_start');
     });
 
@@ -46,10 +49,7 @@ void main() {
       );
 
       expect(snapshot.state, VoiceState.disabled);
-      expect(
-        diagnostics.latest?.type,
-        VoiceDiagnosticEventType.error,
-      );
+      expect(diagnostics.latest?.type, VoiceDiagnosticEventType.error);
     });
   });
 }

@@ -6,8 +6,11 @@ import '../../../models/gravacao.dart';
 import '../../voices/coordination/voice_diagnostics.dart';
 import '../../voices/coordination/voice_session_manager.dart';
 import '../../voices/realtime/voice_realtime_events.dart';
+import '../../voices/realtime/infrastructure/bridge/audio_stream_shadow_router.dart';
+import '../services/audio_recording_capture.dart';
 import '../services/audio_player_service.dart';
 import '../services/audio_recording_service.dart';
+import '../services/stream_first_audio_recording_service.dart';
 
 typedef RecordingFinalizer =
     Future<Gravacao> Function({
@@ -83,15 +86,16 @@ class RecordingRealtimeState {
 
 class RecordingRealtimeCoordinator extends ChangeNotifier {
   RecordingRealtimeCoordinator({
-    AudioRecordingService? recordingService,
+    AudioRecordingCapture? recordingService,
     AudioPlayerService? playerService,
+    AudioStreamShadowRouter? shadowRouter,
     VoiceSessionManager? sessionManager,
     this.ownerId = 'editor',
     int silenceLimitMs = 6000,
     bool automaticSilenceStop = true,
-  }) : _recordingService =
-           recordingService ?? AudioRecordingService(ownerId: ownerId),
+  }) : _recordingService = recordingService ?? _createRecordingService(ownerId),
        _playerService = playerService ?? AudioPlayerService(ownerId: ownerId),
+       _shadowRouter = shadowRouter ?? AudioStreamShadowRouter(),
        _sessionManager = sessionManager ?? VoiceSessionManager.instance,
        _silenceLimitMs = silenceLimitMs,
        _automaticSilenceStop = automaticSilenceStop {
@@ -109,9 +113,14 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
 
   static const int silenceMonitorIntervalMs = 500;
   static const double silenceThresholdDb = -36.0;
+  static const bool _useStreamFirstMode = bool.fromEnvironment(
+    'USE_STREAM_FIRST_AUDIO',
+    defaultValue: false,
+  );
 
-  final AudioRecordingService _recordingService;
+  final AudioRecordingCapture _recordingService;
   final AudioPlayerService _playerService;
+  final AudioStreamShadowRouter _shadowRouter;
   final VoiceSessionManager _sessionManager;
   final String ownerId;
 
@@ -124,9 +133,18 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
 
   RecordingRealtimeState get state => _state;
 
+  Stream<Uint8List> get rawAudioChunks => _recordingService.rawAudioChunks;
+
   int get silenceLimitMs => _silenceLimitMs;
 
   bool get automaticSilenceStop => _automaticSilenceStop;
+
+  static AudioRecordingCapture _createRecordingService(String ownerId) {
+    if (_useStreamFirstMode) {
+      return StreamFirstAudioRecordingService(ownerId: ownerId);
+    }
+    return AudioRecordingService(ownerId: ownerId);
+  }
 
   void applySettings({
     required bool automaticSilenceStop,
@@ -170,6 +188,11 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
 
     try {
       final path = await _recordingService.startRecording();
+      _shadowRouter.start(
+        _recordingService.rawAudioChunks,
+        correlationId:
+            'recording_shadow_${DateTime.now().microsecondsSinceEpoch}',
+      );
       _setState(
         _state.copyWith(
           recording: true,
@@ -219,6 +242,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     );
     await _recordingService.pauseRecording();
     _stopSilenceMonitoring();
+    unawaited(_shadowRouter.stop());
     _setState(
       _state.copyWith(
         paused: true,
@@ -244,6 +268,11 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       _state.copyWith(processing: true, statusMessage: 'Retomando gravacao...'),
     );
     await _recordingService.resumeRecording();
+    _shadowRouter.start(
+      _recordingService.rawAudioChunks,
+      correlationId:
+          'recording_shadow_${DateTime.now().microsecondsSinceEpoch}',
+    );
     _setState(
       _state.copyWith(
         paused: false,
@@ -278,9 +307,9 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     );
 
     try {
-      final path = await _recordingService.stopRecording();
+      final completedPath = await _recordingService.stopRecording();
       final startedAt = _state.startedAt;
-      if (path == null || path.isEmpty || startedAt == null) {
+      if (completedPath == null || completedPath.isEmpty || startedAt == null) {
         _sessionManager.registerFailure(
           ownerId: ownerId,
           reason: 'recording_save_failed',
@@ -291,7 +320,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       }
 
       final saved = await finalizeRecording(
-        path: path,
+        path: completedPath,
         startedAt: startedAt,
         automatic: automatic,
       );
@@ -469,6 +498,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   @override
   void dispose() {
     _stopSilenceMonitoring();
+    unawaited(_shadowRouter.dispose());
     unawaited(_playerStateSubscription?.cancel());
     unawaited(_recordingService.dispose());
     unawaited(_playerService.dispose());

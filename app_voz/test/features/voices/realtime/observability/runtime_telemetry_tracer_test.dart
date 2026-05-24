@@ -10,7 +10,7 @@ void main() {
 
     setUp(() {
       bus = VoiceRealtimeEventBus();
-      tracer = RuntimeTelemetryTracer(eventBus: bus, capacity: 3);
+      tracer = RuntimeTelemetryTracer(eventBus: bus, capacity: 4);
     });
 
     tearDown(() async {
@@ -61,7 +61,10 @@ void main() {
       );
     });
 
-    test('mantem buffer circular de tamanho fixo', () {
+    test('mantem buffer circular de tamanho fixo', () async {
+      await tracer.dispose();
+      tracer = RuntimeTelemetryTracer(eventBus: bus, capacity: 3);
+
       final first = PlaybackStartedEvent(
         source: 'test',
         ownerId: 'one',

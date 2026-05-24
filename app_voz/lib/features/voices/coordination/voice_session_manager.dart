@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../realtime/runtime/voice_realtime_ecosystem.dart';
 import '../realtime/runtime/runtime_engine.dart';
 import '../realtime/runtime/runtime_registry.dart';
 import '../realtime/voice_realtime_events.dart';
@@ -24,7 +25,7 @@ class VoiceSessionManager extends ChangeNotifier {
     VoiceStateMachine? stateMachine,
   }) : speech = speechService ?? SpeechService.instance,
        stateMachine = stateMachine ?? VoiceStateMachine() {
-    VoiceRuntimeEngine.instance.start();
+    VoiceRealtimeEcosystem.instance.startUnawaited();
     _controlSubscription = this.stateMachine.diagnostics.eventBus
         .on<StopVoiceCaptureRequestedEvent>()
         .listen(_handleStopVoiceCaptureRequested);

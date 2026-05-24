@@ -72,6 +72,29 @@ void main() {
     expect(persistida.status, GravacaoStatus.concluida);
   });
 
+  test('persiste formato dinamico a partir do path final wav', () async {
+    final file = File('${tempDir.path}/take.wav');
+    await file.writeAsBytes([1, 2, 3, 4, 5]);
+
+    final gravacao = await service.createCompletedRecording(
+      usuarioId: usuarioId,
+      projetoId: null,
+      nome: 'Take wav',
+      caminhoArquivo: file.path,
+      dataCriacao: DateTime.parse('2026-05-19T10:00:00.000'),
+      duracaoSegundos: 12,
+    );
+
+    expect(gravacao.caminhoArquivo.endsWith('.wav'), isTrue);
+    expect(gravacao.formatoAudio, 'wav');
+
+    final persistida = await gravacaoRepository.buscarGravacaoPorId(
+      gravacao.id!,
+    );
+    expect(persistida!.caminhoArquivo.endsWith('.wav'), isTrue);
+    expect(persistida.formatoAudio, 'wav');
+  });
+
   test('sincroniza arquivo ausente e persiste status diagnostico', () async {
     final gravacaoId = await gravacaoRepository.criarGravacao(
       Gravacao(

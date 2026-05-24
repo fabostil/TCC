@@ -1,6 +1,7 @@
 enum VoiceRealtimeEventType {
   audioOwnershipChanged,
   audioPipelineCaptureStarted,
+  audioPipelineChunkReceived,
   audioPipelineCaptureStopped,
   audioPipelineError,
   audioPipelinePong,
@@ -23,6 +24,7 @@ enum VoiceRealtimeEventType {
   speechResultReceived,
   speechListeningStarted,
   speechListeningStopped,
+  startVoiceCaptureRequested,
   stopVoiceCaptureRequested,
   stopVoiceCaptureRejected,
   voiceOwnershipGranted,
@@ -31,9 +33,11 @@ enum VoiceRealtimeEventType {
   voiceOwnershipRevoked,
   voiceRouteContextChanged,
   voiceRecoveryRetrying,
+  voiceCommandInterpreted,
   voiceSessionRecovered,
   voiceStateChanged,
   voiceSystemDegraded,
+  voiceWakeWordDetected,
 }
 
 enum VoiceRealtimeEventSeverity { debug, info, warning, error }

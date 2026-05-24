@@ -9,12 +9,15 @@ class AudioIsolateBridge {
   AudioIsolateBridge({VoiceRealtimeEventBus? eventBus})
     : eventBus = eventBus ?? VoiceRealtimeEventBus.instance;
 
+  static final AudioIsolateBridge instance = AudioIsolateBridge();
+
   final VoiceRealtimeEventBus eventBus;
 
   Isolate? _isolate;
   ReceivePort? _receivePort;
   SendPort? _pipelinePort;
   StreamSubscription? _isolateSubscription;
+  StreamSubscription<StartVoiceCaptureRequestedEvent>? _startSubscription;
   StreamSubscription<StopVoiceCaptureRequestedEvent>? _stopSubscription;
   Completer<void>? _readyCompleter;
   Completer<void>? _shutdownCompleter;
@@ -43,6 +46,9 @@ class AudioIsolateBridge {
         debugName: 'audio_pipeline_isolate',
       );
       await _readyCompleter!.future.timeout(timeout);
+      _startSubscription = eventBus
+          .on<StartVoiceCaptureRequestedEvent>()
+          .listen(_handleStartVoiceCaptureRequested);
       _stopSubscription = eventBus.on<StopVoiceCaptureRequestedEvent>().listen(
         _handleStopVoiceCaptureRequested,
       );
@@ -100,6 +106,16 @@ class AudioIsolateBridge {
       );
       return false;
     }
+  }
+
+  void _handleStartVoiceCaptureRequested(
+    StartVoiceCaptureRequestedEvent event,
+  ) {
+    sendCommand(
+      audioPipelineCommandStartCapture,
+      correlationId: event.correlationId,
+      causationId: event.id,
+    );
   }
 
   void _handleStopVoiceCaptureRequested(StopVoiceCaptureRequestedEvent event) {
@@ -208,6 +224,26 @@ class AudioIsolateBridge {
             causationId: causationId,
             silenceMs: (message['silentFrames'] as int? ?? 0) * 20,
             level: (message['rms'] as num?)?.toDouble() ?? 0,
+            isIsolateEngine: true,
+            metadata: _metadataFrom(message),
+          ),
+        );
+      case audioPipelineMessageWakeWordDetected:
+        final detectedAt =
+            DateTime.tryParse(_stringOrNull(message['detectedAt']) ?? '') ??
+            DateTime.now();
+        eventBus.publish(
+          VoiceWakeWordDetectedEvent(
+            source: 'audio_isolate_bridge',
+            reason: 'audio_pipeline_wake_word',
+            correlationId:
+                'wake_${detectedAt.microsecondsSinceEpoch}_${DateTime.now().microsecondsSinceEpoch}',
+            causationId: causationId,
+            detectedAt: detectedAt,
+            metadata: {
+              'pipelineCorrelationId': correlationId,
+              ..._metadataFrom(message),
+            },
           ),
         );
       default:
@@ -255,6 +291,8 @@ class AudioIsolateBridge {
   }
 
   Future<void> _closeLocalResources({required bool killIsolate}) async {
+    await _startSubscription?.cancel();
+    _startSubscription = null;
     await _stopSubscription?.cancel();
     _stopSubscription = null;
     await _isolateSubscription?.cancel();

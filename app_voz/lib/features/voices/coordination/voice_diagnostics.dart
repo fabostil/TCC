@@ -136,6 +136,8 @@ extension VoiceRealtimeDiagnosticMapping on VoiceRealtimeEventType {
         VoiceDiagnosticEventType.stateTransition,
       VoiceRealtimeEventType.audioPipelineCaptureStarted =>
         VoiceDiagnosticEventType.stateTransition,
+      VoiceRealtimeEventType.audioPipelineChunkReceived =>
+        VoiceDiagnosticEventType.stateTransition,
       VoiceRealtimeEventType.audioPipelineCaptureStopped =>
         VoiceDiagnosticEventType.stateTransition,
       VoiceRealtimeEventType.audioPipelineError =>
@@ -180,6 +182,8 @@ extension VoiceRealtimeDiagnosticMapping on VoiceRealtimeEventType {
         VoiceDiagnosticEventType.listeningStarted,
       VoiceRealtimeEventType.speechListeningStopped =>
         VoiceDiagnosticEventType.listeningStopped,
+      VoiceRealtimeEventType.startVoiceCaptureRequested =>
+        VoiceDiagnosticEventType.listeningStarted,
       VoiceRealtimeEventType.stopVoiceCaptureRequested =>
         VoiceDiagnosticEventType.listeningStopped,
       VoiceRealtimeEventType.stopVoiceCaptureRejected =>
@@ -196,12 +200,16 @@ extension VoiceRealtimeDiagnosticMapping on VoiceRealtimeEventType {
         VoiceDiagnosticEventType.stateTransition,
       VoiceRealtimeEventType.voiceRecoveryRetrying =>
         VoiceDiagnosticEventType.recoveryScheduled,
+      VoiceRealtimeEventType.voiceCommandInterpreted =>
+        VoiceDiagnosticEventType.stateTransition,
       VoiceRealtimeEventType.voiceSessionRecovered =>
         VoiceDiagnosticEventType.recoveryAttempted,
       VoiceRealtimeEventType.voiceStateChanged =>
         VoiceDiagnosticEventType.stateTransition,
       VoiceRealtimeEventType.voiceSystemDegraded =>
         VoiceDiagnosticEventType.error,
+      VoiceRealtimeEventType.voiceWakeWordDetected =>
+        VoiceDiagnosticEventType.listeningStarted,
     };
   }
 }

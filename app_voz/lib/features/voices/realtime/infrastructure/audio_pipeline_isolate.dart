@@ -1,8 +1,10 @@
 import 'dart:isolate';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'vad/adaptive_silence_vad.dart';
 import 'vad/audio_frame_accumulator.dart';
+import 'wakeword/picovoice_porcupine_engine.dart';
+import 'wakeword/wake_word_engine.dart';
 
 const String audioPipelineCommandStartCapture = 'START_CAPTURE';
 const String audioPipelineCommandStopCapture = 'STOP_CAPTURE';
@@ -17,25 +19,50 @@ const String audioPipelineMessagePong = 'PONG';
 const String audioPipelineMessageShutdownComplete = 'SHUTDOWN_COMPLETE';
 const String audioPipelineMessageError = 'ERROR';
 const String audioPipelineMessageSilenceDetected = 'SILENCE_DETECTED';
+const String audioPipelineMessageWakeWordDetected = 'WAKE_WORD_DETECTED';
 
-const int audioPipelineDefaultFrameSizeBytes = 320;
-const double audioPipelineDefaultSilenceRmsThreshold = 2.0;
+const int audioPipelineDefaultFrameSizeBytes = 640;
 const int audioPipelineDefaultConsecutiveSilentFrames = 5;
 
+const String _picovoiceAccessKey = String.fromEnvironment(
+  'PICOVOICE_ACCESS_KEY',
+);
+const String _picovoiceModelPath = String.fromEnvironment(
+  'PICOVOICE_MODEL_PATH',
+);
+const String _picovoiceKeywordPath = String.fromEnvironment(
+  'PICOVOICE_KEYWORD_PATH',
+);
+const String _picovoiceSensitivityValue = String.fromEnvironment(
+  'PICOVOICE_SENSITIVITY',
+  defaultValue: '0.5',
+);
+
 void startAudioPipeline(SendPort mainIsolatePort) {
+  _startAudioPipelineAsync(mainIsolatePort);
+}
+
+Future<void> _startAudioPipelineAsync(SendPort mainIsolatePort) async {
   final commandPort = ReceivePort();
-  final accumulator = AudioFrameAccumulator(
-    frameSizeBytes: audioPipelineDefaultFrameSizeBytes,
-  );
+  final vad = AdaptiveSilenceVad();
+  final accumulator = AudioFrameAccumulator(frameSizeBytes: vad.frameSizeBytes);
+  final wakeWordEngine = _createWakeWordEngine();
   var capturing = false;
-  var consecutiveSilentFrames = 0;
+  var totalProcessedFrames = 0;
+
+  await wakeWordEngine.init(
+    accessKey: _picovoiceAccessKey.isEmpty ? null : _picovoiceAccessKey,
+    modelPath: _picovoiceModelPath.isEmpty ? null : _picovoiceModelPath,
+    keywordPath: _configuredKeywordPath,
+    sensitivity: _configuredSensitivity,
+  );
 
   mainIsolatePort.send({
     'type': audioPipelineMessageReady,
     'sendPort': commandPort.sendPort,
   });
 
-  commandPort.listen((rawMessage) {
+  commandPort.listen((rawMessage) async {
     final message = _parsePipelineMessage(rawMessage);
     if (message == null) {
       mainIsolatePort.send({
@@ -51,8 +78,9 @@ void startAudioPipeline(SendPort mainIsolatePort) {
     switch (command) {
       case audioPipelineCommandStartCapture:
         capturing = true;
-        consecutiveSilentFrames = 0;
+        totalProcessedFrames = 0;
         accumulator.clear();
+        vad.reset();
         mainIsolatePort.send({
           'type': audioPipelineMessageCaptureStarted,
           'correlationId': correlationId,
@@ -60,8 +88,8 @@ void startAudioPipeline(SendPort mainIsolatePort) {
         });
       case audioPipelineCommandStopCapture:
         capturing = false;
-        consecutiveSilentFrames = 0;
         accumulator.clear();
+        vad.reset();
         mainIsolatePort.send({
           'type': audioPipelineMessageCaptureStopped,
           'correlationId': correlationId,
@@ -90,36 +118,48 @@ void startAudioPipeline(SendPort mainIsolatePort) {
 
         accumulator.addChunk(payload);
         var processedFrames = 0;
-        var lastRms = 0.0;
         while (accumulator.hasFrame) {
           final frame = accumulator.takeFrame();
           if (frame == null) {
             break;
           }
           processedFrames += 1;
-          lastRms = _calculateRms(frame);
-          if (lastRms < audioPipelineDefaultSilenceRmsThreshold) {
-            consecutiveSilentFrames += 1;
-          } else {
-            consecutiveSilentFrames = 0;
+          totalProcessedFrames += 1;
+          final pcmFrame = _pcm16LittleEndianFrame(frame);
+          if (wakeWordEngine.processFrame(pcmFrame)) {
+            mainIsolatePort.send({
+              'type': audioPipelineMessageWakeWordDetected,
+              'correlationId': correlationId,
+              'detectedAt': DateTime.now().toIso8601String(),
+              'processedFrames': processedFrames,
+              'totalProcessedFrames': totalProcessedFrames,
+              'frameSizeBytes': vad.frameSizeBytes,
+              'engine': _wakeWordEngineName,
+            });
           }
 
-          if (consecutiveSilentFrames >=
+          final result = vad.analyzeFrame(frame);
+
+          if (result.consecutiveSilentFrames >=
               audioPipelineDefaultConsecutiveSilentFrames) {
             mainIsolatePort.send({
               'type': audioPipelineMessageSilenceDetected,
               'correlationId': correlationId,
-              'silentFrames': consecutiveSilentFrames,
+              'silentFrames': result.consecutiveSilentFrames,
               'processedFrames': processedFrames,
-              'rms': lastRms,
-              'frameSizeBytes': audioPipelineDefaultFrameSizeBytes,
+              'rms': result.rms,
+              'noiseFloor': result.noiseFloor,
+              'adaptiveThreshold': result.threshold,
+              'frameSizeBytes': vad.frameSizeBytes,
             });
-            consecutiveSilentFrames = 0;
+            vad.resetConsecutiveSilence();
           }
         }
       case audioPipelineCommandShutdown:
         capturing = false;
         accumulator.clear();
+        vad.reset();
+        await wakeWordEngine.dispose();
         mainIsolatePort.send({
           'type': audioPipelineMessageShutdownComplete,
           'correlationId': correlationId,
@@ -135,6 +175,46 @@ void startAudioPipeline(SendPort mainIsolatePort) {
         });
     }
   });
+}
+
+WakeWordEngine _createWakeWordEngine() {
+  if (_picovoiceAccessKey.isEmpty ||
+      _picovoiceModelPath.isEmpty ||
+      _picovoiceKeywordPath.isEmpty) {
+    return StubWakeWordEngine();
+  }
+  return PicovoicePorcupineEngine();
+}
+
+String get _configuredKeywordPath {
+  if (_picovoiceKeywordPath.isEmpty) {
+    return 'stub://assistente-musical';
+  }
+  return _picovoiceKeywordPath;
+}
+
+String get _wakeWordEngineName {
+  if (_picovoiceAccessKey.isEmpty ||
+      _picovoiceModelPath.isEmpty ||
+      _picovoiceKeywordPath.isEmpty) {
+    return 'stub';
+  }
+  return 'picovoice_porcupine';
+}
+
+double get _configuredSensitivity {
+  final parsed = double.tryParse(_picovoiceSensitivityValue);
+  return (parsed ?? 0.5).clamp(0, 1).toDouble();
+}
+
+Int16List _pcm16LittleEndianFrame(Uint8List frame) {
+  final sampleCount = frame.length ~/ 2;
+  final samples = Int16List(sampleCount);
+  final data = ByteData.sublistView(frame);
+  for (var i = 0; i < sampleCount; i += 1) {
+    samples[i] = data.getInt16(i * 2, Endian.little);
+  }
+  return samples;
 }
 
 Map<String, Object?>? _parsePipelineMessage(Object? rawMessage) {
@@ -155,17 +235,4 @@ Map<String, Object?>? _parsePipelineMessage(Object? rawMessage) {
   }
 
   return null;
-}
-
-double _calculateRms(Uint8List frame) {
-  if (frame.isEmpty) {
-    return 0;
-  }
-
-  var sumSquares = 0;
-  for (final byte in frame) {
-    final centered = byte - 128;
-    sumSquares += centered * centered;
-  }
-  return math.sqrt(sumSquares / frame.length);
 }

@@ -1,5 +1,8 @@
 // ignore_for_file: use_super_parameters
 
+import 'dart:typed_data';
+
+import 'nlu/voice_intent.dart';
 import 'voice_realtime_event.dart';
 
 class AudioOwnershipChangedEvent extends VoiceRealtimeEvent {
@@ -53,6 +56,25 @@ class AudioPipelineCaptureStartedEvent extends VoiceRealtimeEvent {
          message: 'Audio pipeline iniciou captura simulada.',
          metadata: metadata,
        );
+}
+
+class AudioPipelineChunkReceivedEvent extends VoiceRealtimeEvent {
+  AudioPipelineChunkReceivedEvent({
+    required String source,
+    required this.chunk,
+    String? correlationId,
+    String? causationId,
+    Map<String, Object?> metadata = const {},
+  }) : super(
+         type: VoiceRealtimeEventType.audioPipelineChunkReceived,
+         source: source,
+         correlationId: correlationId,
+         causationId: causationId,
+         message: 'Chunk de audio realtime recebido.',
+         metadata: {'bytes': chunk.length, ...metadata},
+       );
+
+  final Uint8List chunk;
 }
 
 class AudioPipelineCaptureStoppedEvent extends VoiceRealtimeEvent {
@@ -364,10 +386,12 @@ class SilenceDetectedEvent extends VoiceRealtimeEvent {
     required String source,
     required int silenceMs,
     required double level,
+    this.isIsolateEngine = false,
     String? ownerId,
     String? reason,
     String? correlationId,
     String? causationId,
+    Map<String, Object?> metadata = const {},
   }) : super(
          type: VoiceRealtimeEventType.silenceDetected,
          source: source,
@@ -376,8 +400,15 @@ class SilenceDetectedEvent extends VoiceRealtimeEvent {
          correlationId: correlationId,
          causationId: causationId,
          message: 'Silencio detectado.',
-         metadata: {'silenceMs': silenceMs, 'level': level},
+         metadata: {
+           'silenceMs': silenceMs,
+           'level': level,
+           'isIsolateEngine': isIsolateEngine,
+           ...metadata,
+         },
        );
+
+  final bool isIsolateEngine;
 }
 
 class SpeechListeningFailedEvent extends VoiceRealtimeEvent {
@@ -403,7 +434,8 @@ class SpeechListeningFailedEvent extends VoiceRealtimeEvent {
 class SpeechResultReceivedEvent extends VoiceRealtimeEvent {
   SpeechResultReceivedEvent({
     required String source,
-    required String text,
+    required this.text,
+    this.isFinal = false,
     String? ownerId,
     String? reason,
     String? correlationId,
@@ -416,8 +448,11 @@ class SpeechResultReceivedEvent extends VoiceRealtimeEvent {
          correlationId: correlationId,
          causationId: causationId,
          message: 'Resultado STT recebido.',
-         metadata: {'text': text},
+         metadata: {'text': text, 'isFinal': isFinal},
        );
+
+  final bool isFinal;
+  final String text;
 }
 
 class SpeechListeningStartedEvent extends VoiceRealtimeEvent {
@@ -453,6 +488,27 @@ class SpeechListeningStoppedEvent extends VoiceRealtimeEvent {
          correlationId: correlationId,
          causationId: causationId,
          message: 'Escuta STT encerrada.',
+       );
+}
+
+class StartVoiceCaptureRequestedEvent extends VoiceRealtimeEvent {
+  StartVoiceCaptureRequestedEvent({
+    required String source,
+    String? ownerId,
+    String? reason,
+    String? correlationId,
+    String? causationId,
+    Map<String, Object?> metadata = const {},
+  }) : super(
+         type: VoiceRealtimeEventType.startVoiceCaptureRequested,
+         source: source,
+         ownerId: ownerId,
+         reason: reason,
+         correlationId: correlationId,
+         causationId: causationId,
+         message: 'Inicio seguro de captura de voz solicitado.',
+         cancelable: true,
+         metadata: metadata,
        );
 }
 
@@ -636,6 +692,34 @@ class VoiceRecoveryRetryingEvent extends VoiceRealtimeEvent {
        );
 }
 
+class VoiceCommandInterpretedEvent extends VoiceRealtimeEvent {
+  VoiceCommandInterpretedEvent({
+    required String source,
+    required this.intent,
+    String? ownerId,
+    String? reason,
+    String? correlationId,
+    String? causationId,
+    Map<String, Object?> metadata = const {},
+  }) : super(
+         type: VoiceRealtimeEventType.voiceCommandInterpreted,
+         source: source,
+         ownerId: ownerId,
+         reason: reason,
+         correlationId: correlationId,
+         causationId: causationId,
+         message: 'Comando de voz interpretado.',
+         metadata: {
+           'intentType': intent.runtimeType.toString(),
+           'rawText': intent.rawText,
+           ..._intentMetadata(intent),
+           ...metadata,
+         },
+       );
+
+  final VoiceIntent intent;
+}
+
 class VoiceSessionRecoveredEvent extends VoiceRealtimeEvent {
   VoiceSessionRecoveredEvent({
     required String source,
@@ -652,6 +736,15 @@ class VoiceSessionRecoveredEvent extends VoiceRealtimeEvent {
          causationId: causationId,
          message: 'Sessao de voz recuperada.',
        );
+}
+
+Map<String, Object?> _intentMetadata(VoiceIntent intent) {
+  return switch (intent) {
+    MetronomeIntent(:final bpm) => {'bpm': bpm},
+    PlaybackIntent(:final action) => {'action': action},
+    TrackIntent(:final action) => {'action': action},
+    UnknownIntent() => const {},
+  };
 }
 
 class VoiceSystemDegradedEvent extends VoiceRealtimeEvent {
@@ -673,6 +766,29 @@ class VoiceSystemDegradedEvent extends VoiceRealtimeEvent {
          severity: VoiceRealtimeEventSeverity.error,
          metadata: metadata,
        );
+}
+
+class VoiceWakeWordDetectedEvent extends VoiceRealtimeEvent {
+  VoiceWakeWordDetectedEvent({
+    required String source,
+    required this.detectedAt,
+    String? ownerId,
+    String? reason,
+    String? correlationId,
+    String? causationId,
+    Map<String, Object?> metadata = const {},
+  }) : super(
+         type: VoiceRealtimeEventType.voiceWakeWordDetected,
+         source: source,
+         ownerId: ownerId,
+         reason: reason,
+         correlationId: correlationId,
+         causationId: causationId,
+         message: 'Palavra de ativacao detectada.',
+         metadata: {'detectedAt': detectedAt.toIso8601String(), ...metadata},
+       );
+
+  final DateTime detectedAt;
 }
 
 class VoiceStateChangedEvent extends VoiceRealtimeEvent {

@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:app_voz/features/editor/services/audio_recording_capture.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_engine.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_registry.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_recovery_policy.dart';
@@ -5,6 +9,7 @@ import 'package:app_voz/features/voices/realtime/voice_realtime_event.dart';
 import 'package:app_voz/features/voices/realtime/voice_realtime_event_bus.dart';
 import 'package:app_voz/features/voices/realtime/voice_realtime_events.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:record/record.dart';
 
 void main() {
   group('VoiceRuntimeEngine', () {
@@ -136,6 +141,314 @@ void main() {
       expect(skipped.reason, 'no_active_voice_session');
       expect(skipped.correlationId, silence.correlationId);
       expect(skipped.causationId, silence.id);
+    });
+
+    test('ignora SilenceDetected do isolate para acoes estruturais', () {
+      registry.registerVoiceSession(
+        ownerId: 'editor',
+        shouldRecover: () => true,
+        recover: () async {},
+      );
+      final silence = SilenceDetectedEvent(
+        source: 'audio_isolate_bridge',
+        ownerId: 'editor',
+        reason: 'audio_pipeline_silence',
+        correlationId: 'shadow-silence',
+        silenceMs: 100,
+        level: 0,
+        isIsolateEngine: true,
+      );
+
+      bus.publish(silence);
+
+      expect(bus.timeline.whereType<StopVoiceCaptureRequestedEvent>(), isEmpty);
+      expect(
+        bus.timeline.whereType<RecoverVoiceSessionRequestedEvent>(),
+        isEmpty,
+      );
+      expect(bus.timeline.whereType<RecoverySkippedEvent>(), isEmpty);
+    });
+
+    test('com stream-first desligado processa legado e ignora isolate', () {
+      registry.registerVoiceSession(
+        ownerId: 'editor',
+        shouldRecover: () => true,
+        recover: () async {},
+      );
+
+      bus.publish(
+        SilenceDetectedEvent(
+          source: 'audio_isolate_bridge',
+          ownerId: 'editor',
+          reason: 'audio_pipeline_silence',
+          correlationId: 'isolate-ignored',
+          silenceMs: 100,
+          level: 0,
+          isIsolateEngine: true,
+        ),
+      );
+      bus.publish(
+        SilenceDetectedEvent(
+          source: 'recording_realtime_coordinator',
+          ownerId: 'editor',
+          reason: 'automatic_silence_stop',
+          correlationId: 'legacy-accepted',
+          silenceMs: 6000,
+          level: -42,
+        ),
+      );
+
+      final stopRequested = bus.timeline
+          .whereType<StopVoiceCaptureRequestedEvent>()
+          .single;
+      expect(stopRequested.correlationId, 'legacy-accepted');
+      expect(
+        bus
+            .eventsForCorrelation('isolate-ignored')
+            .whereType<StopVoiceCaptureRequestedEvent>(),
+        isEmpty,
+      );
+    });
+
+    test(
+      'com stream-first ligado ignora silencio fora de escuta ativa',
+      () async {
+        await engine.stop();
+        engine = VoiceRuntimeEngine(
+          eventBus: bus,
+          registry: registry,
+          defaultRecoveryDelay: Duration.zero,
+          useStreamFirstAudio: true,
+        )..start();
+        registry.registerVoiceSession(
+          ownerId: 'editor',
+          shouldRecover: () => true,
+          recover: () async {},
+        );
+
+        final legacy = SilenceDetectedEvent(
+          source: 'recording_realtime_coordinator',
+          ownerId: 'editor',
+          reason: 'automatic_silence_stop',
+          correlationId: 'legacy-ignored',
+          silenceMs: 6000,
+          level: -42,
+        );
+        final isolate = SilenceDetectedEvent(
+          source: 'audio_isolate_bridge',
+          ownerId: 'editor',
+          reason: 'audio_pipeline_silence',
+          correlationId: 'isolate-accepted',
+          silenceMs: 100,
+          level: 0,
+          isIsolateEngine: true,
+        );
+
+        bus.publish(legacy);
+        bus.publish(isolate);
+
+        expect(
+          bus.timeline.whereType<StopVoiceCaptureRequestedEvent>(),
+          isEmpty,
+        );
+        expect(
+          bus
+              .eventsForCorrelation('legacy-ignored')
+              .whereType<StopVoiceCaptureRequestedEvent>(),
+          isEmpty,
+        );
+        expect(engine.currentState, VoiceSessionState.sleeping);
+      },
+    );
+
+    test(
+      'ciclo hands-free completo transita sleeping listening processing sleeping',
+      () async {
+        await engine.stop();
+        final capture = _FakeCommandCapture();
+        engine = VoiceRuntimeEngine(
+          eventBus: bus,
+          registry: registry,
+          defaultRecoveryDelay: Duration.zero,
+          useStreamFirstAudio: true,
+          commandCapture: capture,
+        )..start();
+
+        expect(engine.currentState, VoiceSessionState.sleeping);
+
+        final wake = VoiceWakeWordDetectedEvent(
+          source: 'test',
+          ownerId: 'runtime-owner',
+          reason: 'wake',
+          correlationId: 'hands-free-flow',
+          detectedAt: DateTime(2026),
+        );
+        bus.publish(wake);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(engine.currentState, VoiceSessionState.listeningCommand);
+        expect(capture.startCalls, 1);
+        final startRequested = bus.timeline
+            .whereType<StartVoiceCaptureRequestedEvent>()
+            .single;
+        expect(startRequested.correlationId, wake.correlationId);
+        expect(startRequested.causationId, wake.id);
+
+        final silence = SilenceDetectedEvent(
+          source: 'audio_isolate_bridge',
+          ownerId: 'runtime-owner',
+          reason: 'audio_pipeline_silence',
+          correlationId: wake.correlationId,
+          causationId: wake.id,
+          silenceMs: 1200,
+          level: 0,
+          isIsolateEngine: true,
+        );
+        bus.publish(silence);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(engine.currentState, VoiceSessionState.processingCommand);
+        expect(capture.stopCalls, 1);
+        final stopRequested = bus.timeline
+            .whereType<StopVoiceCaptureRequestedEvent>()
+            .single;
+        expect(stopRequested.correlationId, wake.correlationId);
+        expect(stopRequested.causationId, silence.id);
+        final recordingStopped = bus.timeline
+            .whereType<RecordingStoppedEvent>()
+            .single;
+        expect(recordingStopped.metadata['fileReady'], isTrue);
+
+        bus.publish(
+          SpeechResultReceivedEvent(
+            source: 'test',
+            text: 'solta o som',
+            isFinal: true,
+            correlationId: wake.correlationId,
+            causationId: recordingStopped.id,
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(engine.currentState, VoiceSessionState.sleeping);
+        final interpreted = bus.timeline
+            .whereType<VoiceCommandInterpretedEvent>()
+            .single;
+        expect(interpreted.correlationId, wake.correlationId);
+        expect(interpreted.causationId, isNotNull);
+        expect(interpreted.metadata['intentType'], 'PlaybackIntent');
+        expect(interpreted.metadata['action'], 'start');
+        expect(
+          bus
+              .eventsForCorrelation('hands-free-flow')
+              .whereType<VoiceStateChangedEvent>()
+              .map(
+                (event) => [
+                  event.metadata['previousState'],
+                  event.metadata['sessionState'],
+                ],
+              ),
+          containsAllInOrder([
+            ['sleeping', 'listeningCommand'],
+            ['listeningCommand', 'processingCommand'],
+            ['processingCommand', 'sleeping'],
+          ]),
+        );
+      },
+    );
+
+    test(
+      'ciclo hands-free classifica desconhecido sem publicar intencao',
+      () async {
+        await engine.stop();
+        final capture = _FakeCommandCapture();
+        engine = VoiceRuntimeEngine(
+          eventBus: bus,
+          registry: registry,
+          defaultRecoveryDelay: Duration.zero,
+          useStreamFirstAudio: true,
+          commandCapture: capture,
+        )..start();
+
+        final wake = VoiceWakeWordDetectedEvent(
+          source: 'test',
+          ownerId: 'runtime-owner',
+          correlationId: 'hands-free-unknown',
+          detectedAt: DateTime(2026),
+        );
+        bus.publish(wake);
+        await Future<void>.delayed(Duration.zero);
+        bus.publish(
+          SilenceDetectedEvent(
+            source: 'audio_isolate_bridge',
+            ownerId: 'runtime-owner',
+            correlationId: wake.correlationId,
+            silenceMs: 1200,
+            level: 0,
+            isIsolateEngine: true,
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        bus.publish(
+          SpeechResultReceivedEvent(
+            source: 'test',
+            text: 'frase aleatoria sem comando',
+            isFinal: true,
+            correlationId: wake.correlationId,
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(engine.currentState, VoiceSessionState.sleeping);
+        expect(bus.timeline.whereType<VoiceCommandInterpretedEvent>(), isEmpty);
+        final lastState = bus.timeline.whereType<VoiceStateChangedEvent>().last;
+        expect(lastState.reason, 'unknown_voice_intent');
+      },
+    );
+
+    test('ciclo hands-free volta para sleeping quando STT falha', () async {
+      await engine.stop();
+      final capture = _FakeCommandCapture();
+      engine = VoiceRuntimeEngine(
+        eventBus: bus,
+        registry: registry,
+        defaultRecoveryDelay: Duration.zero,
+        useStreamFirstAudio: true,
+        commandCapture: capture,
+      )..start();
+
+      final wake = VoiceWakeWordDetectedEvent(
+        source: 'test',
+        ownerId: 'runtime-owner',
+        correlationId: 'hands-free-failure',
+        detectedAt: DateTime(2026),
+      );
+      bus.publish(wake);
+      await Future<void>.delayed(Duration.zero);
+      bus.publish(
+        SilenceDetectedEvent(
+          source: 'audio_isolate_bridge',
+          ownerId: 'runtime-owner',
+          correlationId: wake.correlationId,
+          silenceMs: 1200,
+          level: 0,
+          isIsolateEngine: true,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      bus.publish(
+        SpeechListeningFailedEvent(
+          source: 'test',
+          ownerId: 'runtime-owner',
+          reason: 'timeout',
+          correlationId: wake.correlationId,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(engine.currentState, VoiceSessionState.sleeping);
     });
 
     test(
@@ -381,4 +694,58 @@ void main() {
       expect(bus.timeline.whereType<StopVoiceCaptureRejectedEvent>(), isEmpty);
     });
   });
+}
+
+class _FakeCommandCapture implements AudioRecordingCapture {
+  final _chunks = StreamController<Uint8List>.broadcast();
+  var startCalls = 0;
+  var stopCalls = 0;
+  var recording = false;
+
+  @override
+  Stream<Uint8List> get rawAudioChunks => _chunks.stream;
+
+  @override
+  Future<void> cancelRecording() async {
+    recording = false;
+  }
+
+  @override
+  Future<void> dispose() async {
+    await _chunks.close();
+  }
+
+  @override
+  Future<Amplitude> getAmplitude() async {
+    return Amplitude(current: -80, max: -80);
+  }
+
+  @override
+  Future<bool> hasPermission() async => true;
+
+  @override
+  Future<bool> isPaused() async => false;
+
+  @override
+  Future<bool> isRecording() async => recording;
+
+  @override
+  Future<void> pauseRecording() async {}
+
+  @override
+  Future<void> resumeRecording() async {}
+
+  @override
+  Future<String> startRecording() async {
+    startCalls += 1;
+    recording = true;
+    return 'command.wav';
+  }
+
+  @override
+  Future<String?> stopRecording() async {
+    stopCalls += 1;
+    recording = false;
+    return 'command.wav';
+  }
 }

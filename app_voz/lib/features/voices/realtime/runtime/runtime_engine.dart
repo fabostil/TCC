@@ -1,20 +1,39 @@
 import 'dart:async';
 
+import '../../../editor/services/audio_recording_capture.dart';
+import '../nlu/voice_intent.dart';
+import '../nlu/voice_intent_parser.dart';
 import '../voice_realtime_event.dart';
 import '../voice_realtime_event_bus.dart';
 import '../voice_realtime_events.dart';
+import '../stt/protocols/deepgram_streaming_adapter.dart';
+import '../stt/streaming_speech_recognizer.dart';
+import '../stt/unsupported_speech_recognizer.dart';
 import 'runtime_registry.dart';
 import 'runtime_recovery_policy.dart';
+
+enum VoiceSessionState { sleeping, listeningCommand, processingCommand }
 
 class VoiceRuntimeEngine {
   VoiceRuntimeEngine({
     VoiceRealtimeEventBus? eventBus,
     VoiceRuntimeRegistry? registry,
     RuntimeRecoveryPolicy? recoveryPolicy,
+    StreamingSpeechRecognizer? streamingSpeechRecognizer,
+    this.intentParser = const VoiceIntentParser(),
+    this.commandCapture,
+    bool? useStreamFirstAudio,
     this.defaultRecoveryDelay = const Duration(milliseconds: 700),
     this.maxRecoveryAttempts = 3,
   }) : eventBus = eventBus ?? VoiceRealtimeEventBus.instance,
        registry = registry ?? VoiceRuntimeRegistry.instance,
+       useStreamFirstAudio = useStreamFirstAudio ?? _streamFirstFromEnvironment,
+       streamingSpeechRecognizer =
+           streamingSpeechRecognizer ??
+           _createDefaultStreamingSpeechRecognizer(
+             eventBus ?? VoiceRealtimeEventBus.instance,
+             useStreamFirstAudio ?? _streamFirstFromEnvironment,
+           ),
        recoveryPolicy =
            recoveryPolicy ??
            RuntimeRecoveryPolicy(
@@ -23,10 +42,18 @@ class VoiceRuntimeEngine {
            );
 
   static final VoiceRuntimeEngine instance = VoiceRuntimeEngine();
+  static const bool _streamFirstFromEnvironment = bool.fromEnvironment(
+    'USE_STREAM_FIRST_AUDIO',
+    defaultValue: false,
+  );
 
   final VoiceRealtimeEventBus eventBus;
   final VoiceRuntimeRegistry registry;
   final RuntimeRecoveryPolicy recoveryPolicy;
+  final bool useStreamFirstAudio;
+  final StreamingSpeechRecognizer streamingSpeechRecognizer;
+  final VoiceIntentParser intentParser;
+  final AudioRecordingCapture? commandCapture;
   final Duration defaultRecoveryDelay;
   final int maxRecoveryAttempts;
 
@@ -37,8 +64,34 @@ class VoiceRuntimeEngine {
   StreamSubscription<VoiceRealtimeEvent>? _subscription;
   void Function()? _registryListener;
   bool _started = false;
+  bool _streamingRecognizerInitialized = false;
+  bool _streamingRecognitionActive = false;
+  String? _streamingCorrelationId;
+  VoiceSessionState _currentState = VoiceSessionState.sleeping;
+  String? _activeHandsFreeCorrelationId;
+  String? _activeHandsFreeOwnerId;
 
   bool get isStarted => _started;
+  VoiceSessionState get currentState => _currentState;
+
+  static StreamingSpeechRecognizer _createDefaultStreamingSpeechRecognizer(
+    VoiceRealtimeEventBus eventBus,
+    bool useStreamFirstAudio,
+  ) {
+    final deepgramEndpoint =
+        DeepgramStreamingAdapter.endpointFromConfiguredEnvironment();
+    final deepgramApiKey = DeepgramStreamingAdapter.apiKeyFromEnvironment;
+    if (useStreamFirstAudio &&
+        deepgramApiKey.isNotEmpty &&
+        deepgramEndpoint != null) {
+      return DeepgramStreamingAdapter(
+        apiKey: deepgramApiKey,
+        endpoint: deepgramEndpoint,
+      ).createRecognizer(eventBus: eventBus);
+    }
+
+    return UnsupportedSpeechRecognizer(eventBus: eventBus);
+  }
 
   void start() {
     if (_started) {
@@ -58,8 +111,16 @@ class VoiceRuntimeEngine {
     _recoveryAttemptsByCorrelation.clear();
     _processedSpeechFailureEventIds.clear();
     _processedSpeechFailureCorrelations.clear();
+    _transitionTo(
+      VoiceSessionState.sleeping,
+      reason: 'runtime_stopped',
+      correlationId: _activeHandsFreeCorrelationId,
+    );
+    _activeHandsFreeCorrelationId = null;
+    _activeHandsFreeOwnerId = null;
     await _subscription?.cancel();
     _subscription = null;
+    await _stopStreamingRecognition();
     final registryListener = _registryListener;
     if (registryListener != null) {
       registry.removeListener(registryListener);
@@ -78,7 +139,39 @@ class VoiceRuntimeEngine {
       return;
     }
 
+    if (event is VoiceWakeWordDetectedEvent) {
+      unawaited(_handleWakeWordDetected(event));
+      return;
+    }
+
+    if (event is AudioPipelineCaptureStartedEvent) {
+      unawaited(_handleAudioPipelineCaptureStarted(event));
+      return;
+    }
+
+    if (event is AudioPipelineChunkReceivedEvent) {
+      _handleAudioPipelineChunkReceived(event);
+      return;
+    }
+
+    if (event is AudioPipelineCaptureStoppedEvent ||
+        event is AudioPipelineShutdownCompleteEvent) {
+      unawaited(_stopStreamingRecognition());
+      return;
+    }
+
+    if (event is RecordingStoppedEvent) {
+      unawaited(_handleRecordingStopped(event));
+      return;
+    }
+
+    if (event is SpeechResultReceivedEvent && event.isFinal) {
+      _handleFinalSpeechResult(event);
+      return;
+    }
+
     if (event is SpeechListeningFailedEvent) {
+      _completeHandsFreeCycle(event, reason: 'speech_listening_failed');
       _handleSpeechListeningFailed(event);
       return;
     }
@@ -96,6 +189,63 @@ class VoiceRuntimeEngine {
 
     if (event is RecoverVoiceSessionRequestedEvent) {
       _handleRecoverRequested(event);
+    }
+  }
+
+  Future<void> _handleWakeWordDetected(VoiceWakeWordDetectedEvent event) async {
+    if (!useStreamFirstAudio || _currentState != VoiceSessionState.sleeping) {
+      return;
+    }
+
+    _activeHandsFreeCorrelationId = event.correlationId;
+    _activeHandsFreeOwnerId = event.ownerId;
+    _transitionTo(
+      VoiceSessionState.listeningCommand,
+      reason: 'wake_word_detected',
+      correlationId: event.correlationId,
+      causationId: event.id,
+      ownerId: event.ownerId,
+      metadata: event.metadata,
+    );
+
+    final requested = StartVoiceCaptureRequestedEvent(
+      source: 'runtime_engine',
+      ownerId: event.ownerId,
+      reason: 'wake_word_detected',
+      correlationId: event.correlationId,
+      causationId: event.id,
+      metadata: event.metadata,
+    );
+    eventBus.publish(requested);
+
+    final capture = commandCapture;
+    if (capture == null) {
+      return;
+    }
+
+    try {
+      final path = await capture.startRecording();
+      eventBus.publish(
+        RecordingStartedEvent(
+          source: 'runtime_engine',
+          ownerId: event.ownerId,
+          reason: 'wake_word_capture_started',
+          correlationId: event.correlationId,
+          causationId: requested.id,
+          metadata: {'path': path},
+        ),
+      );
+    } catch (error) {
+      eventBus.publish(
+        SpeechListeningFailedEvent(
+          source: 'runtime_engine',
+          ownerId: event.ownerId,
+          reason: 'wake_word_capture_start_failed',
+          message: 'Falha ao iniciar captura hands-free: $error',
+          correlationId: event.correlationId,
+          causationId: requested.id,
+        ),
+      );
     }
   }
 
@@ -119,7 +269,60 @@ class VoiceRuntimeEngine {
     );
   }
 
+  Future<void> _handleAudioPipelineCaptureStarted(
+    AudioPipelineCaptureStartedEvent event,
+  ) async {
+    if (!useStreamFirstAudio) {
+      return;
+    }
+    if (_currentState == VoiceSessionState.listeningCommand) {
+      return;
+    }
+    await _ensureStreamingRecognizerInitialized();
+    await streamingSpeechRecognizer.startRecognition(event.correlationId);
+    _streamingRecognitionActive = true;
+    _streamingCorrelationId = event.correlationId;
+  }
+
+  void _handleAudioPipelineChunkReceived(
+    AudioPipelineChunkReceivedEvent event,
+  ) {
+    if (!useStreamFirstAudio || !_streamingRecognitionActive) {
+      return;
+    }
+    if (_streamingCorrelationId != event.correlationId) {
+      return;
+    }
+    streamingSpeechRecognizer.feedAudioChunk(event.chunk);
+  }
+
+  Future<void> _ensureStreamingRecognizerInitialized() async {
+    if (_streamingRecognizerInitialized) {
+      return;
+    }
+    await streamingSpeechRecognizer.initializeRecognizer();
+    _streamingRecognizerInitialized = true;
+  }
+
+  Future<void> _stopStreamingRecognition() async {
+    if (!_streamingRecognitionActive) {
+      return;
+    }
+    _streamingRecognitionActive = false;
+    _streamingCorrelationId = null;
+    await streamingSpeechRecognizer.stopRecognition();
+  }
+
   void _handleSilenceDetected(SilenceDetectedEvent event) {
+    if (!_shouldProcessSilence(event)) {
+      return;
+    }
+
+    if (useStreamFirstAudio) {
+      unawaited(_handleHandsFreeSilenceDetected(event));
+      return;
+    }
+
     final session = registry.activeVoiceSession;
     if (session == null) {
       eventBus.publish(
@@ -161,6 +364,170 @@ class VoiceRuntimeEngine {
           'sessionToken': session.token,
           'routeId': session.routeId,
           ...event.metadata,
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleHandsFreeSilenceDetected(
+    SilenceDetectedEvent event,
+  ) async {
+    if (_currentState != VoiceSessionState.listeningCommand) {
+      return;
+    }
+    if (_activeHandsFreeCorrelationId != event.correlationId) {
+      return;
+    }
+
+    _transitionTo(
+      VoiceSessionState.processingCommand,
+      reason: 'isolate_silence_detected',
+      correlationId: event.correlationId,
+      causationId: event.id,
+      ownerId: event.ownerId ?? _activeHandsFreeOwnerId,
+      metadata: event.metadata,
+    );
+
+    final stop = StopVoiceCaptureRequestedEvent(
+      source: 'runtime_engine',
+      ownerId: event.ownerId ?? _activeHandsFreeOwnerId,
+      reason: 'isolate_silence_detected',
+      correlationId: event.correlationId,
+      causationId: event.id,
+      metadata: event.metadata,
+    );
+    eventBus.publish(stop);
+
+    final capture = commandCapture;
+    if (capture == null) {
+      return;
+    }
+
+    try {
+      final path = await capture.stopRecording();
+      eventBus.publish(
+        RecordingStoppedEvent(
+          source: 'runtime_engine',
+          ownerId: event.ownerId ?? _activeHandsFreeOwnerId,
+          reason: 'hands_free_command_file_ready',
+          correlationId: event.correlationId,
+          causationId: stop.id,
+          metadata: {
+            'path': ?path,
+            'fileReady': path != null && path.isNotEmpty,
+          },
+        ),
+      );
+    } catch (error) {
+      eventBus.publish(
+        SpeechListeningFailedEvent(
+          source: 'runtime_engine',
+          ownerId: event.ownerId ?? _activeHandsFreeOwnerId,
+          reason: 'hands_free_capture_stop_failed',
+          message: 'Falha ao fechar captura hands-free: $error',
+          correlationId: event.correlationId,
+          causationId: stop.id,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleRecordingStopped(RecordingStoppedEvent event) async {
+    if (!useStreamFirstAudio ||
+        _currentState != VoiceSessionState.processingCommand ||
+        _activeHandsFreeCorrelationId != event.correlationId) {
+      return;
+    }
+
+    await _ensureStreamingRecognizerInitialized();
+    await streamingSpeechRecognizer.startRecognition(event.correlationId);
+    _streamingRecognitionActive = true;
+    _streamingCorrelationId = event.correlationId;
+  }
+
+  bool _shouldProcessSilence(SilenceDetectedEvent event) {
+    return useStreamFirstAudio ? event.isIsolateEngine : !event.isIsolateEngine;
+  }
+
+  void _handleFinalSpeechResult(SpeechResultReceivedEvent event) {
+    if (!useStreamFirstAudio ||
+        _currentState != VoiceSessionState.processingCommand ||
+        _activeHandsFreeCorrelationId != event.correlationId) {
+      return;
+    }
+
+    final intent = intentParser.parse(event.text);
+    if (intent is! UnknownIntent) {
+      eventBus.publish(
+        VoiceCommandInterpretedEvent(
+          source: 'runtime_engine',
+          ownerId: event.ownerId ?? _activeHandsFreeOwnerId,
+          reason: 'speech_result_received',
+          correlationId: event.correlationId,
+          causationId: event.id,
+          intent: intent,
+        ),
+      );
+    }
+
+    _completeHandsFreeCycle(
+      event,
+      reason: intent is UnknownIntent
+          ? 'unknown_voice_intent'
+          : 'voice_intent_interpreted',
+    );
+  }
+
+  void _completeHandsFreeCycle(
+    VoiceRealtimeEvent event, {
+    required String reason,
+  }) {
+    if (!useStreamFirstAudio ||
+        _currentState != VoiceSessionState.processingCommand ||
+        _activeHandsFreeCorrelationId != event.correlationId) {
+      return;
+    }
+
+    _transitionTo(
+      VoiceSessionState.sleeping,
+      reason: reason,
+      correlationId: event.correlationId,
+      causationId: event.id,
+      ownerId: event.ownerId ?? _activeHandsFreeOwnerId,
+      metadata: event.metadata,
+    );
+    _activeHandsFreeCorrelationId = null;
+    _activeHandsFreeOwnerId = null;
+    unawaited(_stopStreamingRecognition());
+  }
+
+  void _transitionTo(
+    VoiceSessionState next, {
+    required String reason,
+    String? correlationId,
+    String? causationId,
+    String? ownerId,
+    Map<String, Object?> metadata = const {},
+  }) {
+    final previous = _currentState;
+    if (previous == next) {
+      return;
+    }
+
+    _currentState = next;
+    eventBus.publish(
+      VoiceStateChangedEvent(
+        source: 'runtime_engine',
+        ownerId: ownerId ?? _activeHandsFreeOwnerId,
+        previousState: previous.name,
+        nextState: next.name,
+        reason: reason,
+        correlationId: correlationId ?? _activeHandsFreeCorrelationId,
+        causationId: causationId,
+        metadata: {
+          'sessionState': next.name,
+          'previousSessionState': previous.name,
+          ...metadata,
         },
       ),
     );
@@ -432,7 +799,10 @@ class VoiceRuntimeEngine {
     return value is int ? value : null;
   }
 
-  Future<void> dispose() => stop();
+  Future<void> dispose() async {
+    await stop();
+    await streamingSpeechRecognizer.dispose();
+  }
 
   void resetForTesting() {
     for (final timer in _recoveryTimers.values) {
@@ -442,6 +812,9 @@ class VoiceRuntimeEngine {
     _recoveryAttemptsByCorrelation.clear();
     _processedSpeechFailureEventIds.clear();
     _processedSpeechFailureCorrelations.clear();
+    _currentState = VoiceSessionState.sleeping;
+    _activeHandsFreeCorrelationId = null;
+    _activeHandsFreeOwnerId = null;
     recoveryPolicy.reset();
   }
 

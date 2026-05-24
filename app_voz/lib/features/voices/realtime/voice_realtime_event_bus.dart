@@ -15,6 +15,8 @@ class VoiceRealtimeEventBus extends ChangeNotifier {
   final Set<String> _cancelledCorrelationIds = {};
   final StreamController<VoiceRealtimeEvent> _controller =
       StreamController<VoiceRealtimeEvent>.broadcast(sync: true);
+  final List<VoiceRealtimeEvent> _pendingDispatch = [];
+  bool _isDispatching = false;
 
   List<VoiceRealtimeEvent> get timeline => List.unmodifiable(_timeline);
 
@@ -40,7 +42,11 @@ class VoiceRealtimeEventBus extends ChangeNotifier {
     }
 
     _append(event);
-    _controller.add(event);
+    if (_isDispatching) {
+      _pendingDispatch.add(event);
+    } else {
+      _dispatch(event);
+    }
     notifyListeners();
     return true;
   }
@@ -74,6 +80,18 @@ class VoiceRealtimeEventBus extends ChangeNotifier {
     _timeline.add(event);
     if (_timeline.length > maxEvents) {
       _timeline.removeRange(0, _timeline.length - maxEvents);
+    }
+  }
+
+  void _dispatch(VoiceRealtimeEvent event) {
+    _isDispatching = true;
+    try {
+      _controller.add(event);
+      while (_pendingDispatch.isNotEmpty) {
+        _controller.add(_pendingDispatch.removeAt(0));
+      }
+    } finally {
+      _isDispatching = false;
     }
   }
 

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -240,9 +240,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
             tempoSilencioSegundos: segundos.clamp(3, 12).toInt(),
           ),
         );
-        _atualizarStatus(
-          'Tempo de silêncio definido para $segundos segundos.',
-        );
+        _atualizarStatus('Tempo de silêncio definido para $segundos segundos.');
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.voltar:
         await suspendContextualVoiceListening();
@@ -481,10 +479,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                     );
                   }),
                 const SizedBox(height: AppSpacing.xl),
-                Text(
-                  'Gravação',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+                Text('Gravação', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: AppSpacing.md),
                 SwitchListTile(
                   value: configuracao.paradaSilencio,

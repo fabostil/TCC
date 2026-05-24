@@ -73,17 +73,13 @@ class _HistoricoPageState extends State<HistoricoPage>
     }
     await Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (_) => DashboardPage(usuario: widget.usuario),
-      ),
+      MaterialPageRoute(builder: (_) => DashboardPage(usuario: widget.usuario)),
     );
     return VoiceCommandPageResult.handled(restartListening: false);
   }
 
   Future<VoiceCommandPageResult> _handleJaAberto(CommandResult _) async {
-    return VoiceCommandPageResult.handled(
-      message: 'Historico ja esta aberto.',
-    );
+    return VoiceCommandPageResult.handled(message: 'Historico ja esta aberto.');
   }
 
   @override

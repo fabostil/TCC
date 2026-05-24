@@ -118,7 +118,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
         final silenceBytes = Uint8List.fromList(
-          List<int>.filled(audioPipelineDefaultFrameSizeBytes * 5, 128),
+          List<int>.filled(audioPipelineDefaultFrameSizeBytes * 5, 0),
         );
         final sent = bridge.sendCommand(
           audioPipelineCommandAudioChunk,
@@ -133,6 +133,10 @@ void main() {
         expect(silence.reason, 'audio_pipeline_silence');
         expect(silence.metadata['level'], 0);
         expect(silence.metadata['silenceMs'], 100);
+        expect(silence.metadata['isIsolateEngine'], isTrue);
+        expect(silence.metadata['frameSizeBytes'], 640);
+        expect(silence.metadata['adaptiveThreshold'], 150);
+        expect(silence.isIsolateEngine, isTrue);
         expect(silence.message, 'Silencio detectado.');
       },
     );
@@ -145,7 +149,7 @@ void main() {
         audioPipelineCommandAudioChunk,
         correlationId: 'ignored-vad-flow',
         payload: Uint8List.fromList(
-          List<int>.filled(audioPipelineDefaultFrameSizeBytes * 5, 128),
+          List<int>.filled(audioPipelineDefaultFrameSizeBytes * 5, 0),
         ),
       );
       await Future<void>.delayed(const Duration(milliseconds: 40));

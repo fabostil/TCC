@@ -1,0 +1,167 @@
+import 'package:app_voz/features/voices/realtime/nlu/voice_intent.dart';
+import 'package:app_voz/features/voices/realtime/observability/runtime_telemetry_tracer.dart';
+import 'package:app_voz/features/voices/realtime/tts/text_to_speech_engine.dart';
+import 'package:app_voz/features/voices/realtime/tts/voice_response_bridge.dart';
+import 'package:app_voz/features/voices/realtime/voice_realtime_event.dart';
+import 'package:app_voz/features/voices/realtime/voice_realtime_event_bus.dart';
+import 'package:app_voz/features/voices/realtime/voice_realtime_events.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('VoiceResponseBridge', () {
+    late VoiceRealtimeEventBus bus;
+    late _FakeTextToSpeechEngine tts;
+    late VoiceResponseBridge bridge;
+
+    setUp(() {
+      bus = VoiceRealtimeEventBus();
+      tts = _FakeTextToSpeechEngine();
+      bridge = VoiceResponseBridge(eventBus: bus, ttsEngine: tts)..start();
+    });
+
+    tearDown(() async {
+      await bridge.dispose();
+    });
+
+    test(
+      'responde a MetronomeIntent com texto e correlationId corretos',
+      () async {
+        bus.publish(
+          VoiceCommandInterpretedEvent(
+            source: 'test',
+            correlationId: 'intent-flow',
+            intent: const MetronomeIntent(bpm: 120, rawText: 'metronomo 120'),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(tts.calls, hasLength(1));
+        expect(
+          tts.calls.single.text,
+          'Ajustando metronomo para 120 batidas por minuto',
+        );
+        expect(tts.calls.single.correlationId, 'intent-flow');
+      },
+    );
+
+    test('responde defensivamente a UnknownIntent', () async {
+      bus.publish(
+        VoiceCommandInterpretedEvent(
+          source: 'test',
+          correlationId: 'unknown-flow',
+          intent: const UnknownIntent('texto sem comando'),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        tts.calls.single.text,
+        'Desculpe, nao consegui entender o comando musical',
+      );
+      expect(tts.calls.single.correlationId, 'unknown-flow');
+    });
+
+    test(
+      'captura falha de speak, registra telemetria e continua operacional',
+      () async {
+        final tracer = RuntimeTelemetryTracer(eventBus: bus);
+        tts.failNextSpeak = true;
+
+        bus.publish(
+          VoiceCommandInterpretedEvent(
+            source: 'test',
+            correlationId: 'failing-flow',
+            intent: const PlaybackIntent(action: 'start', rawText: 'play'),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final degraded = bus.timeline
+            .whereType<VoiceSystemDegradedEvent>()
+            .single;
+        expect(degraded.reason, 'tts_speak_failed');
+        expect(degraded.correlationId, 'failing-flow');
+        expect(
+          tracer
+              .getTraceChain('failing-flow')
+              .where(
+                (event) =>
+                    event.type == VoiceRealtimeEventType.voiceSystemDegraded,
+              ),
+          isNotEmpty,
+        );
+
+        bus.publish(
+          VoiceCommandInterpretedEvent(
+            source: 'test',
+            correlationId: 'next-flow',
+            intent: const PlaybackIntent(action: 'pause', rawText: 'pause'),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(tts.calls.map((call) => call.correlationId), [
+          'failing-flow',
+          'next-flow',
+        ]);
+        expect(tts.calls.last.text, 'Pausando a musica');
+
+        await tracer.dispose();
+      },
+    );
+
+    test('ignora respostas duplicadas para o mesmo correlationId', () async {
+      final first = VoiceCommandInterpretedEvent(
+        source: 'test',
+        correlationId: 'duplicate-flow',
+        intent: const PlaybackIntent(action: 'start', rawText: 'play'),
+      );
+      final second = VoiceCommandInterpretedEvent(
+        source: 'test',
+        correlationId: 'duplicate-flow',
+        intent: const MetronomeIntent(bpm: 140, rawText: 'metronomo 140'),
+      );
+
+      bus.publish(first);
+      bus.publish(second);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(tts.calls, hasLength(1));
+      expect(tts.calls.single.text, 'Iniciando reproducao');
+    });
+  });
+}
+
+class _FakeTextToSpeechEngine implements TextToSpeechEngine {
+  final List<_SpeakCall> calls = [];
+  var failNextSpeak = false;
+  var disposed = false;
+  var stopped = false;
+
+  @override
+  Future<void> speak(String text, String correlationId) async {
+    calls.add(_SpeakCall(text: text, correlationId: correlationId));
+    stopped = false;
+    if (failNextSpeak) {
+      failNextSpeak = false;
+      throw StateError('tts failed');
+    }
+  }
+
+  @override
+  Future<void> stop() async {
+    stopped = true;
+  }
+
+  @override
+  Future<void> dispose() async {
+    disposed = true;
+  }
+}
+
+class _SpeakCall {
+  const _SpeakCall({required this.text, required this.correlationId});
+
+  final String text;
+  final String correlationId;
+}
