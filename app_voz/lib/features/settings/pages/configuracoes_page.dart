@@ -35,6 +35,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   VoicePermissionResult? _ultimoResultadoPermissao;
   String _tipoComandoPersonalizado =
       CustomCommandCatalog.actions.first.tipoComando;
+  int? _tempoSilencioVisual;
 
   SettingsState get _settingsState => _settingsController.state;
 
@@ -82,6 +83,23 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
 
   Future<void> _salvar(ConfiguracaoApp configuracao) async {
     await _settingsController.saveConfiguration(configuracao);
+  }
+
+  Future<void> _salvarTempoSilencio(
+    ConfiguracaoApp configuracao,
+    double value,
+  ) async {
+    final segundos = value.round();
+    voiceSetState(() {
+      _tempoSilencioVisual = segundos;
+    });
+    await _salvar(configuracao.copyWith(tempoSilencioSegundos: segundos));
+    if (!mounted) {
+      return;
+    }
+    voiceSetState(() {
+      _tempoSilencioVisual = null;
+    });
   }
 
   Future<void> _salvarComandoPersonalizado() async {
@@ -493,27 +511,29 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                 ListTile(
                   title: const Text('Tempo de silêncio'),
                   subtitle: Slider(
-                    value: configuracao.tempoSilencioSegundos.toDouble(),
+                    value:
+                        (_tempoSilencioVisual ??
+                                configuracao.tempoSilencioSegundos)
+                            .toDouble(),
                     min: 3,
                     max: 12,
                     divisions: 9,
-                    label: '${configuracao.tempoSilencioSegundos}s',
+                    label:
+                        '${_tempoSilencioVisual ?? configuracao.tempoSilencioSegundos}s',
                     onChanged: configuracao.paradaSilencio
-                        ? (value) => _salvar(
-                            configuracao.copyWith(
-                              tempoSilencioSegundos: value.round(),
-                            ),
-                          )
+                        ? (value) {
+                            voiceSetState(() {
+                              _tempoSilencioVisual = value.round();
+                            });
+                          }
                         : null,
                     onChangeEnd: configuracao.paradaSilencio
-                        ? (value) => _salvar(
-                            configuracao.copyWith(
-                              tempoSilencioSegundos: value.round(),
-                            ),
-                          )
+                        ? (value) => _salvarTempoSilencio(configuracao, value)
                         : null,
                   ),
-                  trailing: Text('${configuracao.tempoSilencioSegundos}s'),
+                  trailing: Text(
+                    '${_tempoSilencioVisual ?? configuracao.tempoSilencioSegundos}s',
+                  ),
                 ),
               ],
             ),

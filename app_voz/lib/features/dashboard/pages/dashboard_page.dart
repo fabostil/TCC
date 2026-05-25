@@ -359,22 +359,26 @@ class _MetricCard extends StatelessWidget {
     final theme = Theme.of(context);
     final metricColor = color ?? theme.colorScheme.primary;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: metricColor.withAlpha(28),
-              child: Icon(icon, color: metricColor),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(title, style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 4),
-            Text(value, style: theme.textTheme.titleLarge),
-          ],
+    return Semantics(
+      label: 'Metrica $title: $value',
+      container: true,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: metricColor.withAlpha(28),
+                child: Icon(icon, color: metricColor),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(title, style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 4),
+              Text(value, style: theme.textTheme.titleLarge),
+            ],
+          ),
         ),
       ),
     );

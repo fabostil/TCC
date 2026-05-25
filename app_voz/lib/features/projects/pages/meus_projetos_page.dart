@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -13,6 +13,7 @@ import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
+import '../../editor/pages/editor_page.dart';
 import '../controllers/projects_list_controller.dart';
 import 'projeto_detalhes_page.dart';
 
@@ -40,6 +41,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
   Timer? _buscaDebounce;
   bool _abriuCriacaoInicial = false;
   Projeto? _projetoPendenteExclusao;
+  Projeto? _projetoContextualSelecionado;
 
   ProjectsListState get _projectsState => _projectsController.state;
 
@@ -188,6 +190,8 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
           Navigator.maybePop(context);
         }
         return VoiceCommandPageResult.handled(restartListening: false);
+      case VoiceCommandType.abrirEditor:
+        return _abrirEditorPorVoz();
       case VoiceCommandType.iniciarGravacao:
       case VoiceCommandType.pausarGravacao:
       case VoiceCommandType.retomarGravacao:
@@ -205,7 +209,6 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
       case VoiceCommandType.abrirConfiguracoes:
       case VoiceCommandType.abrirAssistente:
       case VoiceCommandType.abrirHistorico:
-      case VoiceCommandType.abrirEditor:
       case VoiceCommandType.renomearGravacao:
       case VoiceCommandType.excluirGravacao:
       case VoiceCommandType.ativarControleVoz:
@@ -473,7 +476,40 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     return _projectsController.findByName(nome);
   }
 
+  void _selecionarProjetoContextual(Projeto projeto) {
+    _projetoContextualSelecionado = projeto;
+  }
+
+  Future<VoiceCommandPageResult> _abrirEditorPorVoz() async {
+    final projeto = _projetoContextualSelecionado;
+    if (projeto == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Abra um projeto primeiro para acessar o editor.',
+      );
+    }
+
+    await suspendContextualVoiceListening();
+    if (!mounted) {
+      return VoiceCommandPageResult.handled(restartListening: false);
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditorPage(usuario: widget.usuario, projeto: projeto),
+      ),
+    );
+
+    if (mounted) {
+      await _carregarProjetos();
+      await startContinuousVoiceListeningIfActive();
+    }
+
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
   Future<void> _abrirProjeto(Projeto projeto) async {
+    _selecionarProjetoContextual(projeto);
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -696,7 +732,10 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
                       ),
                     ),
                     trailing: PopupMenuButton<String>(
+                      tooltip: 'Abrir menu de acoes do projeto ${projeto.nome}',
+                      onOpened: () => _selecionarProjetoContextual(projeto),
                       onSelected: (value) {
+                        _selecionarProjetoContextual(projeto);
                         if (value == 'open') {
                           _abrirProjeto(projeto);
                         }
@@ -715,7 +754,10 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
                       ],
                     ),
                     onTap: () => _abrirProjeto(projeto),
-                    onLongPress: () => _renomearProjetoManual(projeto),
+                    onLongPress: () {
+                      _selecionarProjetoContextual(projeto);
+                      _renomearProjetoManual(projeto);
+                    },
                   ),
                 );
               },
