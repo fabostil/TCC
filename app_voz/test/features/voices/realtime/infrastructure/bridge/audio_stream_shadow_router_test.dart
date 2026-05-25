@@ -5,18 +5,21 @@ import 'package:app_voz/features/voices/realtime/infrastructure/audio_isolate_br
 import 'package:app_voz/features/voices/realtime/infrastructure/audio_pipeline_isolate.dart';
 import 'package:app_voz/features/voices/realtime/infrastructure/bridge/audio_stream_shadow_router.dart';
 import 'package:app_voz/features/voices/realtime/voice_realtime_event_bus.dart';
+import 'package:app_voz/features/voices/realtime/voice_realtime_events.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('AudioStreamShadowRouter', () {
     late StreamController<Uint8List> chunks;
     late _FakeAudioIsolateBridge bridge;
+    late VoiceRealtimeEventBus eventBus;
     late AudioStreamShadowRouter router;
 
     setUp(() {
       chunks = StreamController<Uint8List>.broadcast(sync: true);
       bridge = _FakeAudioIsolateBridge();
-      router = AudioStreamShadowRouter(bridge: bridge);
+      eventBus = VoiceRealtimeEventBus();
+      router = AudioStreamShadowRouter(bridge: bridge, eventBus: eventBus);
     });
 
     tearDown(() async {
@@ -34,6 +37,10 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(bridge.commands, [
+        const _SentCommand(
+          command: audioPipelineCommandStartCapture,
+          correlationId: 'shadow-flow',
+        ),
         _SentCommand(
           command: audioPipelineCommandAudioChunk,
           correlationId: 'shadow-flow',
@@ -49,6 +56,7 @@ void main() {
 
     test('descarta chunks quando a bridge nao esta disponivel', () async {
       bridge.available = false;
+      bridge.startSucceeds = false;
       router.start(chunks.stream);
 
       chunks.add(Uint8List.fromList([1, 2, 3]));
@@ -69,6 +77,10 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(bridge.commands, [
+        const _SentCommand(
+          command: audioPipelineCommandStartCapture,
+          correlationId: 'safe-shadow',
+        ),
         _SentCommand(
           command: audioPipelineCommandAudioChunk,
           correlationId: 'safe-shadow',
@@ -79,12 +91,38 @@ void main() {
 
     test('dispose cancela assinatura do stream', () async {
       router.start(chunks.stream);
+      bridge.commands.clear();
       await router.dispose();
 
       chunks.add(Uint8List.fromList([1, 2, 3]));
       await Future<void>.delayed(Duration.zero);
 
       expect(router.isActive, isFalse);
+      expect(bridge.commands, const [
+        _SentCommand(command: audioPipelineCommandStopCapture),
+      ]);
+    });
+
+    test('suprime chunks durante TTS sem parar o stream principal', () async {
+      router.start(chunks.stream, correlationId: 'echo-safe');
+      bridge.commands.clear();
+
+      eventBus.publish(
+        VoiceStateChangedEvent(
+          source: 'test',
+          previousState: 'ttsIdle',
+          nextState: 'ttsSpeaking',
+          reason: 'tts_test',
+          correlationId: 'tts',
+          metadata: {'text': 'Confirmado.'},
+        ),
+      );
+
+      chunks.add(Uint8List.fromList([1, 2, 3]));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(router.isActive, isTrue);
+      expect(router.isSuppressingTtsEcho, isTrue);
       expect(bridge.commands, isEmpty);
     });
   });
@@ -92,6 +130,7 @@ void main() {
 
 class _FakeAudioIsolateBridge implements AudioIsolateBridge {
   bool available = true;
+  bool startSucceeds = true;
   bool throwOnSend = false;
   final List<_SentCommand> commands = [];
 
@@ -130,8 +169,8 @@ class _FakeAudioIsolateBridge implements AudioIsolateBridge {
 
   @override
   Future<bool> start({Duration timeout = const Duration(seconds: 2)}) {
-    available = true;
-    return Future<bool>.value(true);
+    available = startSucceeds;
+    return Future<bool>.value(startSucceeds);
   }
 
   @override

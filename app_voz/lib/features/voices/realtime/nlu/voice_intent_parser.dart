@@ -74,7 +74,6 @@ class VoiceIntentParser {
     'cancela': 'cancelar',
     'nao': 'cancelar',
     'não': 'cancelar',
-    'nÃƒÂ£o': 'cancelar',
     'para': 'cancelar',
     'abortar': 'cancelar',
     'sai': 'cancelar',
@@ -209,7 +208,7 @@ class VoiceIntentParser {
       return ConfirmIntent(rawText: rawText);
     }
     if (RegExp(
-      '^(?:cancelar|nao|n\u00e3o|nÃ£o|esquece|cancela)\$',
+      '^(?:cancelar|nao|não|esquece|cancela)\$',
     ).hasMatch(trimmedCancel)) {
       return CancelIntent(rawText: rawText);
     }

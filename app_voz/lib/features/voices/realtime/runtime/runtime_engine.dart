@@ -450,6 +450,14 @@ class VoiceRuntimeEngine {
   }
 
   void _handleFinalSpeechResult(SpeechResultReceivedEvent event) {
+    if (useStreamFirstAudio &&
+        _streamingRecognitionActive &&
+        _streamingCorrelationId == event.correlationId &&
+        _currentState == VoiceSessionState.sleeping) {
+      _publishStreamingIntent(event);
+      return;
+    }
+
     if (!useStreamFirstAudio ||
         _currentState != VoiceSessionState.processingCommand ||
         _activeHandsFreeCorrelationId != event.correlationId) {
@@ -473,6 +481,20 @@ class VoiceRuntimeEngine {
       reason: intent is UnknownIntent
           ? 'unknown_voice_intent'
           : 'voice_intent_interpreted',
+    );
+  }
+
+  void _publishStreamingIntent(SpeechResultReceivedEvent event) {
+    final intent = intentParser.parse(event.text);
+    eventBus.publish(
+      VoiceCommandInterpretedEvent(
+        source: 'runtime_engine',
+        ownerId: event.ownerId ?? _activeHandsFreeOwnerId,
+        reason: 'streaming_speech_result_received',
+        correlationId: event.correlationId,
+        causationId: event.id,
+        intent: intent,
+      ),
     );
   }
 

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:app_voz/features/voices/realtime/nlu/voice_intent.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_engine.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_registry.dart';
 import 'package:app_voz/features/voices/realtime/stt/streaming_speech_recognizer.dart';
@@ -61,6 +62,41 @@ void main() {
         await engine.dispose();
       },
     );
+
+    test('streaming final publica intent mesmo sem ciclo wake-word', () async {
+      final bus = VoiceRealtimeEventBus();
+      final recognizer = _FakeStreamingSpeechRecognizer();
+      final engine = VoiceRuntimeEngine(
+        eventBus: bus,
+        registry: VoiceRuntimeRegistry(eventBus: bus),
+        useStreamFirstAudio: true,
+        streamingSpeechRecognizer: recognizer,
+      )..start();
+
+      bus.publish(
+        AudioPipelineCaptureStartedEvent(
+          source: 'test',
+          correlationId: 'recording-shadow',
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      bus.publish(
+        SpeechResultReceivedEvent(
+          source: 'test',
+          text: 'stop',
+          isFinal: true,
+          correlationId: 'recording-shadow',
+        ),
+      );
+
+      final interpreted = bus.timeline
+          .whereType<VoiceCommandInterpretedEvent>();
+      expect(interpreted, hasLength(1));
+      expect(interpreted.single.reason, 'streaming_speech_result_received');
+      expect(interpreted.single.intent, isA<PlaybackIntent>());
+
+      await engine.dispose();
+    });
 
     test('stream-first desligado nao aciona recognizer streaming', () async {
       final bus = VoiceRealtimeEventBus();

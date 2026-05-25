@@ -16,7 +16,10 @@ import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_session_manager.dart';
 import '../../voices/coordination/voice_session_state.dart';
 import '../../voices/coordination/voice_state_machine.dart';
+import '../../voices/realtime/nlu/voice_intent.dart';
 import '../../voices/realtime/runtime/voice_realtime_ecosystem.dart';
+import '../../voices/realtime/voice_realtime_event_bus.dart';
+import '../../voices/realtime/voice_realtime_events.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/voice_global_command_service.dart';
 import '../controllers/recording_realtime_coordinator.dart';
@@ -36,6 +39,10 @@ class EditorPage extends StatefulWidget {
 class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   final VoiceSessionManager _voiceSessionManager = VoiceSessionManager.instance;
   static const String _voiceOwnerId = VoicePageOwners.editor;
+  static const bool _useStreamFirstMode = bool.fromEnvironment(
+    'USE_STREAM_FIRST_AUDIO',
+    defaultValue: false,
+  );
   static final Random _secureRandom = Random.secure();
   final CommandService commandService = const CommandService();
   final VoiceCommandController commandController = VoiceCommandController();
@@ -45,6 +52,8 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       RecordingRealtimeCoordinator(ownerId: _voiceOwnerId);
   final RecordingManagementService _recordingService =
       const RecordingManagementService();
+  StreamSubscription<VoiceCommandInterpretedEvent>?
+  _realtimeCommandSubscription;
 
   bool ouvindo = false;
 
@@ -96,8 +105,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   bool get _podePararAudio => recordingState.canStopPlayback;
 
   bool get _escutaBloqueadaPorGravacao =>
-      _voiceSessionState.phase == VoiceSessionPhase.recordingLocked ||
-      _interactionMode == EditorInteractionMode.recording;
+      !_useStreamFirstMode &&
+      (_voiceSessionState.phase == VoiceSessionPhase.recordingLocked ||
+          _interactionMode == EditorInteractionMode.recording);
 
   void _setVoiceSession(
     VoiceSessionPhase phase, {
@@ -125,6 +135,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     _voiceSessionToken = _generateVoiceSessionToken();
     nomeProjeto = widget.projeto?.nome ?? nomeProjeto;
     _publishRealtimeContext();
+    _realtimeCommandSubscription = VoiceRealtimeEventBus.instance
+        .on<VoiceCommandInterpretedEvent>()
+        .listen(_handleRealtimeCommandDuringRecording);
     _recordingCoordinator.addListener(_onRecordingStateChanged);
     _carregarConfiguracoes();
     _carregarGravacoes();
@@ -157,6 +170,25 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
 
   void _clearRealtimeContext() {
     VoiceRealtimeEcosystem.instance.clearActiveContext();
+  }
+
+  void _handleRealtimeCommandDuringRecording(
+    VoiceCommandInterpretedEvent event,
+  ) {
+    if (!_useStreamFirstMode || !mounted || !gravando || carregandoAudio) {
+      return;
+    }
+
+    final intent = event.intent;
+    final shouldStopRecording =
+        intent is CancelIntent ||
+        (intent is PlaybackIntent && intent.action == 'stop');
+
+    if (!shouldStopRecording) {
+      return;
+    }
+
+    unawaited(encerrarGravacao(intent.rawText));
   }
 
   void _onRecordingStateChanged() {
@@ -263,13 +295,17 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.recordingLocked,
-          message: 'Microfone reservado para gravacao.',
+          message: _useStreamFirstMode
+              ? 'Gravação usando stream compartilhado.'
+              : 'Microfone reservado para gravação.',
         );
         _interactionMode = EditorInteractionMode.recording;
-        textoReconhecido =
-            'Escuta por voz pausada durante a gravação para evitar conflito de microfone.';
-        statusProjeto =
-            'Durante a gravação, o microfone fica reservado para capturar áudio. Use os controles manuais ou a parada por silêncio.';
+        textoReconhecido = _useStreamFirstMode
+            ? 'Escuta realtime ativa durante a gravação.'
+            : 'Escuta por voz pausada durante a gravação para evitar conflito de microfone.';
+        statusProjeto = _useStreamFirstMode
+            ? 'Gravação em andamento com escuta hands-free pelo mesmo stream de áudio.'
+            : 'Durante a gravação, o microfone fica reservado para capturar áudio. Use os controles manuais ou a parada por silêncio.';
       });
       return;
     }
@@ -432,11 +468,15 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     setState(() {
       _setVoiceSession(
         VoiceSessionPhase.recordingLocked,
-        message: 'Escuta pausada para liberar o microfone.',
+        message: _useStreamFirstMode
+            ? 'Escuta realtime mantida pelo stream de gravação.'
+            : 'Escuta pausada para liberar o microfone.',
       );
       _interactionMode = EditorInteractionMode.recording;
       statusProjeto = 'Preparando modo gravação...';
-      textoReconhecido = 'Escuta por voz pausada para liberar o microfone.';
+      textoReconhecido = _useStreamFirstMode
+          ? 'Escuta realtime ativa durante a gravação.'
+          : 'Escuta por voz pausada para liberar o microfone.';
     });
   }
 
@@ -1108,6 +1148,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _recordingCoordinator.removeListener(_onRecordingStateChanged);
+    unawaited(_realtimeCommandSubscription?.cancel());
     _voiceSessionManager.exitRecordingMode(
       ownerId: _voiceOwnerId,
       reason: 'editor_dispose',
@@ -1507,7 +1548,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                 ),
                 label: Text(
                   gravando
-                      ? 'Escuta pausada'
+                      ? _useStreamFirstMode
+                            ? 'Hands-free ativo'
+                            : 'Escuta pausada'
                       : ouvindo
                       ? 'Parar escuta'
                       : 'Falar comando',

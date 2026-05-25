@@ -238,7 +238,7 @@ void main() {
         expect(tts.calls, hasLength(1));
         expect(
           tts.calls.single.text,
-          'ExclusÃ£o cancelada. A gravaÃ§Ã£o foi mantida.',
+          'Exclusão cancelada. A gravação foi mantida.',
         );
         expect(tts.calls.single.correlationId, 'delete-flow');
       },

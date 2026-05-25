@@ -52,7 +52,7 @@ class IntentResponseFormatter {
     required bool approved,
   }) {
     if (!approved && action == 'delete_last_recording') {
-      return 'ExclusÃ£o cancelada. A gravaÃ§Ã£o foi mantida.';
+      return 'Exclusão cancelada. A gravação foi mantida.';
     }
     if (approved) {
       return format(intent);

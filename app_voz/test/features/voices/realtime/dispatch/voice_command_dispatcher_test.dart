@@ -591,7 +591,7 @@ void main() {
           resolved.intent,
           approved: resolved.approved,
         ),
-        'ExclusÃ£o cancelada. A gravaÃ§Ã£o foi mantida.',
+        'Exclusão cancelada. A gravação foi mantida.',
       );
     });
 
