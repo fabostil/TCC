@@ -26,6 +26,8 @@ import '../controllers/recording_realtime_coordinator.dart';
 
 enum EditorInteractionMode { normal, recording }
 
+enum _EditorFsmVisualState { sleeping, listeningCommand, processingCommand }
+
 class EditorPage extends StatefulWidget {
   final Usuario usuario;
   final Projeto? projeto;
@@ -1097,18 +1099,18 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
 
   Color get corStatus {
     if (gravando && !pausado) {
-      return Colors.red;
+      return _EditorPalette.record;
     }
 
     if (pausado) {
-      return Colors.orange;
+      return _EditorPalette.warning;
     }
 
     if (reproduzindo) {
-      return Colors.green;
+      return _EditorPalette.playback;
     }
 
-    return Colors.deepPurple;
+    return _EditorPalette.cyan;
   }
 
   String get textoStatus {
@@ -1129,6 +1131,39 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     }
 
     return 'Pronto';
+  }
+
+  _EditorFsmVisualState get _fsmVisualState {
+    return switch (_voiceSessionState.phase) {
+      VoiceSessionPhase.listening => _EditorFsmVisualState.listeningCommand,
+      VoiceSessionPhase.processingCommand ||
+      VoiceSessionPhase.aiThinking => _EditorFsmVisualState.processingCommand,
+      _ => _EditorFsmVisualState.sleeping,
+    };
+  }
+
+  Color get _fsmAccent {
+    return switch (_fsmVisualState) {
+      _EditorFsmVisualState.sleeping => _EditorPalette.muted,
+      _EditorFsmVisualState.listeningCommand => _EditorPalette.cyan,
+      _EditorFsmVisualState.processingCommand => _EditorPalette.playback,
+    };
+  }
+
+  String get _fsmLabel {
+    return switch (_fsmVisualState) {
+      _EditorFsmVisualState.sleeping => 'sleeping',
+      _EditorFsmVisualState.listeningCommand => 'listeningCommand',
+      _EditorFsmVisualState.processingCommand => 'processingCommand',
+    };
+  }
+
+  IconData get _fsmIcon {
+    return switch (_fsmVisualState) {
+      _EditorFsmVisualState.sleeping => Icons.radio_button_unchecked,
+      _EditorFsmVisualState.listeningCommand => Icons.graphic_eq,
+      _EditorFsmVisualState.processingCommand => Icons.sync,
+    };
   }
 
   String _gerarNomeGravacaoUnico(String nomeBase) {
@@ -1163,41 +1198,80 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: !gravando && !carregandoAudio,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) {
-          return;
-        }
+    return Theme(
+      data: Theme.of(context).copyWith(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: _EditorPalette.black,
+        colorScheme: const ColorScheme.dark(
+          primary: _EditorPalette.cyan,
+          secondary: _EditorPalette.playback,
+          surface: _EditorPalette.panel,
+          error: _EditorPalette.record,
+        ),
+      ),
+      child: PopScope(
+        canPop: !gravando && !carregandoAudio,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) {
+            return;
+          }
 
-        final podeSair = await _confirmarSaidaEditor();
-        if (podeSair && context.mounted) {
-          Navigator.pop(context);
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(title: const Text('Editor Musical'), centerTitle: true),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _cabecalhoProjeto(),
-              if (gravando) ...[
-                const SizedBox(height: 18),
-                _modoGravacaoAtivo(),
-              ],
-              const SizedBox(height: 18),
-              _linhaDoTempo(),
-              const SizedBox(height: 18),
-              _controlesManuais(),
-              const SizedBox(height: 18),
-              _painelVoz(),
-              const SizedBox(height: 18),
-              _listaFaixas(),
-              const SizedBox(height: 18),
-              _historico(),
-            ],
+          final podeSair = await _confirmarSaidaEditor();
+          if (podeSair && context.mounted) {
+            Navigator.pop(context);
+          }
+        },
+        child: Scaffold(
+          extendBodyBehindAppBar: true,
+          appBar: AppBar(
+            title: const Text('Editor Musical'),
+            centerTitle: true,
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            foregroundColor: _EditorPalette.textPrimary,
+          ),
+          body: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF05080C),
+                  Color(0xFF080B10),
+                  Color(0xFF020304),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 920),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _cabecalhoProjeto(),
+                        if (gravando) ...[
+                          const SizedBox(height: 14),
+                          _modoGravacaoAtivo(),
+                        ],
+                        const SizedBox(height: 14),
+                        _linhaDoTempo(),
+                        const SizedBox(height: 14),
+                        _controlesManuais(),
+                        const SizedBox(height: 14),
+                        _painelVoz(),
+                        const SizedBox(height: 14),
+                        _listaFaixas(),
+                        const SizedBox(height: 14),
+                        _historico(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -1205,46 +1279,88 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Widget _cabecalhoProjeto() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    return _EditorPanel(
+      accentColor: corStatus,
       child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: corStatus.withValues(alpha: 0.12),
-              child: Icon(Icons.graphic_eq, color: corStatus, size: 32),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    nomeProjeto,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
+            Row(
+              children: [
+                _StatusOrb(color: corStatus, icon: Icons.graphic_eq),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        nomeProjeto,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _EditorPalette.textPrimary,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        statusProjeto,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _EditorPalette.textSecondary,
+                          fontSize: 14,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(statusProjeto, style: const TextStyle(fontSize: 15)),
-                  if (caminhoGravacaoAtual != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      caminhoGravacaoAtual!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+                const SizedBox(width: 12),
+                _StatusPill(
+                  label: textoStatus,
+                  color: corStatus,
+                  icon: gravando
+                      ? Icons.fiber_manual_record
+                      : reproduzindo
+                      ? Icons.play_arrow_rounded
+                      : Icons.check_circle_outline,
+                ),
+              ],
             ),
-            Chip(
-              label: Text(textoStatus),
-              avatar: Icon(Icons.circle, size: 12, color: corStatus),
+            if (caminhoGravacaoAtual != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: _EditorPalette.black.withValues(alpha: 0.42),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _EditorPalette.border),
+                ),
+                child: Text(
+                  caminhoGravacaoAtual!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _EditorPalette.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 18),
+            _VoiceFsmHeader(
+              state: _fsmVisualState,
+              accent: _fsmAccent,
+              icon: _fsmIcon,
+              label: _fsmLabel,
+              message: _voiceSessionState.message,
             ),
           ],
         ),
@@ -1257,25 +1373,25 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         ((limiteSilencioMs - tempoSilencioMs) / 1000).ceil();
     final tempoSilencioSegundos = limiteSilencioMs ~/ 1000;
 
-    return Card(
-      color: Colors.red.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
-      ),
+    return _EditorPanel(
+      accentColor: pausado ? _EditorPalette.warning : _EditorPalette.record,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Icon(Icons.fiber_manual_record, color: Colors.red, size: 56),
+            const Icon(
+              Icons.fiber_manual_record,
+              color: _EditorPalette.record,
+              size: 56,
+            ),
             const SizedBox(height: 12),
             Text(
               pausado ? 'GRAVAÇÃO PAUSADA' : 'GRAVANDO...',
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.red,
+                color: _EditorPalette.record,
               ),
             ),
             const SizedBox(height: 8),
@@ -1337,7 +1453,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: _EditorPalette.record,
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -1373,31 +1489,61 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Widget _linhaDoTempo() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    final progress = progressoLinhaDoTempo.clamp(0.0, 1.0);
+    final accent = gravando
+        ? _EditorPalette.record
+        : reproduzindo
+        ? _EditorPalette.playback
+        : _EditorPalette.cyan;
+
+    return _EditorPanel(
+      accentColor: accent,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Linha do tempo',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            _SectionHeader(
+              icon: Icons.timeline_rounded,
+              title: 'Linha do tempo',
+              subtitle: gravando
+                  ? 'Captura em andamento'
+                  : reproduzindo
+                  ? 'Playback ativo'
+                  : 'Pronta para a próxima tomada',
+              color: accent,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             Row(
               children: [
-                const Text('00:00'),
+                const Text(
+                  '00:00',
+                  style: TextStyle(color: _EditorPalette.textMuted),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: LinearProgressIndicator(
-                    value: progressoLinhaDoTempo,
-                    minHeight: 8,
-                    borderRadius: BorderRadius.circular(12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: progress),
+                      duration: const Duration(milliseconds: 240),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, _) {
+                        return LinearProgressIndicator(
+                          value: value,
+                          minHeight: 10,
+                          backgroundColor: _EditorPalette.track,
+                          valueColor: AlwaysStoppedAnimation<Color>(accent),
+                        );
+                      },
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text('03:00'),
+                Text(
+                  '${(progress * 100).round().clamp(0, 100)}%',
+                  style: const TextStyle(color: _EditorPalette.textSecondary),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -1412,18 +1558,19 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Widget _controlesManuais() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    return _EditorPanel(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Controles',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            const _SectionHeader(
+              icon: Icons.tune_rounded,
+              title: 'Controles',
+              subtitle: 'Comandos manuais de apoio',
+              color: _EditorPalette.cyan,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -1479,10 +1626,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Widget _painelVoz() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    return _EditorPanel(
+      accentColor: _fsmAccent,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1523,15 +1670,20 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
             ],
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.deepPurple.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
+                color: _fsmAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _fsmAccent.withValues(alpha: 0.22)),
               ),
               child: Text(
                 textoReconhecido,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16),
+                style: const TextStyle(
+                  color: _EditorPalette.textPrimary,
+                  fontSize: 16,
+                  height: 1.35,
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -1540,7 +1692,8 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                 onPressed: carregandoAudio || gravando
                     ? null
                     : alternarMicrofone,
-                backgroundColor: ouvindo ? Colors.red : Colors.deepPurple,
+                backgroundColor: ouvindo ? _EditorPalette.record : _fsmAccent,
+                foregroundColor: _EditorPalette.black,
                 icon: Icon(
                   gravando
                       ? Icons.mic_off
@@ -1566,16 +1719,17 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Widget _listaFaixas() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    return _EditorPanel(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Faixas do projeto',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            const _SectionHeader(
+              icon: Icons.library_music_outlined,
+              title: 'Faixas do projeto',
+              subtitle: 'Takes salvos nesta sessão',
+              color: _EditorPalette.playback,
             ),
             const SizedBox(height: 12),
             if (faixas.isEmpty)
@@ -1608,10 +1762,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Widget _historico() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    return _EditorPanel(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1634,6 +1787,247 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                   ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+abstract final class _EditorPalette {
+  static const black = Color(0xFF020304);
+  static const panel = Color(0xFF0B1016);
+  static const panelSoft = Color(0xFF111822);
+  static const border = Color(0xFF1E2A35);
+  static const track = Color(0xFF18222C);
+  static const textPrimary = Color(0xFFE7EEF5);
+  static const textSecondary = Color(0xFFB8C4CF);
+  static const textMuted = Color(0xFF74808A);
+  static const muted = Color(0xFF66717B);
+  static const cyan = Color(0xFF35A7FF);
+  static const playback = Color(0xFF28D7FF);
+  static const record = Color(0xFF55FFB4);
+  static const warning = Color(0xFFFFB84D);
+}
+
+class _EditorPanel extends StatelessWidget {
+  const _EditorPanel({required this.child, this.accentColor});
+
+  final Widget child;
+  final Color? accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = accentColor ?? _EditorPalette.border;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      decoration: BoxDecoration(
+        color: _EditorPalette.panel.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withValues(alpha: 0.24)),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 22),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: _EditorPalette.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _EditorPalette.textMuted,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusOrb extends StatelessWidget {
+  const _StatusOrb({required this.color, required this.icon});
+
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+      ),
+      child: Icon(icon, color: color, size: 30),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
+    required this.label,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.34)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 15),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: const TextStyle(
+              color: _EditorPalette.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VoiceFsmHeader extends StatelessWidget {
+  const _VoiceFsmHeader({
+    required this.state,
+    required this.accent,
+    required this.icon,
+    required this.label,
+    required this.message,
+  });
+
+  final _EditorFsmVisualState state;
+  final Color accent;
+  final IconData icon;
+  final String label;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final listening = state == _EditorFsmVisualState.listeningCommand;
+    final processing = state == _EditorFsmVisualState.processingCommand;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _EditorPalette.panelSoft.withValues(alpha: 0.76),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: accent.withValues(alpha: listening ? 0.55 : 0.28),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: listening ? 0.16 : 0.05),
+            blurRadius: listening ? 22 : 10,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: processing ? 0.12 : 0),
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+            builder: (context, turns, child) {
+              return AnimatedRotation(
+                turns: turns,
+                duration: const Duration(milliseconds: 320),
+                child: child,
+              );
+            },
+            child: Icon(icon, color: accent, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  message?.isNotEmpty == true
+                      ? message!
+                      : 'Assistente aguardando estado de voz.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _EditorPalette.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
