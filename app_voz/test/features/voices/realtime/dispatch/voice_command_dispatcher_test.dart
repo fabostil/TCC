@@ -268,6 +268,7 @@ void main() {
     test(
       'ignora UnknownIntent sem executar handlers e mantem barramento vivo',
       () async {
+        final tracer = RuntimeTelemetryTracer(eventBus: bus);
         bus.publish(
           VoiceCommandInterpretedEvent(
             source: 'test',
@@ -286,6 +287,21 @@ void main() {
             .where((event) => event.reason == 'unknown_intent_ignored')
             .single;
         expect(ignored.correlationId, 'unknown-flow');
+        expect(
+          ignored.message,
+          'Comando não reconhecido recebido para o ID de correlação unknown-flow.',
+        );
+        expect(ignored.metadata['executed'], isFalse);
+        expect(
+          tracer
+              .getTraceChain('unknown-flow')
+              .where(
+                (event) =>
+                    event is VoiceStateChangedEvent &&
+                    event.reason == 'unknown_intent_ignored',
+              ),
+          isNotEmpty,
+        );
 
         bus.publish(
           VoiceCommandInterpretedEvent(
@@ -297,6 +313,43 @@ void main() {
         await dispatcher.idle;
 
         expect(trackService.actions, ['startRecordingTrack']);
+        await tracer.dispose();
+      },
+    );
+
+    test(
+      'registra UnknownIntent duplicado no historico sem reexecutar handlers',
+      () async {
+        final first = VoiceCommandInterpretedEvent(
+          source: 'test',
+          correlationId: 'unknown-duplicate-flow',
+          intent: const UnknownIntent('comando aleatorio'),
+        );
+        final second = VoiceCommandInterpretedEvent(
+          source: 'test',
+          correlationId: 'unknown-duplicate-flow',
+          intent: const UnknownIntent('comando aleatorio'),
+        );
+
+        bus.publish(first);
+        bus.publish(second);
+        await dispatcher.idle;
+
+        expect(metronomeService.bpms, isEmpty);
+        expect(playbackService.actions, isEmpty);
+        expect(trackService.actions, isEmpty);
+        expect(
+          bus.timeline.whereType<VoiceStateChangedEvent>().where(
+            (event) => event.reason == 'unknown_intent_ignored',
+          ),
+          hasLength(1),
+        );
+        expect(
+          bus.timeline.whereType<VoiceStateChangedEvent>().where(
+            (event) => event.reason == 'command_handler_completed',
+          ),
+          isEmpty,
+        );
       },
     );
 

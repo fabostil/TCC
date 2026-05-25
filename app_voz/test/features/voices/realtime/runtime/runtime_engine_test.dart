@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:app_voz/features/editor/services/audio_recording_capture.dart';
+import 'package:app_voz/features/voices/realtime/nlu/voice_intent.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_engine.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_registry.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_recovery_policy.dart';
@@ -358,7 +359,7 @@ void main() {
     );
 
     test(
-      'ciclo hands-free classifica desconhecido sem publicar intencao',
+      'ciclo hands-free publica UnknownIntent e retorna para sleeping',
       () async {
         await engine.stop();
         final capture = _FakeCommandCapture();
@@ -401,7 +402,13 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         expect(engine.currentState, VoiceSessionState.sleeping);
-        expect(bus.timeline.whereType<VoiceCommandInterpretedEvent>(), isEmpty);
+        final interpreted = bus.timeline
+            .whereType<VoiceCommandInterpretedEvent>()
+            .single;
+        expect(interpreted.intent, isA<UnknownIntent>());
+        expect(interpreted.intent.rawText, 'frase aleatoria sem comando');
+        expect(interpreted.correlationId, wake.correlationId);
+        expect(interpreted.causationId, isNotNull);
         final lastState = bus.timeline.whereType<VoiceStateChangedEvent>().last;
         expect(lastState.reason, 'unknown_voice_intent');
       },

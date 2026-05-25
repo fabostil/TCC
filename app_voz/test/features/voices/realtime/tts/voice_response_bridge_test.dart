@@ -57,9 +57,42 @@ void main() {
 
       expect(
         tts.calls.single.text,
-        'Desculpe, nao consegui entender o comando musical',
+        'Desculpe, não consegui entender o comando musical. Você pode tentar dizer tocar, pausar ou mudar o metrônomo.',
       );
       expect(tts.calls.single.correlationId, 'unknown-flow');
+    });
+
+    test('formatter gera resposta instrutiva exata para UnknownIntent', () {
+      expect(
+        const IntentResponseFormatter().format(
+          const UnknownIntent('texto sem comando'),
+        ),
+        'Desculpe, não consegui entender o comando musical. Você pode tentar dizer tocar, pausar ou mudar o metrônomo.',
+      );
+    });
+
+    test('responde UnknownIntent duplicado uma vez por correlationId', () async {
+      final first = VoiceCommandInterpretedEvent(
+        source: 'test',
+        correlationId: 'unknown-duplicate-flow',
+        intent: const UnknownIntent('texto sem comando'),
+      );
+      final second = VoiceCommandInterpretedEvent(
+        source: 'test',
+        correlationId: 'unknown-duplicate-flow',
+        intent: const UnknownIntent('outro texto sem comando'),
+      );
+
+      bus.publish(first);
+      bus.publish(second);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(tts.calls, hasLength(1));
+      expect(
+        tts.calls.single.text,
+        'Desculpe, não consegui entender o comando musical. Você pode tentar dizer tocar, pausar ou mudar o metrônomo.',
+      );
+      expect(tts.calls.single.correlationId, 'unknown-duplicate-flow');
     });
 
     test(

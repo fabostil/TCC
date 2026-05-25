@@ -457,18 +457,16 @@ class VoiceRuntimeEngine {
     }
 
     final intent = intentParser.parse(event.text);
-    if (intent is! UnknownIntent) {
-      eventBus.publish(
-        VoiceCommandInterpretedEvent(
-          source: 'runtime_engine',
-          ownerId: event.ownerId ?? _activeHandsFreeOwnerId,
-          reason: 'speech_result_received',
-          correlationId: event.correlationId,
-          causationId: event.id,
-          intent: intent,
-        ),
-      );
-    }
+    eventBus.publish(
+      VoiceCommandInterpretedEvent(
+        source: 'runtime_engine',
+        ownerId: event.ownerId ?? _activeHandsFreeOwnerId,
+        reason: 'speech_result_received',
+        correlationId: event.correlationId,
+        causationId: event.id,
+        intent: intent,
+      ),
+    );
 
     _completeHandsFreeCycle(
       event,

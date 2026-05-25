@@ -23,6 +23,8 @@ const String audioPipelineMessageWakeWordDetected = 'WAKE_WORD_DETECTED';
 
 const int audioPipelineDefaultFrameSizeBytes = 640;
 const int audioPipelineDefaultConsecutiveSilentFrames = 5;
+const int audioPipelineDefaultMaxHangoverFrames = 10;
+const int audioPipelineDefaultStableSilenceSampleIntervalFrames = 5;
 
 const String _picovoiceAccessKey = String.fromEnvironment(
   'PICOVOICE_ACCESS_KEY',
@@ -38,15 +40,32 @@ const String _picovoiceSensitivityValue = String.fromEnvironment(
   defaultValue: '0.5',
 );
 
-void startAudioPipeline(SendPort mainIsolatePort) {
-  _startAudioPipelineAsync(mainIsolatePort);
+void startAudioPipeline(
+  SendPort mainIsolatePort, {
+  int maxHangoverFrames = audioPipelineDefaultMaxHangoverFrames,
+  int stableSilenceSampleIntervalFrames =
+      audioPipelineDefaultStableSilenceSampleIntervalFrames,
+}) {
+  _startAudioPipelineAsync(
+    mainIsolatePort,
+    maxHangoverFrames: maxHangoverFrames,
+    stableSilenceSampleIntervalFrames: stableSilenceSampleIntervalFrames,
+  );
 }
 
-Future<void> _startAudioPipelineAsync(SendPort mainIsolatePort) async {
+Future<void> _startAudioPipelineAsync(
+  SendPort mainIsolatePort, {
+  required int maxHangoverFrames,
+  required int stableSilenceSampleIntervalFrames,
+}) async {
   final commandPort = ReceivePort();
   final vad = AdaptiveSilenceVad();
   final accumulator = AudioFrameAccumulator(frameSizeBytes: vad.frameSizeBytes);
   final wakeWordEngine = _createWakeWordEngine();
+  final wakeWordGate = WakeWordVadGate(
+    maxHangoverFrames: maxHangoverFrames,
+    stableSilenceSampleIntervalFrames: stableSilenceSampleIntervalFrames,
+  );
   var capturing = false;
   var totalProcessedFrames = 0;
 
@@ -81,6 +100,7 @@ Future<void> _startAudioPipelineAsync(SendPort mainIsolatePort) async {
         totalProcessedFrames = 0;
         accumulator.clear();
         vad.reset();
+        wakeWordGate.reset();
         mainIsolatePort.send({
           'type': audioPipelineMessageCaptureStarted,
           'correlationId': correlationId,
@@ -90,6 +110,7 @@ Future<void> _startAudioPipelineAsync(SendPort mainIsolatePort) async {
         capturing = false;
         accumulator.clear();
         vad.reset();
+        wakeWordGate.reset();
         mainIsolatePort.send({
           'type': audioPipelineMessageCaptureStopped,
           'correlationId': correlationId,
@@ -125,20 +146,22 @@ Future<void> _startAudioPipelineAsync(SendPort mainIsolatePort) async {
           }
           processedFrames += 1;
           totalProcessedFrames += 1;
-          final pcmFrame = _pcm16LittleEndianFrame(frame);
-          if (wakeWordEngine.processFrame(pcmFrame)) {
-            mainIsolatePort.send({
-              'type': audioPipelineMessageWakeWordDetected,
-              'correlationId': correlationId,
-              'detectedAt': DateTime.now().toIso8601String(),
-              'processedFrames': processedFrames,
-              'totalProcessedFrames': totalProcessedFrames,
-              'frameSizeBytes': vad.frameSizeBytes,
-              'engine': _wakeWordEngineName,
-            });
-          }
-
           final result = vad.analyzeFrame(frame);
+          if (wakeWordGate.shouldProcessWakeWord(result)) {
+            final pcmFrame = _pcm16LittleEndianFrame(frame);
+            if (wakeWordEngine.processFrame(pcmFrame)) {
+              wakeWordGate.reopenAfterWakeWordDetection();
+              mainIsolatePort.send({
+                'type': audioPipelineMessageWakeWordDetected,
+                'correlationId': correlationId,
+                'detectedAt': DateTime.now().toIso8601String(),
+                'processedFrames': processedFrames,
+                'totalProcessedFrames': totalProcessedFrames,
+                'frameSizeBytes': vad.frameSizeBytes,
+                'engine': _wakeWordEngineName,
+              });
+            }
+          }
 
           if (result.consecutiveSilentFrames >=
               audioPipelineDefaultConsecutiveSilentFrames) {
@@ -159,6 +182,7 @@ Future<void> _startAudioPipelineAsync(SendPort mainIsolatePort) async {
         capturing = false;
         accumulator.clear();
         vad.reset();
+        wakeWordGate.reset();
         await wakeWordEngine.dispose();
         mainIsolatePort.send({
           'type': audioPipelineMessageShutdownComplete,
@@ -175,6 +199,55 @@ Future<void> _startAudioPipelineAsync(SendPort mainIsolatePort) async {
         });
     }
   });
+}
+
+class WakeWordVadGate {
+  WakeWordVadGate({
+    this.maxHangoverFrames = audioPipelineDefaultMaxHangoverFrames,
+    this.stableSilenceSampleIntervalFrames =
+        audioPipelineDefaultStableSilenceSampleIntervalFrames,
+  }) : assert(maxHangoverFrames >= 0),
+       assert(stableSilenceSampleIntervalFrames > 0) {
+    reset();
+  }
+
+  final int maxHangoverFrames;
+  final int stableSilenceSampleIntervalFrames;
+
+  int _hangoverFramesCounter = 0;
+  int _stableSilenceFrameCounter = 0;
+
+  bool shouldProcessWakeWord(AdaptiveSilenceResult vadResult) {
+    if (!vadResult.isSilent) {
+      _hangoverFramesCounter = maxHangoverFrames;
+      _stableSilenceFrameCounter = 0;
+      return true;
+    }
+
+    if (_hangoverFramesCounter > 0) {
+      _hangoverFramesCounter -= 1;
+      _stableSilenceFrameCounter = 0;
+      return true;
+    }
+
+    _stableSilenceFrameCounter += 1;
+    if (_stableSilenceFrameCounter >= stableSilenceSampleIntervalFrames) {
+      _stableSilenceFrameCounter = 0;
+      return true;
+    }
+
+    return false;
+  }
+
+  void reopenAfterWakeWordDetection() {
+    _hangoverFramesCounter = maxHangoverFrames;
+    _stableSilenceFrameCounter = 0;
+  }
+
+  void reset() {
+    _hangoverFramesCounter = 0;
+    _stableSilenceFrameCounter = stableSilenceSampleIntervalFrames - 1;
+  }
 }
 
 WakeWordEngine _createWakeWordEngine() {

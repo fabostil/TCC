@@ -103,7 +103,13 @@ class VoiceCommandDispatcher {
       _publishIgnored(
         event,
         reason: 'unknown_intent_ignored',
-        metadata: {'rawText': intent.rawText},
+        message:
+            'Comando não reconhecido recebido para o ID de correlação ${event.correlationId}.',
+        metadata: {
+          'intentType': intent.runtimeType.toString(),
+          'rawText': intent.rawText,
+          'executed': false,
+        },
       );
       return;
     }
@@ -310,6 +316,7 @@ class VoiceCommandDispatcher {
   void _publishIgnored(
     VoiceCommandInterpretedEvent event, {
     required String reason,
+    String? message,
     Map<String, Object?> metadata = const {},
   }) {
     eventBus.publish(
@@ -318,6 +325,7 @@ class VoiceCommandDispatcher {
         previousState: 'commandQueued',
         nextState: 'commandIgnored',
         reason: reason,
+        message: message,
         correlationId: event.correlationId,
         causationId: event.id,
         metadata: metadata,

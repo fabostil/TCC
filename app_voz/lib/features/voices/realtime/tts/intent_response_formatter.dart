@@ -20,7 +20,7 @@ class IntentResponseFormatter {
   }
 
   String get unknownCommandResponse =>
-      'Desculpe, nao consegui entender o comando musical';
+      'Desculpe, não consegui entender o comando musical. Você pode tentar dizer tocar, pausar ou mudar o metrônomo.';
 
   String formatFailure(String reason) {
     return switch (reason) {
