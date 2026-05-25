@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../../models/gravacao.dart';
 import '../../../models/projeto.dart';
@@ -32,14 +34,46 @@ class RecordingDetails {
   final RecordingFileInfo fileInfo;
 }
 
+class OrphanFileSyncResult {
+  const OrphanFileSyncResult({
+    required this.candidates,
+    required this.deleted,
+    required this.skipped,
+    required this.errors,
+  });
+
+  final List<String> candidates;
+  final List<String> deleted;
+  final List<String> skipped;
+  final Map<String, String> errors;
+
+  int get candidateCount => candidates.length;
+  int get deletedCount => deleted.length;
+  int get skippedCount => skipped.length;
+  int get errorCount => errors.length;
+}
+
+typedef RecordingsDirectoryProvider = Future<Directory> Function();
+typedef RecordingClock = DateTime Function();
+
 class RecordingManagementService {
-  const RecordingManagementService({
+  RecordingManagementService({
     this.gravacaoRepository,
     this.projetoRepository,
-  });
+    RecordingsDirectoryProvider? recordingsDirectoryProvider,
+    RecordingClock? clock,
+    this.orphanMinimumAge = const Duration(hours: 24),
+  }) : _recordingsDirectoryProvider =
+           recordingsDirectoryProvider ?? _defaultRecordingsDirectory,
+       _clock = clock ?? DateTime.now;
 
   final GravacaoRepository? gravacaoRepository;
   final ProjetoRepository? projetoRepository;
+  final RecordingsDirectoryProvider _recordingsDirectoryProvider;
+  final RecordingClock _clock;
+  final Duration orphanMinimumAge;
+  final Map<String, DateTime> _orphanCandidatesFirstSeen = {};
+  bool _orphanSyncStarted = false;
 
   GravacaoRepository get _gravacoes =>
       gravacaoRepository ?? GravacaoRepository.instance;
@@ -51,6 +85,7 @@ class RecordingManagementService {
     String? termoBusca,
     String? status,
   }) async {
+    _startOrphanFileSync();
     final gravacoes = await _gravacoes.listarGravacoesPorUsuario(
       usuarioId,
       termoBusca: termoBusca,
@@ -64,6 +99,7 @@ class RecordingManagementService {
     String? termoBusca,
     String? status,
   }) async {
+    _startOrphanFileSync();
     final gravacoes = await _gravacoes.listarGravacoesPorProjeto(
       projetoId,
       termoBusca: termoBusca,
@@ -104,6 +140,7 @@ class RecordingManagementService {
   }
 
   Future<RecordingDetails?> loadDetails(int gravacaoId) async {
+    _startOrphanFileSync();
     final encontrada = await _gravacoes.buscarGravacaoPorId(gravacaoId);
     final gravacao = encontrada == null
         ? null
@@ -137,6 +174,157 @@ class RecordingManagementService {
       exists: exists,
       sizeBytes: exists ? await file.length() : 0,
       path: path,
+    );
+  }
+
+  Future<OrphanFileSyncResult> syncOrphanFiles() async {
+    final candidates = <String>[];
+    final deleted = <String>[];
+    final skipped = <String>[];
+    final errors = <String, String>{};
+
+    Directory recordingsDirectory;
+    try {
+      recordingsDirectory = await _recordingsDirectoryProvider();
+    } catch (error) {
+      errors['recordings_directory'] = error.toString();
+      debugPrint(
+        'RecordingManagementService: falha ao resolver diretorio de '
+        'gravacoes: $error',
+      );
+      return OrphanFileSyncResult(
+        candidates: candidates,
+        deleted: deleted,
+        skipped: skipped,
+        errors: errors,
+      );
+    }
+
+    if (!await recordingsDirectory.exists()) {
+      _orphanCandidatesFirstSeen.clear();
+      return OrphanFileSyncResult(
+        candidates: candidates,
+        deleted: deleted,
+        skipped: skipped,
+        errors: errors,
+      );
+    }
+
+    final rootPath = _pathKey(recordingsDirectory.path);
+    Set<String> activePaths;
+    try {
+      activePaths = (await _gravacoes.listarCaminhosArquivosAtivos())
+          .map(_pathKey)
+          .toSet();
+    } catch (error) {
+      errors['recordings_database'] = error.toString();
+      debugPrint(
+        'RecordingManagementService: falha ao listar gravacoes ativas '
+        'para sync de orfaos: $error',
+      );
+      return OrphanFileSyncResult(
+        candidates: candidates,
+        deleted: deleted,
+        skipped: skipped,
+        errors: errors,
+      );
+    }
+    final seenOrphans = <String>{};
+
+    try {
+      await for (final entity in recordingsDirectory.list(followLinks: false)) {
+        if (entity is! File) {
+          continue;
+        }
+
+        final filePath = entity.path;
+        final fileKey = _pathKey(filePath);
+        if (!_isManagedAudioFile(filePath) ||
+            !_isInsideManagedDirectory(fileKey, rootPath)) {
+          skipped.add(filePath);
+          continue;
+        }
+
+        if (activePaths.contains(fileKey)) {
+          _orphanCandidatesFirstSeen.remove(fileKey);
+          continue;
+        }
+
+        if (_looksLikeTemporaryRecording(filePath)) {
+          skipped.add(filePath);
+          continue;
+        }
+
+        candidates.add(filePath);
+        seenOrphans.add(fileKey);
+        final firstSeen = _orphanCandidatesFirstSeen.putIfAbsent(
+          fileKey,
+          _clock,
+        );
+
+        FileStat stat;
+        try {
+          stat = await entity.stat();
+        } catch (error) {
+          errors[filePath] = error.toString();
+          debugPrint(
+            'RecordingManagementService: falha ao ler arquivo candidato '
+            '$filePath: $error',
+          );
+          continue;
+        }
+
+        final now = _clock();
+        final oldEnough = now.difference(stat.modified) >= orphanMinimumAge;
+        final alreadyValidated = firstSeen.isBefore(now);
+        if (!oldEnough || !alreadyValidated) {
+          skipped.add(filePath);
+          continue;
+        }
+
+        try {
+          final stillExists = await entity.exists();
+          final latestActivePaths =
+              (await _gravacoes.listarCaminhosArquivosAtivos()).map(_pathKey);
+          final stillOrphan = !latestActivePaths.contains(fileKey);
+          if (stillExists && stillOrphan) {
+            await entity.delete();
+            deleted.add(filePath);
+            _orphanCandidatesFirstSeen.remove(fileKey);
+          }
+        } catch (error) {
+          errors[filePath] = error.toString();
+          debugPrint(
+            'RecordingManagementService: falha ao deletar arquivo orfao '
+            '$filePath: $error',
+          );
+        }
+      }
+    } catch (error) {
+      errors[recordingsDirectory.path] = error.toString();
+      debugPrint(
+        'RecordingManagementService: falha ao listar diretorio de gravacoes '
+        '${recordingsDirectory.path}: $error',
+      );
+    }
+
+    _orphanCandidatesFirstSeen.removeWhere(
+      (path, _) => !seenOrphans.contains(path),
+    );
+
+    if (candidates.isNotEmpty || deleted.isNotEmpty || errors.isNotEmpty) {
+      debugPrint(
+        'RecordingManagementService: sync de orfaos candidatos='
+        '${candidates.length} deletados=${deleted.length} '
+        'erros=${errors.length}',
+      );
+    }
+
+    return OrphanFileSyncResult(
+      candidates: candidates,
+      deleted: deleted,
+      skipped: skipped,
+      errors: errors,
     );
   }
 
@@ -277,5 +465,41 @@ class RecordingManagementService {
         .replaceAll('\u00e7', 'c');
 
     return withoutAccents.replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  void _startOrphanFileSync() {
+    if (_orphanSyncStarted) {
+      return;
+    }
+    _orphanSyncStarted = true;
+    unawaited(syncOrphanFiles());
+  }
+
+  bool _isManagedAudioFile(String path) {
+    final extension = p.extension(path).toLowerCase();
+    return extension == '.wav' || extension == '.m4a';
+  }
+
+  bool _isInsideManagedDirectory(String fileKey, String rootKey) {
+    return fileKey.startsWith('$rootKey${p.separator}');
+  }
+
+  bool _looksLikeTemporaryRecording(String path) {
+    final name = p.basename(path).toLowerCase();
+    return name.endsWith('.tmp') ||
+        name.endsWith('.part') ||
+        name.contains('.tmp.') ||
+        name.contains('_tmp') ||
+        name.contains('temp');
+  }
+
+  String _pathKey(String path) {
+    final normalized = p.normalize(p.absolute(path));
+    return Platform.isWindows ? normalized.toLowerCase() : normalized;
+  }
+
+  static Future<Directory> _defaultRecordingsDirectory() async {
+    final directory = await getApplicationDocumentsDirectory();
+    return Directory(p.join(directory.path, 'gravacoes'));
   }
 }

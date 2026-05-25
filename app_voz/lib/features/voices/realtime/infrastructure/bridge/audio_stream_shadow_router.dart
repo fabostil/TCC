@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../voice_realtime_event_bus.dart';
 import '../../voice_realtime_events.dart';
@@ -10,8 +13,17 @@ class AudioStreamShadowRouter {
   AudioStreamShadowRouter({
     AudioIsolateBridge? bridge,
     VoiceRealtimeEventBus? eventBus,
+    int maxQueuedFrames = 50,
   }) : _bridge = bridge ?? AudioIsolateBridge.instance,
-       _eventBus = eventBus ?? VoiceRealtimeEventBus.instance {
+       _eventBus = eventBus ?? VoiceRealtimeEventBus.instance,
+       _maxQueuedFrames = maxQueuedFrames {
+    if (maxQueuedFrames <= 0) {
+      throw ArgumentError.value(
+        maxQueuedFrames,
+        'maxQueuedFrames',
+        'deve ser positivo',
+      );
+    }
     _ttsStateSubscription = _eventBus.on<VoiceStateChangedEvent>().listen(
       _handleVoiceStateChanged,
     );
@@ -19,6 +31,8 @@ class AudioStreamShadowRouter {
 
   final AudioIsolateBridge _bridge;
   final VoiceRealtimeEventBus _eventBus;
+  final int _maxQueuedFrames;
+  final Queue<_PendingAudioChunk> _pendingChunks = Queue<_PendingAudioChunk>();
 
   StreamSubscription<Uint8List>? _subscription;
   StreamSubscription<VoiceStateChangedEvent>? _ttsStateSubscription;
@@ -26,9 +40,14 @@ class AudioStreamShadowRouter {
   String? _activeCorrelationId;
   bool _disposed = false;
   bool _captureActive = false;
+  bool _drainScheduled = false;
+  int _droppedFrames = 0;
+  int _droppedFramesSinceLastTelemetry = 0;
 
   bool get isActive => _subscription != null;
   bool get isSuppressingTtsEcho => _isSuppressingTtsEcho;
+  int get queuedFrameCount => _pendingChunks.length;
+  int get droppedFrameCount => _droppedFrames;
 
   void start(Stream<Uint8List> audioChunks, {String? correlationId}) {
     if (_disposed) {
@@ -51,6 +70,7 @@ class AudioStreamShadowRouter {
     final subscription = _subscription;
     _subscription = null;
     await subscription?.cancel();
+    _pendingChunks.clear();
     await _stopPipelineCapture(correlationId: _activeCorrelationId);
     _activeCorrelationId = null;
   }
@@ -60,26 +80,73 @@ class AudioStreamShadowRouter {
       return;
     }
 
-    _eventBus.publish(
-      AudioPipelineChunkReceivedEvent(
-        source: 'audio_stream_shadow_router',
-        chunk: chunk,
-        correlationId: correlationId,
-      ),
-    );
-
     if (_disposed || !_bridge.isAvailable || chunk.isEmpty) {
       return;
     }
 
-    try {
-      _bridge.sendCommand(
-        audioPipelineCommandAudioChunk,
-        correlationId: correlationId,
-        payload: chunk,
+    while (_pendingChunks.length >= _maxQueuedFrames) {
+      _pendingChunks.removeFirst();
+      _droppedFrames += 1;
+      _droppedFramesSinceLastTelemetry += 1;
+    }
+
+    _pendingChunks.addLast(
+      _PendingAudioChunk(chunk: chunk, correlationId: correlationId),
+    );
+    _scheduleDrain();
+  }
+
+  void _scheduleDrain() {
+    if (_drainScheduled) {
+      return;
+    }
+    _drainScheduled = true;
+    scheduleMicrotask(_drainPendingChunks);
+  }
+
+  void _drainPendingChunks() {
+    _drainScheduled = false;
+    if (_disposed || !_bridge.isAvailable) {
+      return;
+    }
+
+    while (_pendingChunks.isNotEmpty && !_disposed && _bridge.isAvailable) {
+      final pending = _pendingChunks.removeFirst();
+      final droppedSinceLastTelemetry = _droppedFramesSinceLastTelemetry;
+      _droppedFramesSinceLastTelemetry = 0;
+
+      if (droppedSinceLastTelemetry > 0) {
+        // Aggregate dropped-frame telemetry on the next surviving chunk.
+        debugPrint(
+          'AudioStreamShadowRouter: frames descartados no shadow='
+          '$droppedSinceLastTelemetry total=$_droppedFrames',
+        );
+      }
+
+      _eventBus.publish(
+        AudioPipelineChunkReceivedEvent(
+          source: 'audio_stream_shadow_router',
+          chunk: pending.chunk,
+          correlationId: pending.correlationId,
+          metadata: droppedSinceLastTelemetry > 0
+              ? {
+                  'droppedFrames': droppedSinceLastTelemetry,
+                  'totalDroppedFrames': _droppedFrames,
+                  'maxQueuedFrames': _maxQueuedFrames,
+                }
+              : const {},
+        ),
       );
-    } catch (_) {
-      // Shadow mode never propagates bridge failures to the recording pipeline.
+
+      try {
+        _bridge.sendCommand(
+          audioPipelineCommandAudioChunk,
+          correlationId: pending.correlationId,
+          payload: pending.chunk,
+        );
+      } catch (_) {
+        // Shadow mode never propagates bridge failures to the recording pipeline.
+      }
     }
   }
 
@@ -155,4 +222,11 @@ class AudioStreamShadowRouter {
     await _ttsStateSubscription?.cancel();
     _ttsStateSubscription = null;
   }
+}
+
+class _PendingAudioChunk {
+  const _PendingAudioChunk({required this.chunk, required this.correlationId});
+
+  final Uint8List chunk;
+  final String? correlationId;
 }

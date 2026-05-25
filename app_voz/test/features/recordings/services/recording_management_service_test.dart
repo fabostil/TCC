@@ -5,6 +5,7 @@ import 'package:app_voz/models/gravacao.dart';
 import 'package:app_voz/repositories/gravacao_repository.dart';
 import 'package:app_voz/repositories/usuario_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../repositories/repository_test_utils.dart';
 
@@ -26,7 +27,9 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp(
       'recording_management_service_test_',
     );
-    service = const RecordingManagementService();
+    service = RecordingManagementService(
+      recordingsDirectoryProvider: () async => tempDir,
+    );
     usuarioRepository = UsuarioRepository.instance;
     gravacaoRepository = GravacaoRepository.instance;
 
@@ -147,4 +150,89 @@ void main() {
       );
     },
   );
+
+  test('gc nao remove arquivos recentes, temporarios ou ativos', () async {
+    final activeFile = File('${tempDir.path}/ativa.m4a');
+    final recentOrphan = File('${tempDir.path}/recente.wav');
+    final tempOrphan = File('${tempDir.path}/gravacao_temp.wav');
+    await activeFile.writeAsBytes([1, 2, 3]);
+    await recentOrphan.writeAsBytes([4, 5, 6]);
+    await tempOrphan.writeAsBytes([7, 8, 9]);
+
+    await service.createCompletedRecording(
+      usuarioId: usuarioId,
+      projetoId: null,
+      nome: 'Ativa',
+      caminhoArquivo: activeFile.path,
+      dataCriacao: DateTime.parse('2026-05-19T10:00:00.000'),
+      duracaoSegundos: 3,
+    );
+
+    final result = await service.syncOrphanFiles();
+
+    expect(result.deleted, isEmpty);
+    expect(await activeFile.exists(), isTrue);
+    expect(await recentOrphan.exists(), isTrue);
+    expect(await tempOrphan.exists(), isTrue);
+    expect(result.candidates, containsPath(recentOrphan.path));
+    expect(result.skipped, containsPath(tempOrphan.path));
+  });
+
+  test('gc remove orfao antigo apenas depois de nova validacao', () async {
+    var now = DateTime.parse('2026-05-25T12:00:00.000');
+    service = RecordingManagementService(
+      recordingsDirectoryProvider: () async => tempDir,
+      clock: () => now,
+    );
+    final oldOrphan = File('${tempDir.path}/orfao_antigo.m4a');
+    await oldOrphan.writeAsBytes([1, 2, 3]);
+    await oldOrphan.setLastModified(now.subtract(const Duration(hours: 25)));
+
+    final firstPass = await service.syncOrphanFiles();
+
+    expect(firstPass.candidates, containsPath(oldOrphan.path));
+    expect(firstPass.deleted, isEmpty);
+    expect(await oldOrphan.exists(), isTrue);
+
+    now = now.add(const Duration(minutes: 1));
+    final secondPass = await service.syncOrphanFiles();
+
+    expect(secondPass.deleted, containsPath(oldOrphan.path));
+    expect(await oldOrphan.exists(), isFalse);
+  });
+
+  test('gc nunca remove arquivo fora do diretorio controlado', () async {
+    final managedOrphan = File('${tempDir.path}/orfao_controlado.wav');
+    final outsideDir = await Directory.systemTemp.createTemp(
+      'recording_management_outside_',
+    );
+    addTearDown(() async {
+      if (await outsideDir.exists()) {
+        await outsideDir.delete(recursive: true);
+      }
+    });
+    final outsideFile = File('${outsideDir.path}/fora.wav');
+    await managedOrphan.writeAsBytes([1, 2, 3]);
+    await outsideFile.writeAsBytes([4, 5, 6]);
+    var now = DateTime.parse('2026-05-25T12:00:00.000');
+    await managedOrphan.setLastModified(
+      now.subtract(const Duration(hours: 25)),
+    );
+    await outsideFile.setLastModified(now.subtract(const Duration(hours: 25)));
+    service = RecordingManagementService(
+      recordingsDirectoryProvider: () async => tempDir,
+      clock: () => now,
+    );
+
+    await service.syncOrphanFiles();
+    now = now.add(const Duration(minutes: 1));
+    await service.syncOrphanFiles();
+
+    expect(await managedOrphan.exists(), isFalse);
+    expect(await outsideFile.exists(), isTrue);
+  });
+}
+
+Matcher containsPath(String expectedPath) {
+  return contains(predicate<String>((path) => p.equals(path, expectedPath)));
 }

@@ -63,12 +63,11 @@ class RecordingsListState {
 
 class RecordingsListController extends ChangeNotifier {
   RecordingsListController({
-    RecordingManagementService recordingService =
-        const RecordingManagementService(),
+    RecordingManagementService? recordingService,
     AudioPlayerService? playerService,
     HistoricoRepository? historicoRepository,
     CommandService commandService = const CommandService(),
-  }) : _recordingService = recordingService,
+  }) : _recordingService = recordingService ?? RecordingManagementService(),
        _playerService = playerService ?? AudioPlayerService(),
        _historicoRepository =
            historicoRepository ?? HistoricoRepository.instance,

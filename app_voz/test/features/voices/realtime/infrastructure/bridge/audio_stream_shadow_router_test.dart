@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:app_voz/features/voices/realtime/infrastructure/audio_isolate_bridge.dart';
 import 'package:app_voz/features/voices/realtime/infrastructure/audio_pipeline_isolate.dart';
 import 'package:app_voz/features/voices/realtime/infrastructure/bridge/audio_stream_shadow_router.dart';
+import 'package:app_voz/features/voices/realtime/infrastructure/persistence/pcm_wav_file_writer.dart';
 import 'package:app_voz/features/voices/realtime/voice_realtime_event_bus.dart';
 import 'package:app_voz/features/voices/realtime/voice_realtime_events.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,6 +71,7 @@ void main() {
       router.start(chunks.stream, correlationId: 'safe-shadow');
 
       chunks.add(Uint8List.fromList([1]));
+      await Future<void>.delayed(Duration.zero);
       bridge.throwOnSend = true;
       chunks.add(Uint8List.fromList([2]));
       bridge.throwOnSend = false;
@@ -125,6 +128,58 @@ void main() {
       expect(router.isSuppressingTtsEcho, isTrue);
       expect(bridge.commands, isEmpty);
     });
+
+    test(
+      'descarta frames antigos no shadow sem afetar arquivo wav principal',
+      () async {
+        await router.dispose();
+        router = AudioStreamShadowRouter(
+          bridge: bridge,
+          eventBus: eventBus,
+          maxQueuedFrames: 2,
+        );
+        final tempDir = await Directory.systemTemp.createTemp(
+          'shadow_router_backpressure_test_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
+        final writer = await PcmWavFileWriter.open('${tempDir.path}/take.wav');
+        final observedChunks = <int>[];
+        final eventSubscription = eventBus
+            .on<AudioPipelineChunkReceivedEvent>()
+            .listen((event) => observedChunks.add(event.chunk.first));
+
+        router.start(chunks.stream, correlationId: 'overflow');
+        bridge.commands.clear();
+
+        for (var value = 1; value <= 5; value += 1) {
+          final chunk = Uint8List.fromList([value]);
+          writer.writeChunk(chunk);
+          chunks.add(chunk);
+        }
+        await writer.flushAndClose();
+        await Future<void>.delayed(Duration.zero);
+        await eventSubscription.cancel();
+
+        final audioChunkCommands = bridge.commands
+            .where(
+              (command) => command.command == audioPipelineCommandAudioChunk,
+            )
+            .toList();
+        expect(router.droppedFrameCount, 3);
+        expect(
+          audioChunkCommands.map(
+            (command) => (command.payload as Uint8List).first,
+          ),
+          [4, 5],
+        );
+        expect(observedChunks, [4, 5]);
+        expect(await File('${tempDir.path}/take.wav').length(), 44 + 5);
+      },
+    );
   });
 }
 

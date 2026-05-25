@@ -421,7 +421,7 @@ class VoiceCommandDispatcher {
     VoiceSessionContextHolder contextHolder,
     String? Function()? activeSessionTokenProvider,
   ) {
-    const recordingService = RecordingManagementService();
+    final recordingService = RecordingManagementService();
     final recordingManagementHandler = RecordingManagementCommandHandler(
       recordingService: recordingService,
       recordingContextResolver: AppRecordingContextResolver(

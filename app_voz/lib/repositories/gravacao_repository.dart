@@ -98,6 +98,23 @@ class GravacaoRepository {
     return Gravacao.fromMap(resultado.first);
   }
 
+  Future<List<String>> listarCaminhosArquivosAtivos() async {
+    final db = await _database;
+
+    final resultado = await db.query(
+      GravacaoTable.tableName,
+      columns: ['caminho_arquivo'],
+      where: 'status != ?',
+      whereArgs: [GravacaoStatus.excluida],
+    );
+
+    return resultado
+        .map((row) => row['caminho_arquivo'])
+        .whereType<String>()
+        .where((path) => path.trim().isNotEmpty)
+        .toList();
+  }
+
   Future<int> atualizarGravacao(Gravacao gravacao) async {
     if (gravacao.id == null) {
       throw ArgumentError('Gravação sem id não pode ser atualizada.');

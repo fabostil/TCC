@@ -36,7 +36,7 @@ class DetalhesGravacaoPage extends StatefulWidget {
 class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     with ContextualVoiceListeningMixin<DetalhesGravacaoPage> {
   final RecordingManagementService _recordingService =
-      const RecordingManagementService();
+      RecordingManagementService();
   final AudioPlayerService _playerService = AudioPlayerService();
 
   RecordingDetails? _details;

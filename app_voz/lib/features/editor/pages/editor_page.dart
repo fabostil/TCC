@@ -53,7 +53,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   final RecordingRealtimeCoordinator _recordingCoordinator =
       RecordingRealtimeCoordinator(ownerId: _voiceOwnerId);
   final RecordingManagementService _recordingService =
-      const RecordingManagementService();
+      RecordingManagementService();
   StreamSubscription<VoiceCommandInterpretedEvent>?
   _realtimeCommandSubscription;
 
