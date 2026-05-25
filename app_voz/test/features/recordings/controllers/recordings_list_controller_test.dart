@@ -168,6 +168,8 @@ class FakeRecordingManagementService extends RecordingManagementService {
 
 class FakeAudioPlayerService implements AudioPlayerService {
   final _playerStateController = StreamController<PlayerState>.broadcast();
+  final _positionController = StreamController<Duration>.broadcast();
+  final _durationController = StreamController<Duration?>.broadcast();
   bool playing = false;
   int stopCalls = 0;
 
@@ -179,6 +181,12 @@ class FakeAudioPlayerService implements AudioPlayerService {
 
   @override
   Stream<PlayerState> get playerStateStream => _playerStateController.stream;
+
+  @override
+  Stream<Duration> get positionStream => _positionController.stream;
+
+  @override
+  Stream<Duration?> get durationStream => _durationController.stream;
 
   @override
   Future<void> play(String path) async {
@@ -202,5 +210,7 @@ class FakeAudioPlayerService implements AudioPlayerService {
 
   void close() {
     _playerStateController.close();
+    _positionController.close();
+    _durationController.close();
   }
 }

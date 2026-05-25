@@ -31,6 +31,8 @@ class AudioPlayerService {
   bool get isPlaying => _player.playing;
   String? get currentPath => _currentPath;
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
+  Stream<Duration> get positionStream => _player.positionStream;
+  Stream<Duration?> get durationStream => _player.durationStream;
 
   Future<void> play(String path) async {
     if (path.isEmpty) {

@@ -37,6 +37,7 @@ class RecordingRealtimeState {
     this.startedAt,
     this.currentAmplitude = -160.0,
     this.silenceMs = 0,
+    this.timelineProgress = 0.0,
     this.statusMessage = 'Projeto pronto para gravar.',
   });
 
@@ -48,6 +49,7 @@ class RecordingRealtimeState {
   final DateTime? startedAt;
   final double currentAmplitude;
   final int silenceMs;
+  final double timelineProgress;
   final String statusMessage;
 
   bool get canStartRecording => !recording && !processing && !playing;
@@ -68,6 +70,7 @@ class RecordingRealtimeState {
     bool clearStartedAt = false,
     double? currentAmplitude,
     int? silenceMs,
+    double? timelineProgress,
     String? statusMessage,
   }) {
     return RecordingRealtimeState(
@@ -79,8 +82,18 @@ class RecordingRealtimeState {
       startedAt: clearStartedAt ? null : startedAt ?? this.startedAt,
       currentAmplitude: currentAmplitude ?? this.currentAmplitude,
       silenceMs: silenceMs ?? this.silenceMs,
+      timelineProgress: _clampProgress(
+        timelineProgress ?? this.timelineProgress,
+      ),
       statusMessage: statusMessage ?? this.statusMessage,
     );
+  }
+
+  static double _clampProgress(double value) {
+    if (value.isNaN || value.isInfinite) {
+      return 0.0;
+    }
+    return value.clamp(0.0, 1.0).toDouble();
   }
 }
 
@@ -101,14 +114,22 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
        _automaticSilenceStop = automaticSilenceStop {
     _playerStateSubscription = _playerService.playerStateStream.listen((state) {
       if (!state.playing && _state.playing) {
+        _playbackDuration = null;
         _setState(
           _state.copyWith(
             playing: false,
+            timelineProgress: 0.0,
             statusMessage: 'Reproducao finalizada.',
           ),
         );
       }
     });
+    _playbackPositionSubscription = _playerService.positionStream.listen(
+      _handlePlaybackPosition,
+    );
+    _playbackDurationSubscription = _playerService.durationStream.listen(
+      (duration) => _playbackDuration = duration,
+    );
   }
 
   static const int silenceMonitorIntervalMs = 500;
@@ -125,7 +146,11 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   final String ownerId;
 
   StreamSubscription? _playerStateSubscription;
+  StreamSubscription<Duration>? _playbackPositionSubscription;
+  StreamSubscription<Duration?>? _playbackDurationSubscription;
   Timer? _silenceTimer;
+  Timer? _recordingProgressTimer;
+  Duration? _playbackDuration;
   int _silenceLimitMs;
   bool _automaticSilenceStop;
 
@@ -134,6 +159,9 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   RecordingRealtimeState get state => _state;
 
   Stream<Uint8List> get rawAudioChunks => _recordingService.rawAudioChunks;
+
+  @visibleForTesting
+  static const int recordingTimelineFallbackSeconds = 180;
 
   int get silenceLimitMs => _silenceLimitMs;
 
@@ -203,9 +231,11 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
           startedAt: DateTime.now(),
           currentAmplitude: -160.0,
           silenceMs: 0,
+          timelineProgress: 0.0,
           statusMessage: 'Gravacao real iniciada.',
         ),
       );
+      _startRecordingProgressTimer();
       _startSilenceMonitoring(finalizeRecording, onHistory, onAutomaticStop);
       onHistory('Iniciou gravacao real', 'gravacao_iniciada');
     } catch (e) {
@@ -374,11 +404,13 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     );
 
     try {
+      _resetTimelineProgress();
       await _playerService.play(path);
       _setState(
         _state.copyWith(
           playing: true,
           processing: false,
+          timelineProgress: 0.0,
           statusMessage: 'Reproduzindo $name.',
         ),
       );
@@ -388,6 +420,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
         _state.copyWith(
           playing: false,
           processing: false,
+          timelineProgress: 0.0,
           statusMessage: 'Erro ao reproduzir audio: $e',
         ),
       );
@@ -396,8 +429,13 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
 
   Future<void> stopPlayback() async {
     await _playerService.stop();
+    _playbackDuration = null;
     _setState(
-      _state.copyWith(playing: false, statusMessage: 'Reproducao parada.'),
+      _state.copyWith(
+        playing: false,
+        timelineProgress: 0.0,
+        statusMessage: 'Reproducao parada.',
+      ),
     );
   }
 
@@ -472,6 +510,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
 
   void _resetAfterRecording(String statusMessage) {
     _stopSilenceMonitoring();
+    _stopRecordingProgressTimer();
     _setState(
       _state.copyWith(
         recording: false,
@@ -481,9 +520,84 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
         clearStartedAt: true,
         silenceMs: 0,
         currentAmplitude: -160.0,
+        timelineProgress: 0.0,
         statusMessage: statusMessage,
       ),
     );
+  }
+
+  void _startRecordingProgressTimer() {
+    _stopRecordingProgressTimer();
+    _recordingProgressTimer = Timer.periodic(
+      const Duration(milliseconds: 500),
+      (_) => _updateRecordingProgress(),
+    );
+  }
+
+  void _stopRecordingProgressTimer() {
+    _recordingProgressTimer?.cancel();
+    _recordingProgressTimer = null;
+  }
+
+  void _updateRecordingProgress() {
+    if (!_state.recording || _state.paused || _state.processing) {
+      return;
+    }
+
+    final startedAt = _state.startedAt;
+    if (startedAt == null) {
+      _resetTimelineProgress();
+      return;
+    }
+
+    final elapsed = DateTime.now().difference(startedAt);
+    final nextProgress =
+        elapsed.inMilliseconds /
+        (recordingTimelineFallbackSeconds * Duration.millisecondsPerSecond);
+    _setTimelineProgress(nextProgress);
+  }
+
+  void _handlePlaybackPosition(Duration position) {
+    if (!_state.playing || _state.processing) {
+      return;
+    }
+
+    final duration = _playbackDuration;
+    if (duration == null || duration.inMilliseconds <= 0) {
+      final fallbackProgress = position.inMilliseconds / (30 * 1000);
+      _setTimelineProgress(fallbackProgress);
+      return;
+    }
+
+    _setTimelineProgress(position.inMilliseconds / duration.inMilliseconds);
+  }
+
+  void _setTimelineProgress(double rawProgress) {
+    final nextProgress = _sanitizeProgress(rawProgress);
+    final currentProgress = _state.timelineProgress;
+    if (nextProgress < currentProgress &&
+        currentProgress - nextProgress < 0.02) {
+      return;
+    }
+    if ((nextProgress - currentProgress).abs() < 0.001) {
+      return;
+    }
+
+    _setState(_state.copyWith(timelineProgress: nextProgress));
+  }
+
+  void _resetTimelineProgress() {
+    if (_state.timelineProgress == 0.0) {
+      return;
+    }
+    _setState(_state.copyWith(timelineProgress: 0.0));
+  }
+
+  double _sanitizeProgress(double value) {
+    if (value.isNaN || value.isInfinite) {
+      return 0.0;
+    }
+    return value.clamp(0.0, 1.0).toDouble();
   }
 
   void _setStatus(String message) {
@@ -498,8 +612,11 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   @override
   void dispose() {
     _stopSilenceMonitoring();
+    _stopRecordingProgressTimer();
     unawaited(_shadowRouter.dispose());
     unawaited(_playerStateSubscription?.cancel());
+    unawaited(_playbackPositionSubscription?.cancel());
+    unawaited(_playbackDurationSubscription?.cancel());
     unawaited(_recordingService.dispose());
     unawaited(_playerService.dispose());
     super.dispose();

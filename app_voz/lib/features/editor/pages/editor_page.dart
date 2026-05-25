@@ -92,6 +92,8 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
 
   String? get caminhoGravacaoAtual => recordingState.currentPath;
 
+  double get progressoLinhaDoTempo => recordingState.timelineProgress;
+
   bool get _podeIniciarGravacao => recordingState.canStartRecording;
 
   bool get _podePausarGravacao => recordingState.canPauseRecording;
@@ -1389,7 +1391,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                 const SizedBox(width: 12),
                 Expanded(
                   child: LinearProgressIndicator(
-                    value: gravando || reproduzindo ? 0.45 : 0.0,
+                    value: progressoLinhaDoTempo,
                     minHeight: 8,
                     borderRadius: BorderRadius.circular(12),
                   ),
