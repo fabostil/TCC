@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../voice_realtime_event_bus.dart';
 import '../../voice_realtime_events.dart';
@@ -6,25 +8,27 @@ import 'voice_foreground_service.dart';
 
 /// Android production foreground-service adapter.
 ///
-/// Dependency required before enabling this path in a real Android build:
-/// `flutter_foreground_task`.
-///
-/// The package is not listed in the current `pubspec.yaml`, so this adapter
-/// deliberately uses a guarded platform channel and degrades through telemetry
-/// when the native plugin/channel is unavailable. Required Android manifest
-/// entries for the real native service path:
+/// This adapter uses a guarded platform channel and degrades through telemetry
+/// when the native foreground-service channel is unavailable. Required Android
+/// manifest entries for the real native service path:
 ///
 /// - `android.permission.FOREGROUND_SERVICE`
 /// - `android.permission.FOREGROUND_SERVICE_MICROPHONE`
 /// - `android.permission.RECORD_AUDIO`
+/// - `android.permission.POST_NOTIFICATIONS` requested at runtime on
+///   Android 13+ before foreground notification startup.
 /// - a foreground service declaration with `android:foregroundServiceType`
 ///   compatible with microphone capture.
 class AndroidVoiceForegroundService implements VoiceForegroundService {
   AndroidVoiceForegroundService({
     VoiceRealtimeEventBus? eventBus,
     MethodChannel? channel,
+    Future<bool> Function()? notificationPermissionRequester,
   }) : eventBus = eventBus ?? VoiceRealtimeEventBus.instance,
-       _channel = channel ?? const MethodChannel(_channelName);
+       _channel = channel ?? const MethodChannel(_channelName),
+       _notificationPermissionRequester =
+           notificationPermissionRequester ??
+           _requestNotificationPermissionIfNeeded;
 
   static const String _channelName = 'app_voz/voice_foreground_service';
   static const String notificationTitle = 'Assistente Hands-Free Ativo';
@@ -33,6 +37,7 @@ class AndroidVoiceForegroundService implements VoiceForegroundService {
 
   final VoiceRealtimeEventBus eventBus;
   final MethodChannel _channel;
+  final Future<bool> Function() _notificationPermissionRequester;
 
   var _started = false;
   var _startInFlight = false;
@@ -50,6 +55,17 @@ class AndroidVoiceForegroundService implements VoiceForegroundService {
 
     _startInFlight = true;
     try {
+      final notificationGranted = await _notificationPermissionRequester();
+      if (!notificationGranted) {
+        eventBus.publish(
+          VoiceSystemDegradedEvent(
+            source: 'android_voice_foreground_service',
+            reason: 'android_notification_permission_denied',
+            correlationId: _correlationId,
+          ),
+        );
+      }
+
       await _channel.invokeMethod<Object?>('startService', {
         'notificationTitle': notificationTitle,
         'notificationText': notificationMessage,
@@ -149,5 +165,14 @@ class AndroidVoiceForegroundService implements VoiceForegroundService {
         metadata: {'error': error.toString()},
       ),
     );
+  }
+
+  static Future<bool> _requestNotificationPermissionIfNeeded() async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return true;
+    }
+
+    final status = await Permission.notification.request();
+    return status.isGranted;
   }
 }

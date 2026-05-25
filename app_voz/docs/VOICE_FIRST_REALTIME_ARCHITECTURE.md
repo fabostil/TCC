@@ -74,10 +74,9 @@ Contrato operacional:
 - `speak()` chama `stop()` antes de qualquer nova sintese para substituir a
   fala ativa e evitar fila de audio acumulada.
 
-Dependencia pendente: `flutter_tts` ainda nao esta listado no `pubspec.yaml`.
-Para ativar audio nativo real em Android/iOS, adicionar a dependencia e validar
-em aparelho real. Ate la, o adapter compila e cai no fallback seguro quando o
-Platform Channel nao existe.
+Dependencia nativa: `flutter_tts` esta listado no `pubspec.yaml`. O adapter
+continua fail-safe em testes e debug, e deve ser validado em aparelho real para
+confirmar sintese nativa Android/iOS.
 
 ## Android Foreground Service
 
@@ -94,16 +93,18 @@ O adapter de producao e fail-safe:
 - propaga a falha ao ecossistema, que mantem runtime, isolate e bus ativos sem
   marcar o foreground como iniciado.
 
-Dependencia pendente: `flutter_foreground_task` ainda nao esta listado no
-`pubspec.yaml`. O arquivo `AndroidManifest.xml` ja declara:
+Dependencia nativa: `flutter_foreground_task` esta listado no `pubspec.yaml`.
+O arquivo `AndroidManifest.xml` declara:
 
 - `android.permission.FOREGROUND_SERVICE`;
 - `android.permission.FOREGROUND_SERVICE_MICROPHONE`;
 - `android.permission.RECORD_AUDIO`.
+- `android.permission.POST_NOTIFICATIONS`;
+- o servico Android do plugin com
+  `android:foregroundServiceType="microphone"`.
 
-Quando a dependencia nativa for adicionada, tambem sera necessario declarar o
-servico Android do plugin com `android:foregroundServiceType="microphone"` ou o
-tipo equivalente exigido pelo pacote/SDK usado.
+Em Android 13+, a permissao de notificacao deve ser solicitada em runtime antes
+de iniciar o foreground service em fluxo real de aparelho.
 
 ## AudioRecordingCapture
 

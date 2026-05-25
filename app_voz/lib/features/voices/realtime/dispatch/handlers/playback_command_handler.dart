@@ -121,17 +121,3 @@ class PlaybackCommandHandler implements VoiceCommandHandler<PlaybackIntent> {
     );
   }
 }
-
-class StubPlaybackService implements PlaybackService {
-  @override
-  String? get currentPath => null;
-
-  @override
-  Future<void> pause() async {}
-
-  @override
-  Future<void> play() async {}
-
-  @override
-  Future<void> stop() async {}
-}

@@ -34,6 +34,7 @@ void main() {
         final service = AndroidVoiceForegroundService(
           eventBus: bus,
           channel: channel,
+          notificationPermissionRequester: () async => true,
         );
 
         await service.startService(title: 'ignorado', message: 'ignorado');
@@ -65,6 +66,7 @@ void main() {
       final service = AndroidVoiceForegroundService(
         eventBus: bus,
         channel: channel,
+        notificationPermissionRequester: () async => true,
       );
 
       await service.stopService();
@@ -82,6 +84,7 @@ void main() {
         final service = AndroidVoiceForegroundService(
           eventBus: bus,
           channel: channel,
+          notificationPermissionRequester: () async => true,
         );
 
         await expectLater(
@@ -95,6 +98,32 @@ void main() {
         expect(degraded.source, 'android_voice_foreground_service');
         expect(degraded.reason, 'android_foreground_service_start_failed');
         expect(service.isStarted, isFalse);
+      },
+    );
+
+    test(
+      'permissao de notificacao negada degrada sem inicializar plugin real em teste',
+      () async {
+        final calls = <String>[];
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              calls.add(call.method);
+              return null;
+            });
+        final service = AndroidVoiceForegroundService(
+          eventBus: bus,
+          channel: channel,
+          notificationPermissionRequester: () async => false,
+        );
+
+        await service.startService(title: 'titulo', message: 'mensagem');
+
+        expect(calls, ['startService']);
+        expect(
+          bus.timeline.whereType<VoiceSystemDegradedEvent>().single.reason,
+          'android_notification_permission_denied',
+        );
+        expect(service.isStarted, isTrue);
       },
     );
   });
