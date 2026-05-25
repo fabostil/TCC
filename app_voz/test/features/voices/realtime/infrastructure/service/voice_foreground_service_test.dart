@@ -2,6 +2,7 @@ import 'package:app_voz/features/voices/realtime/infrastructure/service/voice_fo
 import 'package:app_voz/features/voices/realtime/runtime/runtime_engine.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_registry.dart';
 import 'package:app_voz/features/voices/realtime/runtime/voice_realtime_ecosystem.dart';
+import 'package:app_voz/features/voices/realtime/dispatch/contracts/voice_session_context_holder.dart';
 import 'package:app_voz/features/voices/realtime/tts/text_to_speech_engine.dart';
 import 'package:app_voz/features/voices/realtime/tts/voice_response_bridge.dart';
 import 'package:app_voz/features/voices/realtime/voice_realtime_event_bus.dart';
@@ -114,6 +115,36 @@ void main() {
       expect(degraded.reason, 'foreground_service_start_failed');
       expect(degraded.correlationId, 'foreground_service');
       expect(degraded.metadata['error'], contains('foreground start failed'));
+    });
+
+    test('stop limpa contexto ativo de sessao de voz', () async {
+      final contextHolder = VoiceSessionContextHolder()
+        ..updateActiveContext(projectId: '9', userId: '7');
+      final localRuntime = VoiceRuntimeEngine(
+        eventBus: bus,
+        registry: VoiceRuntimeRegistry(eventBus: bus),
+        useStreamFirstAudio: false,
+      );
+      final localBridge = VoiceResponseBridge(
+        eventBus: bus,
+        ttsEngine: _FakeTextToSpeechEngine(),
+      );
+      final localEcosystem = VoiceRealtimeEcosystem(
+        eventBus: bus,
+        runtimeEngine: localRuntime,
+        responseBridge: localBridge,
+        foregroundService: _FakeVoiceForegroundService(),
+        sessionContextHolder: contextHolder,
+        useStreamFirstAudio: false,
+      );
+
+      await localEcosystem.start();
+      await localEcosystem.stop();
+      await localRuntime.dispose();
+      await localBridge.dispose();
+
+      expect(contextHolder.currentProjectId, isNull);
+      expect(contextHolder.currentUserId, isNull);
     });
   });
 }

@@ -15,6 +15,7 @@ import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_session_manager.dart';
 import '../../voices/coordination/voice_session_state.dart';
 import '../../voices/coordination/voice_state_machine.dart';
+import '../../voices/realtime/runtime/voice_realtime_ecosystem.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/voice_global_command_service.dart';
 import '../controllers/recording_realtime_coordinator.dart';
@@ -118,6 +119,10 @@ class _EditorPageState extends State<EditorPage> {
   void initState() {
     super.initState();
     nomeProjeto = widget.projeto?.nome ?? nomeProjeto;
+    VoiceRealtimeEcosystem.instance.sessionContextHolder.updateActiveContext(
+      projectId: widget.projeto?.id?.toString(),
+      userId: widget.usuario.id?.toString(),
+    );
     _recordingCoordinator.addListener(_onRecordingStateChanged);
     _carregarConfiguracoes();
     _carregarGravacoes();
@@ -1075,6 +1080,7 @@ class _EditorPageState extends State<EditorPage> {
       ownerId: _voiceOwnerId,
       reason: 'editor_dispose',
     );
+    VoiceRealtimeEcosystem.instance.sessionContextHolder.updateActiveContext();
     unawaited(_voiceSessionManager.stopListening(_voiceOwnerId));
     _recordingCoordinator.dispose();
     super.dispose();

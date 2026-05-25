@@ -12,6 +12,7 @@ import '../../coordination/voice_session_manager.dart';
 import 'adapters/app_recording_context_resolver.dart';
 import 'adapters/audio_player_playback_service.dart';
 import 'contratos/audio_output_guard.dart';
+import 'contracts/voice_session_context_holder.dart';
 import 'handlers/metronome_command_handler.dart';
 import 'handlers/playback_command_handler.dart';
 import 'handlers/recording_management_command_handler.dart';
@@ -21,6 +22,7 @@ import 'voice_command_handler.dart';
 class VoiceCommandDispatcher {
   VoiceCommandDispatcher({
     VoiceRealtimeEventBus? eventBus,
+    VoiceSessionContextHolder? contextHolder,
     Map<Type, VoiceCommandHandler<dynamic>>? handlers,
     this.processedHistoryLimit = 100,
     this.pendingTransactionTimeout = const Duration(seconds: 30),
@@ -29,7 +31,10 @@ class VoiceCommandDispatcher {
        eventBus = eventBus ?? VoiceRealtimeEventBus.instance,
        _handlers =
            handlers ??
-           _defaultHandlers(eventBus ?? VoiceRealtimeEventBus.instance);
+           _defaultHandlers(
+             eventBus ?? VoiceRealtimeEventBus.instance,
+             contextHolder ?? VoiceSessionContextHolder(),
+           );
 
   static final VoiceCommandDispatcher instance = VoiceCommandDispatcher();
 
@@ -335,12 +340,14 @@ class VoiceCommandDispatcher {
 
   static Map<Type, VoiceCommandHandler<dynamic>> _defaultHandlers(
     VoiceRealtimeEventBus eventBus,
+    VoiceSessionContextHolder contextHolder,
   ) {
     const recordingService = RecordingManagementService();
     final recordingManagementHandler = RecordingManagementCommandHandler(
       recordingService: recordingService,
-      recordingContextResolver: const AppRecordingContextResolver(
+      recordingContextResolver: AppRecordingContextResolver(
         recordingService: recordingService,
+        contextHolder: contextHolder,
       ),
       eventBus: eventBus,
     );

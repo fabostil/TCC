@@ -1,40 +1,40 @@
 import '../../../../../models/gravacao.dart';
 import '../../../../recordings/services/recording_management_service.dart';
+import '../contracts/voice_session_context_holder.dart';
 import '../contracts/voice_recording_context_resolver.dart';
-
-typedef VoiceRecordingScopeValue = int? Function();
 
 class AppRecordingContextResolver implements VoiceRecordingContextResolver {
   const AppRecordingContextResolver({
     required RecordingManagementService recordingService,
-    VoiceRecordingScopeValue? usuarioIdProvider,
-    VoiceRecordingScopeValue? projetoIdProvider,
+    required VoiceSessionContextHolder contextHolder,
   }) : _recordingService = recordingService,
-       _usuarioIdProvider = usuarioIdProvider,
-       _projetoIdProvider = projetoIdProvider;
+       _contextHolder = contextHolder;
 
   final RecordingManagementService _recordingService;
-  final VoiceRecordingScopeValue? _usuarioIdProvider;
-  final VoiceRecordingScopeValue? _projetoIdProvider;
+  final VoiceSessionContextHolder _contextHolder;
 
   @override
   Future<Gravacao?> resolveLastRecording() async {
-    final projetoId = _projetoIdProvider?.call();
-    if (projetoId != null) {
-      final recordings = await _recordingService.listByProjectWithFileState(
-        projetoId,
-      );
-      return recordings.isEmpty ? null : recordings.first;
+    final projetoId = _parseId(_contextHolder.currentProjectId);
+    if (projetoId == null) {
+      return null;
     }
 
-    final usuarioId = _usuarioIdProvider?.call();
-    if (usuarioId != null) {
-      final recordings = await _recordingService.listByUserWithFileState(
-        usuarioId,
-      );
-      return recordings.isEmpty ? null : recordings.first;
+    final recordings = await _recordingService.listByProjectWithFileState(
+      projetoId,
+    );
+    return recordings.isEmpty ? null : recordings.first;
+  }
+
+  int? _parseId(String? value) {
+    if (value == null) {
+      return null;
     }
 
-    return null;
+    final parsed = int.tryParse(value);
+    if (parsed == null || parsed <= 0) {
+      return null;
+    }
+    return parsed;
   }
 }

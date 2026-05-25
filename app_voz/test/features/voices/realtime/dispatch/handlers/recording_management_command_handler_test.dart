@@ -1,5 +1,6 @@
 import 'package:app_voz/features/recordings/services/recording_management_service.dart';
 import 'package:app_voz/features/voices/realtime/dispatch/adapters/app_recording_context_resolver.dart';
+import 'package:app_voz/features/voices/realtime/dispatch/contracts/voice_session_context_holder.dart';
 import 'package:app_voz/features/voices/realtime/dispatch/contracts/voice_recording_context_resolver.dart';
 import 'package:app_voz/features/voices/realtime/dispatch/handlers/recording_management_command_handler.dart';
 import 'package:app_voz/features/voices/realtime/nlu/voice_intent.dart';
@@ -146,38 +147,82 @@ void main() {
   });
 
   group('AppRecordingContextResolver', () {
-    test(
-      'resolve ultima gravacao por usuario ou projeto usando servico real',
-      () async {
-        final recordingService = _FakeRecordingManagementService();
+    test('resolve ultima gravacao pelo projeto ativo do holder', () async {
+      final recordingService = _FakeRecordingManagementService();
+      final contextHolder = VoiceSessionContextHolder()
+        ..updateActiveContext(projectId: '9', userId: '7');
 
-        final byUser = AppRecordingContextResolver(
-          recordingService: recordingService,
-          usuarioIdProvider: () => 7,
-        );
-        final byProject = AppRecordingContextResolver(
-          recordingService: recordingService,
-          projetoIdProvider: () => 9,
-        );
-
-        expect(
-          await byUser.resolveLastRecording(),
-          recordingService.recordings.first,
-        );
-        expect(
-          await byProject.resolveLastRecording(),
-          recordingService.recordings.first,
-        );
-      },
-    );
-
-    test('retorna null quando nao ha escopo de usuario ou projeto', () async {
       final resolver = AppRecordingContextResolver(
-        recordingService: _FakeRecordingManagementService(),
+        recordingService: recordingService,
+        contextHolder: contextHolder,
+      );
+
+      final resolved = await resolver.resolveLastRecording();
+
+      expect(resolved?.id, recordingService.recordings.first.id);
+      expect(recordingService.projectQueries, [9]);
+      expect(recordingService.userQueries, isEmpty);
+    });
+
+    test('retorna null quando o editor limpa o projeto ativo', () async {
+      final recordingService = _FakeRecordingManagementService();
+      final contextHolder = VoiceSessionContextHolder()
+        ..updateActiveContext(projectId: '9', userId: '7')
+        ..updateActiveContext(projectId: null);
+      final resolver = AppRecordingContextResolver(
+        recordingService: recordingService,
+        contextHolder: contextHolder,
       );
 
       expect(await resolver.resolveLastRecording(), isNull);
+      expect(recordingService.projectQueries, isEmpty);
+      expect(recordingService.userQueries, isEmpty);
     });
+
+    test('retorna null para id de projeto corrompido', () async {
+      final recordingService = _FakeRecordingManagementService();
+      final contextHolder = VoiceSessionContextHolder()
+        ..updateActiveContext(projectId: 'projeto-quebrado', userId: '7');
+      final resolver = AppRecordingContextResolver(
+        recordingService: recordingService,
+        contextHolder: contextHolder,
+      );
+
+      expect(await resolver.resolveLastRecording(), isNull);
+      expect(recordingService.projectQueries, isEmpty);
+    });
+
+    test(
+      'limpeza do holder faz handler abortar com contexto ausente',
+      () async {
+        final bus = VoiceRealtimeEventBus();
+        final recordingService = _FakeRecordingManagementService();
+        final contextHolder = VoiceSessionContextHolder()
+          ..updateActiveContext(projectId: '9', userId: '7');
+        final resolver = AppRecordingContextResolver(
+          recordingService: recordingService,
+          contextHolder: contextHolder,
+        );
+        final handler = RecordingManagementCommandHandler(
+          recordingService: recordingService,
+          recordingContextResolver: resolver,
+          eventBus: bus,
+        );
+        contextHolder.updateActiveContext(projectId: null);
+
+        await expectLater(
+          handler.handle(
+            const DeleteLastRecordingIntent(rawText: 'deletar ultima gravacao'),
+            'cleared-context-flow',
+          ),
+          throwsA(isA<Exception>()),
+        );
+
+        final failed = bus.timeline.whereType<VoiceCommandFailedEvent>().single;
+        expect(failed.reason, 'recording_context_missing');
+        expect(failed.correlationId, 'cleared-context-flow');
+      },
+    );
   });
 }
 
@@ -214,6 +259,8 @@ class _FakeRecordingManagementService extends RecordingManagementService {
   ];
   final List<_RenameCall> renameCalls = [];
   final List<Gravacao> deleteCalls = [];
+  final List<int> projectQueries = [];
+  final List<int> userQueries = [];
   var failRename = false;
 
   @override
@@ -222,6 +269,7 @@ class _FakeRecordingManagementService extends RecordingManagementService {
     String? termoBusca,
     String? status,
   }) async {
+    userQueries.add(usuarioId);
     return recordings
         .where((recording) => recording.usuarioId == usuarioId)
         .toList();
@@ -233,6 +281,7 @@ class _FakeRecordingManagementService extends RecordingManagementService {
     String? termoBusca,
     String? status,
   }) async {
+    projectQueries.add(projetoId);
     return recordings
         .where((recording) => recording.projetoId == projetoId)
         .toList();

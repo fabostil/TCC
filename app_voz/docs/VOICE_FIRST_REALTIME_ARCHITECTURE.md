@@ -46,10 +46,38 @@ rawAudioChunks
 
 VoiceRealtimeEventBus
   -> VoiceRuntimeEngine
+  -> VoiceResponseBridge
   -> RuntimeTelemetryTracer
   -> VoiceDiagnostics
   -> StreamingSpeechRecognizer
 ```
+
+## Text-To-Speech Output
+
+`VoiceResponseBridge` transforma intents, falhas e confirmacoes em texto falado
+por uma implementacao de `TextToSpeechEngine`.
+
+Composicao atual:
+
+- testes e debug: `StubTextToSpeechEngine`, injetado explicitamente ou escolhido
+  pelo `VoiceRealtimeEcosystem`;
+- release: `FlutterTtsEngine`, adapter seguro para o canal nativo
+  `flutter_tts`;
+- fallback: se o plugin nativo nao estiver registrado ou falhar na
+  configuracao, o adapter publica degradacao e volta para o stub.
+
+Contrato operacional:
+
+- idioma preferencial `pt-BR`, com tentativa de fallback para `pt-PT`;
+- `speechRate` padrao `0.5`;
+- `pitch` padrao `1.0`;
+- `speak()` chama `stop()` antes de qualquer nova sintese para substituir a
+  fala ativa e evitar fila de audio acumulada.
+
+Dependencia pendente: `flutter_tts` ainda nao esta listado no `pubspec.yaml`.
+Para ativar audio nativo real em Android/iOS, adicionar a dependencia e validar
+em aparelho real. Ate la, o adapter compila e cai no fallback seguro quando o
+Platform Channel nao existe.
 
 ## AudioRecordingCapture
 

@@ -1,31 +1,68 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../dispatch/voice_command_dispatcher.dart';
+import '../dispatch/contracts/voice_session_context_holder.dart';
 import '../infrastructure/service/stub_voice_foreground_service.dart';
 import '../infrastructure/service/voice_foreground_service.dart';
+import '../tts/adapters/flutter_tts_engine.dart';
+import '../tts/stub_text_to_speech_engine.dart';
+import '../tts/text_to_speech_engine.dart';
 import '../tts/voice_response_bridge.dart';
 import '../voice_realtime_event_bus.dart';
 import '../voice_realtime_events.dart';
 import 'runtime_engine.dart';
 
 class VoiceRealtimeEcosystem {
-  VoiceRealtimeEcosystem({
+  factory VoiceRealtimeEcosystem({
     VoiceRuntimeEngine? runtimeEngine,
     VoiceResponseBridge? responseBridge,
+    TextToSpeechEngine? ttsEngine,
+    VoiceSessionContextHolder? sessionContextHolder,
     VoiceCommandDispatcher? commandDispatcher,
     VoiceForegroundService? foregroundService,
     VoiceRealtimeEventBus? eventBus,
     bool? useStreamFirstAudio,
-  }) : runtimeEngine = runtimeEngine ?? VoiceRuntimeEngine.instance,
-       responseBridge = responseBridge ?? VoiceResponseBridge.instance,
-       commandDispatcher = commandDispatcher ?? VoiceCommandDispatcher.instance,
-       eventBus = eventBus ?? VoiceRealtimeEventBus.instance,
-       useStreamFirstAudio = useStreamFirstAudio ?? _streamFirstFromEnvironment,
-       foregroundService =
-           foregroundService ??
-           StubVoiceForegroundService(
-             eventBus: eventBus ?? VoiceRealtimeEventBus.instance,
-           );
+  }) {
+    final resolvedEventBus = eventBus ?? VoiceRealtimeEventBus.instance;
+    final resolvedContextHolder =
+        sessionContextHolder ?? VoiceSessionContextHolder();
+
+    return VoiceRealtimeEcosystem._(
+      runtimeEngine: runtimeEngine ?? VoiceRuntimeEngine.instance,
+      sessionContextHolder: resolvedContextHolder,
+      responseBridge:
+          responseBridge ??
+          VoiceResponseBridge(
+            eventBus: resolvedEventBus,
+            ttsEngine:
+                ttsEngine ??
+                _createDefaultTtsEngine(eventBus: resolvedEventBus),
+          ),
+      commandDispatcher:
+          commandDispatcher ??
+          VoiceCommandDispatcher(
+            eventBus: resolvedEventBus,
+            contextHolder: resolvedContextHolder,
+          ),
+      eventBus: resolvedEventBus,
+      useStreamFirstAudio: useStreamFirstAudio ?? _streamFirstFromEnvironment,
+      foregroundService:
+          foregroundService ??
+          StubVoiceForegroundService(eventBus: resolvedEventBus),
+    );
+  }
+
+  VoiceRealtimeEcosystem._({
+    required this.runtimeEngine,
+    required this.responseBridge,
+    required this.sessionContextHolder,
+    required this.commandDispatcher,
+    required this.foregroundService,
+    required this.eventBus,
+    required this.useStreamFirstAudio,
+  });
 
   static final VoiceRealtimeEcosystem instance = VoiceRealtimeEcosystem();
 
@@ -34,11 +71,22 @@ class VoiceRealtimeEcosystem {
     defaultValue: false,
   );
 
+  static TextToSpeechEngine _createDefaultTtsEngine({
+    required VoiceRealtimeEventBus eventBus,
+  }) {
+    if (kReleaseMode) {
+      return FlutterTtsEngine(eventBus: eventBus);
+    }
+
+    return StubTextToSpeechEngine(eventBus: eventBus);
+  }
+
   static const String foregroundTitle = 'Assistente Musical Ativo';
   static const String foregroundMessage = 'Escuta hands-free ligada';
 
   final VoiceRuntimeEngine runtimeEngine;
   final VoiceResponseBridge responseBridge;
+  final VoiceSessionContextHolder sessionContextHolder;
   final VoiceCommandDispatcher commandDispatcher;
   final VoiceForegroundService foregroundService;
   final VoiceRealtimeEventBus eventBus;
@@ -106,6 +154,7 @@ class VoiceRealtimeEcosystem {
       return;
     }
     _started = false;
+    sessionContextHolder.updateActiveContext();
     commandDispatcher.clearPendingTransaction(reason: 'realtime_stopped');
 
     if (useStreamFirstAudio && _foregroundStarted) {
