@@ -4,7 +4,7 @@ import '../../voice_realtime_events.dart';
 import '../voice_command_handler.dart';
 
 abstract class MetronomeService {
-  Future<void> setBpm(int bpm);
+  Future<void> updateBpm(int bpm);
 }
 
 class MetronomeCommandHandler implements VoiceCommandHandler<MetronomeIntent> {
@@ -19,7 +19,26 @@ class MetronomeCommandHandler implements VoiceCommandHandler<MetronomeIntent> {
 
   @override
   Future<void> handle(MetronomeIntent intent, String correlationId) async {
-    await _service.setBpm(intent.bpm);
+    try {
+      await _service.updateBpm(intent.bpm);
+    } catch (error, stackTrace) {
+      _eventBus.publish(
+        VoiceCommandFailedEvent(
+          source: 'metronome_command_handler',
+          reason: 'metronome_update_failed',
+          correlationId: correlationId,
+          intent: intent,
+          metadata: {'error': error.toString()},
+        ),
+      );
+      throw VoiceCommandHandlerException(
+        reason: 'metronome_update_failed',
+        cause: error,
+        stackTrace: stackTrace,
+        failureEventPublished: true,
+      );
+    }
+
     _eventBus.publish(
       VoiceStateChangedEvent(
         source: 'metronome_command_handler',
@@ -34,6 +53,7 @@ class MetronomeCommandHandler implements VoiceCommandHandler<MetronomeIntent> {
 }
 
 class StubMetronomeService implements MetronomeService {
+  // Adapter seguro ate existir um controlador real de metronomo no dominio.
   @override
-  Future<void> setBpm(int bpm) async {}
+  Future<void> updateBpm(int bpm) async {}
 }

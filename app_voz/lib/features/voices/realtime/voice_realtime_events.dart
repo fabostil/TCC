@@ -720,6 +720,103 @@ class VoiceCommandInterpretedEvent extends VoiceRealtimeEvent {
   final VoiceIntent intent;
 }
 
+class VoiceCommandFailedEvent extends VoiceRealtimeEvent {
+  VoiceCommandFailedEvent({
+    required String source,
+    required String reason,
+    this.intent,
+    String? ownerId,
+    String? correlationId,
+    String? causationId,
+    Map<String, Object?> metadata = const {},
+  }) : super(
+         type: VoiceRealtimeEventType.voiceCommandFailed,
+         source: source,
+         ownerId: ownerId,
+         reason: reason,
+         correlationId: correlationId,
+         causationId: causationId,
+         message: 'Falha ao executar comando de voz.',
+         severity: VoiceRealtimeEventSeverity.error,
+         metadata: {
+           if (intent != null) 'intentType': intent.runtimeType.toString(),
+           if (intent != null) 'rawText': intent.rawText,
+           if (intent != null) ..._intentMetadata(intent),
+           ...metadata,
+         },
+       );
+
+  final VoiceIntent? intent;
+}
+
+class VoiceCommandConfirmationRequiredEvent extends VoiceRealtimeEvent {
+  VoiceCommandConfirmationRequiredEvent({
+    required String source,
+    required this.action,
+    required this.intent,
+    String? ownerId,
+    String? reason,
+    String? correlationId,
+    String? causationId,
+    Map<String, Object?> metadata = const {},
+  }) : super(
+         type: VoiceRealtimeEventType.voiceCommandConfirmationRequired,
+         source: source,
+         ownerId: ownerId,
+         reason: reason,
+         correlationId: correlationId,
+         causationId: causationId,
+         message: 'Confirmacao de comando de voz solicitada.',
+         cancelable: true,
+         metadata: {
+           'action': action,
+           'intentType': intent.runtimeType.toString(),
+           'rawText': intent.rawText,
+           ..._intentMetadata(intent),
+           ...metadata,
+         },
+       );
+
+  final String action;
+  final VoiceIntent intent;
+}
+
+class VoiceCommandConfirmationResolvedEvent extends VoiceRealtimeEvent {
+  VoiceCommandConfirmationResolvedEvent({
+    required String source,
+    required this.action,
+    required this.intent,
+    required this.approved,
+    String? ownerId,
+    String? reason,
+    String? correlationId,
+    String? causationId,
+    Map<String, Object?> metadata = const {},
+  }) : super(
+         type: VoiceRealtimeEventType.voiceCommandConfirmationResolved,
+         source: source,
+         ownerId: ownerId,
+         reason: reason,
+         correlationId: correlationId,
+         causationId: causationId,
+         message: approved
+             ? 'Comando de voz confirmado.'
+             : 'Comando de voz cancelado.',
+         metadata: {
+           'action': action,
+           'approved': approved,
+           'intentType': intent.runtimeType.toString(),
+           'rawText': intent.rawText,
+           ..._intentMetadata(intent),
+           ...metadata,
+         },
+       );
+
+  final String action;
+  final VoiceIntent intent;
+  final bool approved;
+}
+
 class VoiceSessionRecoveredEvent extends VoiceRealtimeEvent {
   VoiceSessionRecoveredEvent({
     required String source,
@@ -743,6 +840,13 @@ Map<String, Object?> _intentMetadata(VoiceIntent intent) {
     MetronomeIntent(:final bpm) => {'bpm': bpm},
     PlaybackIntent(:final action) => {'action': action},
     TrackIntent(:final action) => {'action': action},
+    DeleteLastRecordingIntent() => {'recordingAction': 'deleteLast'},
+    RenameLastRecordingIntent(:final newName) => {
+      'recordingAction': 'renameLast',
+      'newName': newName,
+    },
+    ConfirmIntent() => {'flowAction': 'confirm'},
+    CancelIntent() => {'flowAction': 'cancel'},
     UnknownIntent() => const {},
   };
 }

@@ -106,6 +106,7 @@ class VoiceRealtimeEcosystem {
       return;
     }
     _started = false;
+    commandDispatcher.clearPendingTransaction(reason: 'realtime_stopped');
 
     if (useStreamFirstAudio && _foregroundStarted) {
       try {

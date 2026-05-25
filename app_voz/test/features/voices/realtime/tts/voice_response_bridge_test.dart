@@ -1,5 +1,6 @@
 import 'package:app_voz/features/voices/realtime/nlu/voice_intent.dart';
 import 'package:app_voz/features/voices/realtime/observability/runtime_telemetry_tracer.dart';
+import 'package:app_voz/features/voices/realtime/tts/intent_response_formatter.dart';
 import 'package:app_voz/features/voices/realtime/tts/text_to_speech_engine.dart';
 import 'package:app_voz/features/voices/realtime/tts/voice_response_bridge.dart';
 import 'package:app_voz/features/voices/realtime/voice_realtime_event.dart';
@@ -129,7 +130,97 @@ void main() {
       expect(tts.calls, hasLength(1));
       expect(tts.calls.single.text, 'Iniciando reproducao');
     });
+
+    test(
+      'responde a VoiceCommandFailedEvent usando formatFailure e correlationId',
+      () async {
+        await bridge.dispose();
+        final formatter = _SpyIntentResponseFormatter();
+        bridge = VoiceResponseBridge(
+          eventBus: bus,
+          ttsEngine: tts,
+          formatter: formatter,
+        )..start();
+
+        bus.publish(
+          VoiceCommandFailedEvent(
+            source: 'test',
+            reason: 'no_track_selected',
+            correlationId: 'failure-flow',
+            intent: const PlaybackIntent(action: 'start', rawText: 'play'),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(formatter.failureReasons, ['no_track_selected']);
+        expect(tts.calls, hasLength(1));
+        expect(
+          tts.calls.single.text,
+          'Nenhuma gravação foi selecionada no editor para reproduzir.',
+        );
+        expect(tts.calls.single.correlationId, 'failure-flow');
+      },
+    );
+
+    test(
+      'responde pedido de confirmacao de exclusao com correlationId',
+      () async {
+        bus.publish(
+          VoiceCommandConfirmationRequiredEvent(
+            source: 'test',
+            action: 'delete_last_recording',
+            correlationId: 'confirm-flow',
+            intent: const DeleteLastRecordingIntent(
+              rawText: 'deletar ultima gravacao',
+            ),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(tts.calls, hasLength(1));
+        expect(
+          tts.calls.single.text,
+          'Confirmar exclusão da última gravação? Diga confirmar ou cancelar.',
+        );
+        expect(tts.calls.single.correlationId, 'confirm-flow');
+      },
+    );
+
+    test(
+      'responde cancelamento de exclusao resolvido com correlationId',
+      () async {
+        bus.publish(
+          VoiceCommandConfirmationResolvedEvent(
+            source: 'test',
+            action: 'delete_last_recording',
+            approved: false,
+            correlationId: 'delete-flow',
+            intent: const DeleteLastRecordingIntent(
+              rawText: 'deletar ultima gravacao',
+            ),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(tts.calls, hasLength(1));
+        expect(
+          tts.calls.single.text,
+          'ExclusÃ£o cancelada. A gravaÃ§Ã£o foi mantida.',
+        );
+        expect(tts.calls.single.correlationId, 'delete-flow');
+      },
+    );
   });
+}
+
+class _SpyIntentResponseFormatter extends IntentResponseFormatter {
+  final List<String> failureReasons = [];
+
+  @override
+  String formatFailure(String reason) {
+    failureReasons.add(reason);
+    return super.formatFailure(reason);
+  }
 }
 
 class _FakeTextToSpeechEngine implements TextToSpeechEngine {

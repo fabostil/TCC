@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../realtime/runtime/voice_realtime_ecosystem.dart';
 import '../realtime/runtime/runtime_engine.dart';
 import '../realtime/runtime/runtime_registry.dart';
+import '../realtime/dispatch/contratos/audio_output_guard.dart';
 import '../realtime/voice_realtime_events.dart';
 import '../services/speech_service.dart';
 import 'voice_diagnostics.dart';
@@ -19,7 +20,7 @@ enum VoiceRecoveryReason {
   afterRecording,
 }
 
-class VoiceSessionManager extends ChangeNotifier {
+class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
   VoiceSessionManager._({
     SpeechService? speechService,
     VoiceStateMachine? stateMachine,
@@ -65,6 +66,12 @@ class VoiceSessionManager extends ChangeNotifier {
   bool get isSpeechListening => speech.isListening;
 
   String? get lastFailureReason => _lastFailureReason;
+
+  @override
+  bool isAudioOutputAvailable() {
+    return _audioOwnerType == VoiceAudioOwnerType.none ||
+        _audioOwnerType == VoiceAudioOwnerType.playback;
+  }
 
   Duration restartDelayFor(VoiceRecoveryReason reason) {
     return reason == VoiceRecoveryReason.afterError

@@ -202,6 +202,12 @@ extension VoiceRealtimeDiagnosticMapping on VoiceRealtimeEventType {
         VoiceDiagnosticEventType.recoveryScheduled,
       VoiceRealtimeEventType.voiceCommandInterpreted =>
         VoiceDiagnosticEventType.stateTransition,
+      VoiceRealtimeEventType.voiceCommandFailed =>
+        VoiceDiagnosticEventType.error,
+      VoiceRealtimeEventType.voiceCommandConfirmationRequired =>
+        VoiceDiagnosticEventType.stateTransition,
+      VoiceRealtimeEventType.voiceCommandConfirmationResolved =>
+        VoiceDiagnosticEventType.stateTransition,
       VoiceRealtimeEventType.voiceSessionRecovered =>
         VoiceDiagnosticEventType.recoveryAttempted,
       VoiceRealtimeEventType.voiceStateChanged =>

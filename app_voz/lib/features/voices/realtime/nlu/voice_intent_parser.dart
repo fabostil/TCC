@@ -53,6 +53,11 @@ class VoiceIntentParser {
   VoiceIntent parse(String text) {
     final normalized = _normalize(text);
 
+    final confirmation = _matchConfirmation(text, normalized);
+    if (confirmation != null) {
+      return confirmation;
+    }
+
     final metronome = _matchMetronome(text, normalized);
     if (metronome != null) {
       return metronome;
@@ -61,6 +66,11 @@ class VoiceIntentParser {
     final playback = _matchPlayback(text, normalized);
     if (playback != null) {
       return playback;
+    }
+
+    final recordingManagement = _matchRecordingManagement(text, normalized);
+    if (recordingManagement != null) {
+      return recordingManagement;
     }
 
     final track = _matchTrack(text, normalized);
@@ -124,6 +134,39 @@ class VoiceIntentParser {
     ).hasMatch(text)) {
       return PlaybackIntent(action: 'start', rawText: rawText);
     }
+    return null;
+  }
+
+  static VoiceIntent? _matchConfirmation(String rawText, String text) {
+    final trimmed = text.trim();
+    if (RegExp(
+      r'^(?:confirmar|sim|pode|pode\s+apagar|confirma)$',
+    ).hasMatch(trimmed)) {
+      return ConfirmIntent(rawText: rawText);
+    }
+    if (RegExp(
+      '^(?:cancelar|nao|n\u00e3o|nÃ£o|esquece|cancela)\$',
+    ).hasMatch(trimmed)) {
+      return CancelIntent(rawText: rawText);
+    }
+    return null;
+  }
+
+  static VoiceIntent? _matchRecordingManagement(String rawText, String text) {
+    final renameMatch = RegExp(
+      r'(?:renomear|mudar o nome da)\s+(?:ultima\s+)?(?:gravacao|faixa)\s+para\s+(.+)',
+    ).firstMatch(text);
+    final newName = renameMatch?.group(1)?.trim();
+    if (newName != null && newName.isNotEmpty) {
+      return RenameLastRecordingIntent(newName: newName, rawText: rawText);
+    }
+
+    if (RegExp(
+      r'(?:deletar|apagar|excluir|remover)\s+(?:ultima\s+)?(?:gravacao|audio|faixa)',
+    ).hasMatch(text)) {
+      return DeleteLastRecordingIntent(rawText: rawText);
+    }
+
     return null;
   }
 

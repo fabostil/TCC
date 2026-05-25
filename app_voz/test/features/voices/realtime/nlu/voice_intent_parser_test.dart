@@ -54,6 +54,25 @@ void main() {
       expect((delete as TrackIntent).action, 'delete');
     });
 
+    test(
+      'recording management reconhece delete e rename da ultima gravacao',
+      () {
+        final delete = parser.parse('apagar última gravação');
+        final rename = parser.parse('renomear ultima faixa para voz guia');
+
+        expect(delete, isA<DeleteLastRecordingIntent>());
+        expect(rename, isA<RenameLastRecordingIntent>());
+        expect((rename as RenameLastRecordingIntent).newName, 'voz guia');
+      },
+    );
+
+    test('confirmation intents reconhecem confirmar e cancelar isolados', () {
+      expect(parser.parse('confirmar'), isA<ConfirmIntent>());
+      expect(parser.parse('pode apagar'), isA<ConfirmIntent>());
+      expect(parser.parse('cancelar'), isA<CancelIntent>());
+      expect(parser.parse('n\u00e3o'), isA<CancelIntent>());
+    });
+
     test('strings aleatorias caem em UnknownIntent sem excecao', () {
       final intent = parser.parse('banana orbital sem contexto 123');
 

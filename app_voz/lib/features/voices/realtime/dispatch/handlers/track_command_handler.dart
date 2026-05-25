@@ -4,9 +4,9 @@ import '../../voice_realtime_events.dart';
 import '../voice_command_handler.dart';
 
 abstract class TrackService {
-  Future<void> record();
-  Future<void> mute();
-  Future<void> delete();
+  Future<void> startRecordingTrack();
+  Future<void> muteSelectedTrack();
+  Future<void> deleteSelectedTrack();
 }
 
 class TrackCommandHandler implements VoiceCommandHandler<TrackIntent> {
@@ -21,15 +21,33 @@ class TrackCommandHandler implements VoiceCommandHandler<TrackIntent> {
 
   @override
   Future<void> handle(TrackIntent intent, String correlationId) async {
-    switch (intent.action) {
-      case 'record':
-        await _service.record();
-      case 'mute':
-        await _service.mute();
-      case 'delete':
-        await _service.delete();
-      default:
-        throw ArgumentError.value(intent.action, 'action');
+    try {
+      switch (intent.action) {
+        case 'record':
+          await _service.startRecordingTrack();
+        case 'mute':
+          await _service.muteSelectedTrack();
+        case 'delete':
+          await _service.deleteSelectedTrack();
+        default:
+          throw ArgumentError.value(intent.action, 'action');
+      }
+    } catch (error, stackTrace) {
+      _eventBus.publish(
+        VoiceCommandFailedEvent(
+          source: 'track_command_handler',
+          reason: 'track_command_failed',
+          correlationId: correlationId,
+          intent: intent,
+          metadata: {'action': intent.action, 'error': error.toString()},
+        ),
+      );
+      throw VoiceCommandHandlerException(
+        reason: 'track_command_failed',
+        cause: error,
+        stackTrace: stackTrace,
+        failureEventPublished: true,
+      );
     }
 
     _eventBus.publish(
@@ -46,12 +64,13 @@ class TrackCommandHandler implements VoiceCommandHandler<TrackIntent> {
 }
 
 class StubTrackService implements TrackService {
+  // Adapter seguro ate existir dominio real de tracks/multipista com mute.
   @override
-  Future<void> delete() async {}
+  Future<void> deleteSelectedTrack() async {}
 
   @override
-  Future<void> mute() async {}
+  Future<void> muteSelectedTrack() async {}
 
   @override
-  Future<void> record() async {}
+  Future<void> startRecordingTrack() async {}
 }

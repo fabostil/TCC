@@ -9,12 +9,54 @@ class IntentResponseFormatter {
         'Ajustando metronomo para $bpm batidas por minuto',
       PlaybackIntent(:final action) => _playbackResponse(action),
       TrackIntent(:final action) => _trackResponse(action),
+      DeleteLastRecordingIntent() =>
+        'A última gravação foi excluída com sucesso.',
+      RenameLastRecordingIntent(:final newName) =>
+        'Faixa renomeada para $newName.',
+      ConfirmIntent() => 'Confirmado.',
+      CancelIntent() => 'Cancelado.',
       UnknownIntent() => unknownCommandResponse,
     };
   }
 
   String get unknownCommandResponse =>
       'Desculpe, nao consegui entender o comando musical';
+
+  String formatFailure(String reason) {
+    return switch (reason) {
+      'no_track_selected' =>
+        'Nenhuma gravação foi selecionada no editor para reproduzir.',
+      'audio_output_unavailable' =>
+        'O canal de áudio está ocupado no momento. Tente novamente em instantes.',
+      'database_error' =>
+        'Não foi possível alterar o arquivo no banco de dados agora.',
+      'recording_context_missing' =>
+        'Não encontrei uma gravação recente para alterar.',
+      _ => 'Nao consegui executar o comando musical agora',
+    };
+  }
+
+  String formatConfirmation(String action, VoiceIntent intent) {
+    if (action == 'delete_last_recording' &&
+        intent is DeleteLastRecordingIntent) {
+      return 'Confirmar exclusão da última gravação? Diga confirmar ou cancelar.';
+    }
+    return 'Confirme a acao por voz para continuar.';
+  }
+
+  String formatConfirmationResolved(
+    String action,
+    VoiceIntent intent, {
+    required bool approved,
+  }) {
+    if (!approved && action == 'delete_last_recording') {
+      return 'ExclusÃ£o cancelada. A gravaÃ§Ã£o foi mantida.';
+    }
+    if (approved) {
+      return format(intent);
+    }
+    return 'Acao cancelada.';
+  }
 
   String _playbackResponse(String action) {
     return switch (action) {
