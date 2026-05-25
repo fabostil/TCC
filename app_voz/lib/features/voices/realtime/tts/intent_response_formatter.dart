@@ -32,6 +32,8 @@ class IntentResponseFormatter {
         'Não foi possível alterar o arquivo no banco de dados agora.',
       'recording_context_missing' =>
         'Não encontrei uma gravação recente para alterar.',
+      'transaction_conflict_active' =>
+        'Já existe uma ação aguardando confirmação. Confirme ou cancele antes de pedir outra.',
       _ => 'Nao consegui executar o comando musical agora',
     };
   }

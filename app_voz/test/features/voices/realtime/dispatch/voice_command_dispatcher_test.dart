@@ -431,6 +431,133 @@ void main() {
       },
     );
 
+    test(
+      'rejeita segunda transacao destrutiva sem sobrescrever a pendente',
+      () async {
+        final tracer = RuntimeTelemetryTracer(eventBus: bus);
+
+        bus.publish(
+          VoiceCommandInterpretedEvent(
+            source: 'test',
+            correlationId: 'ID_ALPHA',
+            intent: const DeleteLastRecordingIntent(
+              rawText: 'deletar ultima gravacao',
+            ),
+          ),
+        );
+        await dispatcher.idle;
+
+        expect(recordingService.deleteCalls, isEmpty);
+        expect(
+          bus.timeline.whereType<VoiceCommandConfirmationRequiredEvent>(),
+          hasLength(1),
+        );
+        expect(
+          bus.timeline
+              .whereType<VoiceCommandConfirmationRequiredEvent>()
+              .single
+              .correlationId,
+          'ID_ALPHA',
+        );
+
+        bus.publish(
+          VoiceCommandInterpretedEvent(
+            source: 'test',
+            correlationId: 'ID_BETA',
+            intent: const DeleteLastRecordingIntent(
+              rawText: 'apagar ultima gravacao',
+            ),
+          ),
+        );
+        await dispatcher.idle;
+
+        final failed = bus.timeline.whereType<VoiceCommandFailedEvent>().single;
+        expect(failed.reason, 'transaction_conflict_active');
+        expect(failed.correlationId, 'ID_BETA');
+        expect(failed.intent, isA<DeleteLastRecordingIntent>());
+        expect(failed.metadata['activeCorrelationId'], 'ID_ALPHA');
+        expect(failed.metadata['conflictPolicy'], 'single_pending_transaction');
+        expect(
+          const IntentResponseFormatter().formatFailure(
+            'transaction_conflict_active',
+          ),
+          'Já existe uma ação aguardando confirmação. Confirme ou cancele antes de pedir outra.',
+        );
+
+        final degraded = tracer
+            .getTraceChain('ID_BETA')
+            .whereType<VoiceSystemDegradedEvent>()
+            .single;
+        expect(degraded.reason, 'transaction_conflict_active');
+        expect(degraded.metadata['activeCorrelationId'], 'ID_ALPHA');
+
+        expect(
+          bus.timeline.whereType<VoiceCommandConfirmationRequiredEvent>(),
+          hasLength(1),
+        );
+
+        bus.publish(
+          VoiceCommandInterpretedEvent(
+            source: 'test',
+            correlationId: 'confirm-alpha-flow',
+            intent: const ConfirmIntent(rawText: 'confirmar'),
+          ),
+        );
+        await dispatcher.idle;
+
+        expect(recordingService.deleteCalls.map((recording) => recording.id), [
+          1,
+        ]);
+        final resolved = bus.timeline
+            .whereType<VoiceCommandConfirmationResolvedEvent>()
+            .single;
+        expect(resolved.approved, isTrue);
+        expect(resolved.correlationId, 'ID_ALPHA');
+        expect(
+          bus.timeline.whereType<VoiceCommandConfirmationResolvedEvent>().where(
+            (event) => event.correlationId == 'ID_BETA',
+          ),
+          isEmpty,
+        );
+
+        await tracer.dispose();
+      },
+    );
+
+    test(
+      'mantem deduplicacao silenciosa para transacao destrutiva repetida',
+      () async {
+        final event = VoiceCommandInterpretedEvent(
+          source: 'test',
+          correlationId: 'ID_ALPHA_DUPLICATE',
+          intent: const DeleteLastRecordingIntent(
+            rawText: 'deletar ultima gravacao',
+          ),
+        );
+
+        bus.publish(event);
+        bus.publish(event);
+        await dispatcher.idle;
+
+        expect(recordingService.deleteCalls, isEmpty);
+        expect(
+          bus.timeline.whereType<VoiceCommandConfirmationRequiredEvent>(),
+          hasLength(1),
+        );
+        expect(
+          bus.timeline.whereType<VoiceCommandFailedEvent>().where(
+            (event) => event.reason == 'transaction_conflict_active',
+          ),
+          isEmpty,
+        );
+        final duplicate = bus.timeline
+            .whereType<VoiceStateChangedEvent>()
+            .where((event) => event.reason == 'duplicate_command_ignored')
+            .single;
+        expect(duplicate.correlationId, 'ID_ALPHA_DUPLICATE');
+      },
+    );
+
     test('cancelamento limpa transacao sem excluir gravacao', () async {
       bus.publish(
         VoiceCommandInterpretedEvent(

@@ -129,6 +129,18 @@ class VoiceCommandDispatcher {
       return;
     }
 
+    final activeTransaction = _pendingTransaction;
+    if (activeTransaction != null &&
+        handler is ConfirmableVoiceCommandHandler) {
+      _publishTransactionConflict(
+        intent: intent,
+        rejectedCorrelationId: event.correlationId,
+        causationId: event.id,
+        activeTransaction: activeTransaction,
+      );
+      return;
+    }
+
     try {
       await _invokeHandler(handler, intent, event.correlationId);
       eventBus.publish(
@@ -192,13 +204,29 @@ class VoiceCommandDispatcher {
       return;
     }
 
-    _pendingTransaction = null;
-    _pendingTransactionTimer?.cancel();
-    _pendingTransactionTimer = null;
+    if (_pendingTransaction?.correlationId != transaction.correlationId) {
+      eventBus.publish(
+        VoiceSystemDegradedEvent(
+          source: 'voice_command_dispatcher',
+          reason: 'confirmation_transaction_mismatch',
+          correlationId: event.correlationId,
+          causationId: event.id,
+          metadata: {
+            'expectedCorrelationId': transaction.correlationId,
+            'activeCorrelationId': _pendingTransaction?.correlationId,
+            'intentType': transaction.intent.runtimeType.toString(),
+          },
+        ),
+      );
+      return;
+    }
 
     final originalIntent = transaction.intent;
     final handler = _handlers[originalIntent.runtimeType];
     if (handler is! ConfirmableVoiceCommandHandler) {
+      _pendingTransaction = null;
+      _pendingTransactionTimer?.cancel();
+      _pendingTransactionTimer = null;
       eventBus.publish(
         VoiceSystemDegradedEvent(
           source: 'voice_command_dispatcher',
@@ -210,6 +238,10 @@ class VoiceCommandDispatcher {
       );
       return;
     }
+
+    _pendingTransaction = null;
+    _pendingTransactionTimer?.cancel();
+    _pendingTransactionTimer = null;
 
     final approved = event.intent is ConfirmIntent;
     try {
@@ -268,6 +300,17 @@ class VoiceCommandDispatcher {
   void _rememberPendingTransaction(
     VoiceCommandConfirmationRequiredEvent event,
   ) {
+    final activeTransaction = _pendingTransaction;
+    if (activeTransaction != null) {
+      _publishTransactionConflict(
+        intent: event.intent,
+        rejectedCorrelationId: event.correlationId,
+        causationId: event.id,
+        activeTransaction: activeTransaction,
+      );
+      return;
+    }
+
     _pendingTransactionTimer?.cancel();
     _pendingTransaction = _PendingTransaction(
       intent: event.intent,
@@ -333,6 +376,39 @@ class VoiceCommandDispatcher {
         message: message,
         correlationId: event.correlationId,
         causationId: event.id,
+        metadata: metadata,
+      ),
+    );
+  }
+
+  void _publishTransactionConflict({
+    required VoiceIntent intent,
+    required String rejectedCorrelationId,
+    required String causationId,
+    required _PendingTransaction activeTransaction,
+  }) {
+    final metadata = {
+      'rejectedIntentType': intent.runtimeType.toString(),
+      'activeIntentType': activeTransaction.intent.runtimeType.toString(),
+      'activeCorrelationId': activeTransaction.correlationId,
+      'conflictPolicy': 'single_pending_transaction',
+    };
+    eventBus.publish(
+      VoiceCommandFailedEvent(
+        source: 'voice_command_dispatcher',
+        reason: 'transaction_conflict_active',
+        correlationId: rejectedCorrelationId,
+        causationId: causationId,
+        intent: intent,
+        metadata: metadata,
+      ),
+    );
+    eventBus.publish(
+      VoiceSystemDegradedEvent(
+        source: 'voice_command_dispatcher',
+        reason: 'transaction_conflict_active',
+        correlationId: rejectedCorrelationId,
+        causationId: causationId,
         metadata: metadata,
       ),
     );
