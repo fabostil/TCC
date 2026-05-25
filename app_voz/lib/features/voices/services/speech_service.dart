@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -114,6 +115,10 @@ class SpeechService {
           final text = result.recognizedWords.trim();
 
           if (text.isNotEmpty) {
+            developer.log(
+              "[STT_DEBUG] TEXTO RECEBIDO: '$text'",
+              name: 'SpeechService',
+            );
             _handleResultText(
               text,
               finalResult: result.finalResult,

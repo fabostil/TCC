@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'voice_intent.dart';
 
 class VoiceIntentParser {
@@ -97,30 +99,52 @@ class VoiceIntentParser {
 
     final confirmation = _matchConfirmation(text, normalized);
     if (confirmation != null) {
-      return confirmation;
+      return _logMatchedIntent(confirmation);
     }
 
     final metronome = _matchMetronome(text, normalized);
     if (metronome != null) {
-      return metronome;
+      return _logMatchedIntent(metronome);
     }
 
     final playback = _matchPlayback(text, normalized);
     if (playback != null) {
-      return playback;
+      return _logMatchedIntent(playback);
     }
 
     final recordingManagement = _matchRecordingManagement(text, normalized);
     if (recordingManagement != null) {
-      return recordingManagement;
+      return _logMatchedIntent(recordingManagement);
     }
 
     final track = _matchTrack(text, normalized);
     if (track != null) {
-      return track;
+      return _logMatchedIntent(track);
     }
 
-    return UnknownIntent(text);
+    return _logMatchedIntent(UnknownIntent(text));
+  }
+
+  VoiceIntent _logMatchedIntent(VoiceIntent intent) {
+    developer.log(
+      '[NLU_DEBUG] TEXTO MATCHEADO PARA INTENT: ${_describeIntent(intent)}',
+      name: 'VoiceIntentParser',
+    );
+    return intent;
+  }
+
+  String _describeIntent(VoiceIntent intent) {
+    return switch (intent) {
+      MetronomeIntent(:final bpm) => 'MetronomeIntent(bpm=$bpm)',
+      PlaybackIntent(:final action) => 'PlaybackIntent(action=$action)',
+      TrackIntent(:final action) => 'TrackIntent(action=$action)',
+      DeleteLastRecordingIntent() => 'DeleteLastRecordingIntent',
+      RenameLastRecordingIntent(:final newName) =>
+        'RenameLastRecordingIntent(newName=$newName)',
+      ConfirmIntent() => 'ConfirmIntent',
+      CancelIntent() => 'CancelIntent',
+      UnknownIntent(:final rawText) => 'UnknownIntent(rawText=$rawText)',
+    };
   }
 
   static String _normalize(String text) {

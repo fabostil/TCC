@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import '../../../editor/services/audio_recording_capture.dart';
 import '../nlu/voice_intent.dart';
@@ -450,6 +451,11 @@ class VoiceRuntimeEngine {
   }
 
   void _handleFinalSpeechResult(SpeechResultReceivedEvent event) {
+    developer.log(
+      "[STT_DEBUG] TEXTO RECEBIDO: '${event.text}'",
+      name: 'VoiceRuntimeEngine',
+    );
+
     if (useStreamFirstAudio &&
         _streamingRecognitionActive &&
         _streamingCorrelationId == event.correlationId &&

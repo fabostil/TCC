@@ -39,6 +39,28 @@ void main() {
 
       expect(vad.frameSizeBytes, 640);
     });
+
+    test('permite calibrar limiar para microfones de baixa energia', () {
+      final strictVad = AdaptiveSilenceVad(
+        noiseWindowFrames: 4,
+        noiseMarginRms: 120,
+        minimumSilenceThresholdRms: 150,
+      );
+      final tolerantVad = AdaptiveSilenceVad(
+        noiseWindowFrames: 4,
+        noiseMarginRms: 60,
+        minimumSilenceThresholdRms: 80,
+      );
+
+      strictVad.analyzeFrame(_constantPcm16Frame(0));
+      tolerantVad.analyzeFrame(_constantPcm16Frame(0));
+      final strictResult = strictVad.analyzeFrame(_constantPcm16Frame(100));
+      final tolerantResult = tolerantVad.analyzeFrame(_constantPcm16Frame(100));
+
+      expect(strictResult.isSilent, isTrue);
+      expect(tolerantResult.isSilent, isFalse);
+      expect(tolerantResult.threshold, lessThan(strictResult.threshold));
+    });
   });
 }
 

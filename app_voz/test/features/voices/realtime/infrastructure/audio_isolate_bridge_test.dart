@@ -135,7 +135,10 @@ void main() {
         expect(silence.metadata['silenceMs'], 100);
         expect(silence.metadata['isIsolateEngine'], isTrue);
         expect(silence.metadata['frameSizeBytes'], 640);
-        expect(silence.metadata['adaptiveThreshold'], 150);
+        expect(
+          silence.metadata['adaptiveThreshold'],
+          audioPipelineDefaultVadMinimumSilenceThresholdRms,
+        );
         expect(silence.isIsolateEngine, isTrue);
         expect(silence.message, 'Silencio detectado.');
       },
