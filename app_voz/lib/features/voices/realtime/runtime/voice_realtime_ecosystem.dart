@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../dispatch/voice_command_dispatcher.dart';
 import '../dispatch/contracts/voice_session_context_holder.dart';
+import '../infrastructure/service/android_voice_foreground_service.dart';
 import '../infrastructure/service/stub_voice_foreground_service.dart';
 import '../infrastructure/service/voice_foreground_service.dart';
 import '../tts/adapters/flutter_tts_engine.dart';
@@ -50,7 +51,7 @@ class VoiceRealtimeEcosystem {
       useStreamFirstAudio: useStreamFirstAudio ?? _streamFirstFromEnvironment,
       foregroundService:
           foregroundService ??
-          StubVoiceForegroundService(eventBus: resolvedEventBus),
+          _createDefaultForegroundService(eventBus: resolvedEventBus),
     );
   }
 
@@ -81,8 +82,20 @@ class VoiceRealtimeEcosystem {
     return StubTextToSpeechEngine(eventBus: eventBus);
   }
 
-  static const String foregroundTitle = 'Assistente Musical Ativo';
-  static const String foregroundMessage = 'Escuta hands-free ligada';
+  static VoiceForegroundService _createDefaultForegroundService({
+    required VoiceRealtimeEventBus eventBus,
+  }) {
+    if (kReleaseMode && defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidVoiceForegroundService(eventBus: eventBus);
+    }
+
+    return StubVoiceForegroundService(eventBus: eventBus);
+  }
+
+  static const String foregroundTitle =
+      AndroidVoiceForegroundService.notificationTitle;
+  static const String foregroundMessage =
+      AndroidVoiceForegroundService.notificationMessage;
 
   final VoiceRuntimeEngine runtimeEngine;
   final VoiceResponseBridge responseBridge;

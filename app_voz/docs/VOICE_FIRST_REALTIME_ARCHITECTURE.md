@@ -79,6 +79,32 @@ Para ativar audio nativo real em Android/iOS, adicionar a dependencia e validar
 em aparelho real. Ate la, o adapter compila e cai no fallback seguro quando o
 Platform Channel nao existe.
 
+## Android Foreground Service
+
+`VoiceRealtimeEcosystem` recebe `VoiceForegroundService` por injecao. Em testes
+e debug, a composicao default usa `StubVoiceForegroundService` para nao abrir
+Platform Channels. Em release Android, a composicao default tenta
+`AndroidVoiceForegroundService`.
+
+O adapter de producao e fail-safe:
+
+- evita inicializacoes duplicadas;
+- `stopService()` e idempotente;
+- publica `VoiceSystemDegradedEvent` se o canal nativo falhar;
+- propaga a falha ao ecossistema, que mantem runtime, isolate e bus ativos sem
+  marcar o foreground como iniciado.
+
+Dependencia pendente: `flutter_foreground_task` ainda nao esta listado no
+`pubspec.yaml`. O arquivo `AndroidManifest.xml` ja declara:
+
+- `android.permission.FOREGROUND_SERVICE`;
+- `android.permission.FOREGROUND_SERVICE_MICROPHONE`;
+- `android.permission.RECORD_AUDIO`.
+
+Quando a dependencia nativa for adicionada, tambem sera necessario declarar o
+servico Android do plugin com `android:foregroundServiceType="microphone"` ou o
+tipo equivalente exigido pelo pacote/SDK usado.
+
 ## AudioRecordingCapture
 
 Contrato compartilhado entre o recorder legado e o stream-first.

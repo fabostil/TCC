@@ -1,4 +1,5 @@
 import 'package:app_voz/features/voices/realtime/infrastructure/service/voice_foreground_service.dart';
+import 'package:app_voz/features/voices/realtime/infrastructure/service/stub_voice_foreground_service.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_engine.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_registry.dart';
 import 'package:app_voz/features/voices/realtime/runtime/voice_realtime_ecosystem.dart';
@@ -115,6 +116,20 @@ void main() {
       expect(degraded.reason, 'foreground_service_start_failed');
       expect(degraded.correlationId, 'foreground_service');
       expect(degraded.metadata['error'], contains('foreground start failed'));
+    });
+
+    test('composicao default de teste usa foreground service stub', () {
+      final localEcosystem = VoiceRealtimeEcosystem(
+        eventBus: bus,
+        runtimeEngine: runtimeEngine,
+        responseBridge: responseBridge,
+        useStreamFirstAudio: true,
+      );
+
+      expect(
+        localEcosystem.foregroundService,
+        isA<StubVoiceForegroundService>(),
+      );
     });
 
     test('stop limpa contexto ativo de sessao de voz', () async {
