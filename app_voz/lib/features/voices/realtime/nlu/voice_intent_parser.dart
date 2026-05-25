@@ -50,6 +50,49 @@ class VoiceIntentParser {
     'trezentos': 300,
   };
 
+  static const Map<String, String> _deleteActionVariants = {
+    'apagar': 'apagar',
+    'deletar': 'apagar',
+    'vagar': 'apagar',
+    'pagar': 'apagar',
+    'abagar': 'apagar',
+    'excluir': 'apagar',
+  };
+
+  static const Map<String, String> _confirmActionVariants = {
+    'confirmar': 'confirmar',
+    'confirma': 'confirmar',
+    'sim': 'confirmar',
+    'pode': 'confirmar',
+    'manda': 'confirmar',
+    'mandar': 'confirmar',
+    'sin': 'confirmar',
+  };
+
+  static const Map<String, String> _cancelActionVariants = {
+    'cancelar': 'cancelar',
+    'cancela': 'cancelar',
+    'nao': 'cancelar',
+    'não': 'cancelar',
+    'nÃƒÂ£o': 'cancelar',
+    'para': 'cancelar',
+    'abortar': 'cancelar',
+    'sai': 'cancelar',
+  };
+
+  static const Map<String, String> _playbackActionVariants = {
+    'tocar': 'tocar',
+    'toca': 'tocar',
+    'play': 'tocar',
+    'plei': 'tocar',
+    'pausar': 'pausar',
+    'pausa': 'pausar',
+    'pause': 'pausar',
+    'parar': 'parar',
+    'stop': 'parar',
+    'interromper': 'parar',
+  };
+
   VoiceIntent parse(String text) {
     final normalized = _normalize(text);
 
@@ -89,6 +132,20 @@ class VoiceIntentParser {
     return normalized;
   }
 
+  static String _normalizeScopedVariants(
+    String text,
+    Map<String, String> variants,
+  ) {
+    var normalized = text;
+    for (final entry in variants.entries) {
+      normalized = normalized.replaceAllMapped(
+        RegExp('(^|\\s)${RegExp.escape(entry.key)}(?=\\s|\$)'),
+        (match) => '${match.group(1)}${entry.value}',
+      );
+    }
+    return normalized;
+  }
+
   static VoiceIntent? _matchMetronome(String rawText, String text) {
     final digitPattern = RegExp(
       r'(?:metronomo|bpm|batida).{0,32}?(\d{2,3})|(\d{2,3}).{0,32}?(?:bpm|metronomo|batida)',
@@ -121,32 +178,39 @@ class VoiceIntentParser {
   }
 
   static VoiceIntent? _matchPlayback(String rawText, String text) {
+    final playbackText = _normalizeScopedVariants(
+      text,
+      _playbackActionVariants,
+    );
     if (RegExp(
-      r'(?:para(?:r)? a musica|parar musica|stop|interromper)',
-    ).hasMatch(text)) {
+      r'(?:para(?:r)? a musica|parar musica|parar|stop|interromper)',
+    ).hasMatch(playbackText)) {
       return PlaybackIntent(action: 'stop', rawText: rawText);
     }
-    if (RegExp(r'(?:pausar|pausa a musica|pause)').hasMatch(text)) {
+    if (RegExp(r'(?:pausar|pausa a musica|pause)').hasMatch(playbackText)) {
       return PlaybackIntent(action: 'pause', rawText: rawText);
     }
     if (RegExp(
       r'(?:tocar|da o play|iniciar|solta o som|play)',
-    ).hasMatch(text)) {
+    ).hasMatch(playbackText)) {
       return PlaybackIntent(action: 'start', rawText: rawText);
     }
     return null;
   }
 
   static VoiceIntent? _matchConfirmation(String rawText, String text) {
-    final trimmed = text.trim();
+    final confirmText = _normalizeScopedVariants(text, _confirmActionVariants);
+    final cancelText = _normalizeScopedVariants(text, _cancelActionVariants);
+    final trimmedConfirm = confirmText.trim();
+    final trimmedCancel = cancelText.trim();
     if (RegExp(
-      r'^(?:confirmar|sim|pode|pode\s+apagar|confirma)$',
-    ).hasMatch(trimmed)) {
+      r'^(?:confirmar|confirmar\s+apagar|confirmar\s+confirmar)$',
+    ).hasMatch(trimmedConfirm)) {
       return ConfirmIntent(rawText: rawText);
     }
     if (RegExp(
       '^(?:cancelar|nao|n\u00e3o|nÃ£o|esquece|cancela)\$',
-    ).hasMatch(trimmed)) {
+    ).hasMatch(trimmedCancel)) {
       return CancelIntent(rawText: rawText);
     }
     return null;
@@ -161,9 +225,10 @@ class VoiceIntentParser {
       return RenameLastRecordingIntent(newName: newName, rawText: rawText);
     }
 
+    final deleteText = _normalizeScopedVariants(text, _deleteActionVariants);
     if (RegExp(
-      r'(?:deletar|apagar|excluir|remover)\s+(?:ultima\s+)?(?:gravacao|audio|faixa)',
-    ).hasMatch(text)) {
+      r'(?:apagar|remover)\s+(?:a\s+|o\s+)?(?:ultima\s+)?(?:gravacao|audio|faixa)',
+    ).hasMatch(deleteText)) {
       return DeleteLastRecordingIntent(rawText: rawText);
     }
 
@@ -182,7 +247,7 @@ class VoiceIntentParser {
       return TrackIntent(action: 'mute', rawText: rawText);
     }
     if (RegExp(
-      r'(?:deletar|delete|apagar|excluir)(?: .{0,24})?(?:faixa|track|canal)?',
+      r'(?:deletar|delete|apagar|excluir)(?: .{0,24})?(?:faixa|track|canal)',
     ).hasMatch(text)) {
       return TrackIntent(action: 'delete', rawText: rawText);
     }

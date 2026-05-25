@@ -32,6 +32,8 @@ void main() {
       final start = parser.parse('solta o som');
       final stop = parser.parse('para a música agora');
       final pause = parser.parse('pausar a musica');
+      final noisyStart = parser.parse('plei');
+      final noisyStop = parser.parse('stop');
 
       expect(start, isA<PlaybackIntent>());
       expect((start as PlaybackIntent).action, 'start');
@@ -39,6 +41,10 @@ void main() {
       expect((stop as PlaybackIntent).action, 'stop');
       expect(pause, isA<PlaybackIntent>());
       expect((pause as PlaybackIntent).action, 'pause');
+      expect(noisyStart, isA<PlaybackIntent>());
+      expect((noisyStart as PlaybackIntent).action, 'start');
+      expect(noisyStop, isA<PlaybackIntent>());
+      expect((noisyStop as PlaybackIntent).action, 'stop');
     });
 
     test('track intents reconhecem acoes locais', () {
@@ -71,6 +77,31 @@ void main() {
       expect(parser.parse('pode apagar'), isA<ConfirmIntent>());
       expect(parser.parse('cancelar'), isA<CancelIntent>());
       expect(parser.parse('n\u00e3o'), isA<CancelIntent>());
+    });
+
+    test('delete tolera transcricao corrompida com contexto musical', () {
+      expect(parser.parse('vagar gravacao'), isA<DeleteLastRecordingIntent>());
+      expect(
+        parser.parse('pagar a \u00faltima faixa'),
+        isA<DeleteLastRecordingIntent>(),
+      );
+      expect(parser.parse('abagar audio'), isA<DeleteLastRecordingIntent>());
+    });
+
+    test('confirmacao tolera vereditos corrompidos', () {
+      expect(parser.parse('sin'), isA<ConfirmIntent>());
+      expect(parser.parse('pode mandar'), isA<ConfirmIntent>());
+    });
+
+    test('delete fuzzy rejeita falsos positivos sem contexto musical', () {
+      expect(parser.parse('vagar o carro'), isA<UnknownIntent>());
+      expect(parser.parse('pagar o carro'), isA<UnknownIntent>());
+      expect(parser.parse('ruido vagar qualquer coisa'), isA<UnknownIntent>());
+    });
+
+    test('delete fuzzy rejeita ambiguidades isoladas', () {
+      expect(parser.parse('pagar'), isA<UnknownIntent>());
+      expect(parser.parse('vagar'), isA<UnknownIntent>());
     });
 
     test('strings aleatorias caem em UnknownIntent sem excecao', () {
