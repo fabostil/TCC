@@ -29,10 +29,12 @@ class VoiceRealtimeEcosystem {
     final resolvedEventBus = eventBus ?? VoiceRealtimeEventBus.instance;
     final resolvedContextHolder =
         sessionContextHolder ?? VoiceSessionContextHolder();
+    final sessionTokenController = _VoiceRealtimeSessionTokenController();
 
     return VoiceRealtimeEcosystem._(
       runtimeEngine: runtimeEngine ?? VoiceRuntimeEngine.instance,
       sessionContextHolder: resolvedContextHolder,
+      sessionTokenController: sessionTokenController,
       responseBridge:
           responseBridge ??
           VoiceResponseBridge(
@@ -46,6 +48,8 @@ class VoiceRealtimeEcosystem {
           VoiceCommandDispatcher(
             eventBus: resolvedEventBus,
             contextHolder: resolvedContextHolder,
+            activeSessionTokenProvider: () =>
+                sessionTokenController.activeSessionToken,
           ),
       eventBus: resolvedEventBus,
       useStreamFirstAudio: useStreamFirstAudio ?? _streamFirstFromEnvironment,
@@ -59,11 +63,12 @@ class VoiceRealtimeEcosystem {
     required this.runtimeEngine,
     required this.responseBridge,
     required this.sessionContextHolder,
+    required _VoiceRealtimeSessionTokenController sessionTokenController,
     required this.commandDispatcher,
     required this.foregroundService,
     required this.eventBus,
     required this.useStreamFirstAudio,
-  });
+  }) : _sessionTokenController = sessionTokenController;
 
   static final VoiceRealtimeEcosystem instance = VoiceRealtimeEcosystem();
 
@@ -104,12 +109,32 @@ class VoiceRealtimeEcosystem {
   final VoiceForegroundService foregroundService;
   final VoiceRealtimeEventBus eventBus;
   final bool useStreamFirstAudio;
+  final _VoiceRealtimeSessionTokenController _sessionTokenController;
 
   var _started = false;
   var _foregroundStarted = false;
 
   bool get isStarted => _started;
   bool get isForegroundStarted => _foregroundStarted;
+  String? get activeSessionToken => _sessionTokenController.activeSessionToken;
+
+  void updateActiveContext({
+    String? projectId,
+    String? userId,
+    String? sessionToken,
+  }) {
+    _sessionTokenController.activeSessionToken = sessionToken;
+    sessionContextHolder.updateActiveContext(
+      projectId: projectId,
+      userId: userId,
+      sessionToken: sessionToken,
+    );
+  }
+
+  void clearActiveContext() {
+    _sessionTokenController.activeSessionToken = null;
+    sessionContextHolder.clearActiveContext();
+  }
 
   Future<void> start() async {
     if (_started) {
@@ -164,10 +189,12 @@ class VoiceRealtimeEcosystem {
 
   Future<void> stop() async {
     if (!_started) {
+      clearActiveContext();
+      commandDispatcher.clearPendingTransaction(reason: 'realtime_stopped');
       return;
     }
     _started = false;
-    sessionContextHolder.updateActiveContext();
+    clearActiveContext();
     commandDispatcher.clearPendingTransaction(reason: 'realtime_stopped');
 
     if (useStreamFirstAudio && _foregroundStarted) {
@@ -191,4 +218,8 @@ class VoiceRealtimeEcosystem {
   void startUnawaited() {
     unawaited(start());
   }
+}
+
+class _VoiceRealtimeSessionTokenController {
+  String? activeSessionToken;
 }

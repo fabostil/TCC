@@ -7,14 +7,25 @@ class AppRecordingContextResolver implements VoiceRecordingContextResolver {
   const AppRecordingContextResolver({
     required RecordingManagementService recordingService,
     required VoiceSessionContextHolder contextHolder,
+    String? Function()? activeSessionTokenProvider,
   }) : _recordingService = recordingService,
-       _contextHolder = contextHolder;
+       _contextHolder = contextHolder,
+       _activeSessionTokenProvider = activeSessionTokenProvider;
 
   final RecordingManagementService _recordingService;
   final VoiceSessionContextHolder _contextHolder;
+  final String? Function()? _activeSessionTokenProvider;
 
   @override
   Future<Gravacao?> resolveLastRecording() async {
+    final contextSessionToken = _contextHolder.activeSessionToken;
+    final activeSessionToken = _activeSessionTokenProvider?.call();
+    if (contextSessionToken == null ||
+        activeSessionToken == null ||
+        contextSessionToken != activeSessionToken) {
+      return null;
+    }
+
     final projetoId = _parseId(_contextHolder.currentProjectId);
     if (projetoId == null) {
       return null;

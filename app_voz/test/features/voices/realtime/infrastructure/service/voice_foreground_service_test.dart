@@ -133,8 +133,7 @@ void main() {
     });
 
     test('stop limpa contexto ativo de sessao de voz', () async {
-      final contextHolder = VoiceSessionContextHolder()
-        ..updateActiveContext(projectId: '9', userId: '7');
+      final contextHolder = VoiceSessionContextHolder();
       final localRuntime = VoiceRuntimeEngine(
         eventBus: bus,
         registry: VoiceRuntimeRegistry(eventBus: bus),
@@ -154,12 +153,24 @@ void main() {
       );
 
       await localEcosystem.start();
+      localEcosystem.updateActiveContext(
+        projectId: '9',
+        userId: '7',
+        sessionToken: 'active-token',
+      );
+      expect(contextHolder.currentProjectId, '9');
+      expect(contextHolder.currentUserId, '7');
+      expect(contextHolder.activeSessionToken, 'active-token');
+      expect(localEcosystem.activeSessionToken, 'active-token');
+
       await localEcosystem.stop();
       await localRuntime.dispose();
       await localBridge.dispose();
 
       expect(contextHolder.currentProjectId, isNull);
       expect(contextHolder.currentUserId, isNull);
+      expect(contextHolder.activeSessionToken, isNull);
+      expect(localEcosystem.activeSessionToken, isNull);
     });
   });
 }

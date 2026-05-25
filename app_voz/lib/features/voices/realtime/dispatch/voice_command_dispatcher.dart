@@ -23,6 +23,7 @@ class VoiceCommandDispatcher {
   VoiceCommandDispatcher({
     VoiceRealtimeEventBus? eventBus,
     VoiceSessionContextHolder? contextHolder,
+    String? Function()? activeSessionTokenProvider,
     Map<Type, VoiceCommandHandler<dynamic>>? handlers,
     this.processedHistoryLimit = 100,
     this.pendingTransactionTimeout = const Duration(seconds: 30),
@@ -34,6 +35,7 @@ class VoiceCommandDispatcher {
            _defaultHandlers(
              eventBus ?? VoiceRealtimeEventBus.instance,
              contextHolder ?? VoiceSessionContextHolder(),
+             activeSessionTokenProvider,
            );
 
   static final VoiceCommandDispatcher instance = VoiceCommandDispatcher();
@@ -417,6 +419,7 @@ class VoiceCommandDispatcher {
   static Map<Type, VoiceCommandHandler<dynamic>> _defaultHandlers(
     VoiceRealtimeEventBus eventBus,
     VoiceSessionContextHolder contextHolder,
+    String? Function()? activeSessionTokenProvider,
   ) {
     const recordingService = RecordingManagementService();
     final recordingManagementHandler = RecordingManagementCommandHandler(
@@ -424,6 +427,9 @@ class VoiceCommandDispatcher {
       recordingContextResolver: AppRecordingContextResolver(
         recordingService: recordingService,
         contextHolder: contextHolder,
+        activeSessionTokenProvider:
+            activeSessionTokenProvider ??
+            () => contextHolder.activeSessionToken,
       ),
       eventBus: eventBus,
     );

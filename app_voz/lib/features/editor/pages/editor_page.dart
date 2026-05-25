@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -32,9 +33,10 @@ class EditorPage extends StatefulWidget {
   State<EditorPage> createState() => _EditorPageState();
 }
 
-class _EditorPageState extends State<EditorPage> {
+class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   final VoiceSessionManager _voiceSessionManager = VoiceSessionManager.instance;
   static const String _voiceOwnerId = VoicePageOwners.editor;
+  static final Random _secureRandom = Random.secure();
   final CommandService commandService = const CommandService();
   final VoiceCommandController commandController = VoiceCommandController();
   final VoiceGlobalCommandService _globalCommandService =
@@ -60,6 +62,7 @@ class _EditorPageState extends State<EditorPage> {
   String textoReconhecido = 'Pressione o microfone e fale um comando.';
   String statusProjeto = 'Projeto pronto para gravar.';
   String nomeProjeto = 'Projeto sem nome';
+  late final String _voiceSessionToken;
 
   final List<Gravacao> faixas = [];
   final List<String> historicoComandos = [];
@@ -118,14 +121,42 @@ class _EditorPageState extends State<EditorPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _voiceSessionToken = _generateVoiceSessionToken();
     nomeProjeto = widget.projeto?.nome ?? nomeProjeto;
-    VoiceRealtimeEcosystem.instance.sessionContextHolder.updateActiveContext(
-      projectId: widget.projeto?.id?.toString(),
-      userId: widget.usuario.id?.toString(),
-    );
+    _publishRealtimeContext();
     _recordingCoordinator.addListener(_onRecordingStateChanged);
     _carregarConfiguracoes();
     _carregarGravacoes();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _publishRealtimeContext();
+      return;
+    }
+    _clearRealtimeContext();
+  }
+
+  String _generateVoiceSessionToken() {
+    final bytes = List<int>.generate(16, (_) => _secureRandom.nextInt(256));
+    return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  }
+
+  void _publishRealtimeContext() {
+    if (!mounted) {
+      return;
+    }
+    VoiceRealtimeEcosystem.instance.updateActiveContext(
+      projectId: widget.projeto?.id?.toString(),
+      userId: widget.usuario.id?.toString(),
+      sessionToken: _voiceSessionToken,
+    );
+  }
+
+  void _clearRealtimeContext() {
+    VoiceRealtimeEcosystem.instance.clearActiveContext();
   }
 
   void _onRecordingStateChanged() {
@@ -1075,12 +1106,13 @@ class _EditorPageState extends State<EditorPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _recordingCoordinator.removeListener(_onRecordingStateChanged);
     _voiceSessionManager.exitRecordingMode(
       ownerId: _voiceOwnerId,
       reason: 'editor_dispose',
     );
-    VoiceRealtimeEcosystem.instance.sessionContextHolder.updateActiveContext();
+    _clearRealtimeContext();
     unawaited(_voiceSessionManager.stopListening(_voiceOwnerId));
     _recordingCoordinator.dispose();
     super.dispose();

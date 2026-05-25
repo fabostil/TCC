@@ -150,11 +150,16 @@ void main() {
     test('resolve ultima gravacao pelo projeto ativo do holder', () async {
       final recordingService = _FakeRecordingManagementService();
       final contextHolder = VoiceSessionContextHolder()
-        ..updateActiveContext(projectId: '9', userId: '7');
+        ..updateActiveContext(
+          projectId: '9',
+          userId: '7',
+          sessionToken: 'active-token',
+        );
 
       final resolver = AppRecordingContextResolver(
         recordingService: recordingService,
         contextHolder: contextHolder,
+        activeSessionTokenProvider: () => 'active-token',
       );
 
       final resolved = await resolver.resolveLastRecording();
@@ -167,11 +172,16 @@ void main() {
     test('retorna null quando o editor limpa o projeto ativo', () async {
       final recordingService = _FakeRecordingManagementService();
       final contextHolder = VoiceSessionContextHolder()
-        ..updateActiveContext(projectId: '9', userId: '7')
-        ..updateActiveContext(projectId: null);
+        ..updateActiveContext(
+          projectId: '9',
+          userId: '7',
+          sessionToken: 'active-token',
+        )
+        ..clearActiveContext();
       final resolver = AppRecordingContextResolver(
         recordingService: recordingService,
         contextHolder: contextHolder,
+        activeSessionTokenProvider: () => 'active-token',
       );
 
       expect(await resolver.resolveLastRecording(), isNull);
@@ -182,10 +192,15 @@ void main() {
     test('retorna null para id de projeto corrompido', () async {
       final recordingService = _FakeRecordingManagementService();
       final contextHolder = VoiceSessionContextHolder()
-        ..updateActiveContext(projectId: 'projeto-quebrado', userId: '7');
+        ..updateActiveContext(
+          projectId: 'projeto-quebrado',
+          userId: '7',
+          sessionToken: 'active-token',
+        );
       final resolver = AppRecordingContextResolver(
         recordingService: recordingService,
         contextHolder: contextHolder,
+        activeSessionTokenProvider: () => 'active-token',
       );
 
       expect(await resolver.resolveLastRecording(), isNull);
@@ -193,22 +208,71 @@ void main() {
     });
 
     test(
+      'retorna null quando token do holder nao corresponde a sessao ativa',
+      () async {
+        final recordingService = _FakeRecordingManagementService();
+        final contextHolder = VoiceSessionContextHolder()
+          ..updateActiveContext(
+            projectId: '9',
+            userId: '7',
+            sessionToken: 'stale-token',
+          );
+        final resolver = AppRecordingContextResolver(
+          recordingService: recordingService,
+          contextHolder: contextHolder,
+          activeSessionTokenProvider: () => 'active-token',
+        );
+
+        expect(await resolver.resolveLastRecording(), isNull);
+        expect(recordingService.projectQueries, isEmpty);
+        expect(recordingService.userQueries, isEmpty);
+      },
+    );
+
+    test(
+      'retorna null quando sessao ativa nao possui token confiavel',
+      () async {
+        final recordingService = _FakeRecordingManagementService();
+        final contextHolder = VoiceSessionContextHolder()
+          ..updateActiveContext(
+            projectId: '9',
+            userId: '7',
+            sessionToken: 'stale-token',
+          );
+        final resolver = AppRecordingContextResolver(
+          recordingService: recordingService,
+          contextHolder: contextHolder,
+          activeSessionTokenProvider: () => null,
+        );
+
+        expect(await resolver.resolveLastRecording(), isNull);
+        expect(recordingService.projectQueries, isEmpty);
+        expect(recordingService.userQueries, isEmpty);
+      },
+    );
+
+    test(
       'limpeza do holder faz handler abortar com contexto ausente',
       () async {
         final bus = VoiceRealtimeEventBus();
         final recordingService = _FakeRecordingManagementService();
         final contextHolder = VoiceSessionContextHolder()
-          ..updateActiveContext(projectId: '9', userId: '7');
+          ..updateActiveContext(
+            projectId: '9',
+            userId: '7',
+            sessionToken: 'active-token',
+          );
         final resolver = AppRecordingContextResolver(
           recordingService: recordingService,
           contextHolder: contextHolder,
+          activeSessionTokenProvider: () => 'active-token',
         );
         final handler = RecordingManagementCommandHandler(
           recordingService: recordingService,
           recordingContextResolver: resolver,
           eventBus: bus,
         );
-        contextHolder.updateActiveContext(projectId: null);
+        contextHolder.clearActiveContext();
 
         await expectLater(
           handler.handle(
