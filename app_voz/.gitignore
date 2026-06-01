@@ -62,3 +62,5 @@ app.*.map.json
 # linux/
 # macos/
 windows/
+
+lib/core/config/picovoice_config.dart

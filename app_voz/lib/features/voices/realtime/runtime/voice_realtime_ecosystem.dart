@@ -80,11 +80,19 @@ class VoiceRealtimeEcosystem {
   static TextToSpeechEngine _createDefaultTtsEngine({
     required VoiceRealtimeEventBus eventBus,
   }) {
-    if (kReleaseMode) {
+    try {
       return FlutterTtsEngine(eventBus: eventBus);
+    } catch (error) {
+      eventBus.publish(
+        VoiceSystemDegradedEvent(
+          source: 'voice_realtime_ecosystem',
+          reason: 'tts_engine_initialization_failed',
+          correlationId: 'tts_engine',
+          metadata: {'error': error.toString()},
+        ),
+      );
+      return StubTextToSpeechEngine(eventBus: eventBus);
     }
-
-    return StubTextToSpeechEngine(eventBus: eventBus);
   }
 
   static VoiceForegroundService _createDefaultForegroundService({

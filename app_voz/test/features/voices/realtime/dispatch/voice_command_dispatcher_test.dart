@@ -719,6 +719,17 @@ class _FakeAudioOutputGuard implements AudioOutputGuard {
 
   @override
   bool isAudioOutputAvailable() => available;
+
+  @override
+  Future<bool> beginAudioOutput({
+    required String ownerId,
+    String? reason,
+  }) async {
+    return available;
+  }
+
+  @override
+  void endAudioOutput({required String ownerId, String? reason}) {}
 }
 
 class _FakeTrackService implements TrackService {

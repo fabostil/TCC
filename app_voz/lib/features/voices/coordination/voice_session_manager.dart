@@ -492,6 +492,11 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
     return true;
   }
 
+  @override
+  Future<bool> beginAudioOutput({required String ownerId, String? reason}) {
+    return beginPlayback(ownerId: ownerId, reason: reason ?? 'audio_output');
+  }
+
   void endPlayback({required String ownerId, String? reason}) {
     final previousOwnerType = _audioOwnerType;
     if (_audioOwnerType == VoiceAudioOwnerType.playback) {
@@ -526,6 +531,11 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
       ),
     );
     notifyListeners();
+  }
+
+  @override
+  void endAudioOutput({required String ownerId, String? reason}) {
+    endPlayback(ownerId: ownerId, reason: reason ?? 'audio_output_stopped');
   }
 
   void markProcessing({required String ownerId, String? message}) {
