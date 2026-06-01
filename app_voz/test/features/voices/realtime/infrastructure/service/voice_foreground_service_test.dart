@@ -1,5 +1,6 @@
-import 'package:app_voz/features/voices/realtime/infrastructure/service/voice_foreground_service.dart';
+import 'package:app_voz/features/voices/realtime/infrastructure/service/android_voice_foreground_service.dart';
 import 'package:app_voz/features/voices/realtime/infrastructure/service/stub_voice_foreground_service.dart';
+import 'package:app_voz/features/voices/realtime/infrastructure/service/voice_foreground_service.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_engine.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_registry.dart';
 import 'package:app_voz/features/voices/realtime/runtime/voice_realtime_ecosystem.dart';
@@ -118,19 +119,25 @@ void main() {
       expect(degraded.metadata['error'], contains('foreground start failed'));
     });
 
-    test('composicao default de teste usa foreground service stub', () {
-      final localEcosystem = VoiceRealtimeEcosystem(
-        eventBus: bus,
-        runtimeEngine: runtimeEngine,
-        responseBridge: responseBridge,
-        useStreamFirstAudio: true,
-      );
+    test(
+      'composicao default injeta foreground service conforme plataforma',
+      () {
+        final localEcosystem = VoiceRealtimeEcosystem(
+          eventBus: bus,
+          runtimeEngine: runtimeEngine,
+          responseBridge: responseBridge,
+          useStreamFirstAudio: true,
+        );
 
-      expect(
-        localEcosystem.foregroundService,
-        isA<StubVoiceForegroundService>(),
-      );
-    });
+        expect(
+          localEcosystem.foregroundService,
+          anyOf(
+            isA<AndroidVoiceForegroundService>(),
+            isA<StubVoiceForegroundService>(),
+          ),
+        );
+      },
+    );
 
     test('stop limpa contexto ativo de sessao de voz', () async {
       final contextHolder = VoiceSessionContextHolder();

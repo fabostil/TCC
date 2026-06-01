@@ -98,11 +98,23 @@ class VoiceRealtimeEcosystem {
   static VoiceForegroundService _createDefaultForegroundService({
     required VoiceRealtimeEventBus eventBus,
   }) {
-    if (kReleaseMode && defaultTargetPlatform == TargetPlatform.android) {
-      return AndroidVoiceForegroundService(eventBus: eventBus);
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return StubVoiceForegroundService(eventBus: eventBus);
     }
 
-    return StubVoiceForegroundService(eventBus: eventBus);
+    try {
+      return AndroidVoiceForegroundService(eventBus: eventBus);
+    } catch (error) {
+      eventBus.publish(
+        VoiceSystemDegradedEvent(
+          source: 'voice_realtime_ecosystem',
+          reason: 'foreground_service_initialization_failed',
+          correlationId: 'foreground_service',
+          metadata: {'error': error.toString()},
+        ),
+      );
+      return StubVoiceForegroundService(eventBus: eventBus);
+    }
   }
 
   static const String foregroundTitle =
@@ -163,6 +175,11 @@ class VoiceRealtimeEcosystem {
         title: foregroundTitle,
         message: foregroundMessage,
       );
+      final foreground = foregroundService;
+      if (foreground is AndroidVoiceForegroundService &&
+          !foreground.isStarted) {
+        return;
+      }
       _foregroundStarted = true;
     } catch (error) {
       eventBus.publish(
