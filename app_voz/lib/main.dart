@@ -27,7 +27,7 @@ class VoiceApp extends StatelessWidget {
       animation: themeController,
       builder: (context, _) {
         return MaterialApp(
-          title: 'Assistente Musical',
+          title: 'Touchless',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),

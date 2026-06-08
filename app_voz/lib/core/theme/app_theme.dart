@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const Color brand = Color(0xFF6C4DE6);
+  static const Color brand = Color(0xFF4D2B79);
   static const Color accent = Color(0xFF19A88A);
-  static const Color surfaceTint = Color(0xFFF4F1FF);
+  static const Color surfaceTint = Color(0xFFF4EEF9);
   static const Color danger = Color(0xFFD64545);
 
   static ThemeData light() {
@@ -124,7 +124,7 @@ class AppTheme {
           seedColor: brand,
           brightness: Brightness.dark,
         ).copyWith(
-          primary: const Color(0xFF9B89FF),
+          primary: const Color(0xFFB894FF),
           secondary: const Color(0xFF42D0B0),
           error: const Color(0xFFFF8A8A),
           surface: const Color(0xFF181821),
@@ -155,7 +155,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF9B89FF),
+          backgroundColor: const Color(0xFFB894FF),
           foregroundColor: const Color(0xFF111118),
           minimumSize: const Size(double.infinity, 56),
           shape: RoundedRectangleBorder(
@@ -166,8 +166,8 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFFB8ADFF),
-          side: const BorderSide(color: Color(0xFF4D466F)),
+          foregroundColor: const Color(0xFFD6C4FF),
+          side: const BorderSide(color: Color(0xFF5E4382)),
           minimumSize: const Size(0, 52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -192,7 +192,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF9B89FF), width: 1.4),
+          borderSide: const BorderSide(color: Color(0xFFB894FF), width: 1.4),
         ),
       ),
       chipTheme: ChipThemeData(

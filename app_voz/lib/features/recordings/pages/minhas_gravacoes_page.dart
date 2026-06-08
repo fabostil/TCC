@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -650,7 +650,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                       onPressed: () => _alternarReproducao(gravacao),
                       icon: Icon(
                         reproduzindo ? Icons.stop_circle : Icons.play_circle,
-                        color: Colors.deepPurple,
+                        color: Theme.of(context).colorScheme.primary,
                         size: 34,
                       ),
                     ),

@@ -34,20 +34,14 @@ void main() {
           client.androidNotificationOptions?.channelId,
           'voice_assistant_channel',
         );
-        expect(
-          client.androidNotificationOptions?.channelName,
-          'Assistente Musical',
-        );
+        expect(client.androidNotificationOptions?.channelName, 'Touchless');
         expect(
           client.androidNotificationOptions?.channelImportance,
           NotificationChannelImportance.LOW,
         );
         expect(client.iosNotificationOptions?.showNotification, isTrue);
         expect(client.foregroundTaskOptions?.allowWakeLock, isTrue);
-        expect(
-          client.startCalls.single.notificationTitle,
-          'Assistente Musical',
-        );
+        expect(client.startCalls.single.notificationTitle, 'Touchless');
         expect(
           client.startCalls.single.notificationText,
           'Escuta hands-free ligada — Pronto para comandos',

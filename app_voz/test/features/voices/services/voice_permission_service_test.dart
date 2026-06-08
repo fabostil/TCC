@@ -39,5 +39,15 @@ void main() {
         );
       },
     );
+
+    test(
+      'checkMicrophone existe para verificacao imediata antes da captura',
+      () {
+        expect(
+          service.checkMicrophone,
+          isA<Future<VoicePermissionResult> Function()>(),
+        );
+      },
+    );
   });
 }

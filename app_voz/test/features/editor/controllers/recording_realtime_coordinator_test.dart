@@ -4,7 +4,10 @@ import 'dart:typed_data';
 import 'package:app_voz/features/editor/controllers/recording_realtime_coordinator.dart';
 import 'package:app_voz/features/editor/services/audio_recording_capture.dart';
 import 'package:app_voz/features/editor/services/audio_player_service.dart';
+import 'package:app_voz/features/voices/coordination/voice_session_manager.dart';
+import 'package:app_voz/features/voices/realtime/voice_realtime_events.dart';
 import 'package:app_voz/models/gravacao.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:record/record.dart';
@@ -13,6 +16,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('RecordingRealtimeCoordinator', () {
+    setUp(() {
+      VoiceSessionManager.instance.resetForTesting();
+    });
+
+    tearDown(() {
+      VoiceSessionManager.instance.resetForTesting();
+    });
+
     test('usa path retornado pelo stop como fonte da verdade', () async {
       final recordingService = _FakeAudioRecordingCapture(
         startPath: '/tmp/take.m4a',
@@ -189,6 +200,197 @@ void main() {
         await playerService.dispose();
       },
     );
+
+    test(
+      'nao inicia captura quando permissao foi revogada antes de gravar',
+      () async {
+        final recordingService = _FakeAudioRecordingCapture(
+          startPath: '/tmp/take.m4a',
+          stopPath: '/tmp/take.m4a',
+        )..permission = false;
+        final coordinator = RecordingRealtimeCoordinator(
+          recordingService: recordingService,
+          automaticSilenceStop: false,
+          observeLifecycle: false,
+        );
+
+        await coordinator.startRecording(
+          finalizeRecording:
+              ({required path, required startedAt, required automatic}) async {
+                throw StateError('nao deve finalizar');
+              },
+          onHistory: (_, _, {recordingId, projectId}) {},
+        );
+
+        expect(recordingService.startCalls, 0);
+        expect(coordinator.state.recording, isFalse);
+        expect(coordinator.state.statusMessage, contains('microfone removida'));
+        expect(
+          VoiceSessionManager.instance.diagnostics.eventBus.timeline
+              .whereType<VoiceCommandFailedEvent>()
+              .where(
+                (event) =>
+                    event.reason ==
+                    'microphone_permission_denied_before_recording',
+              ),
+          isNotEmpty,
+        );
+
+        coordinator.dispose();
+      },
+    );
+
+    test(
+      'paused por lifecycle fecha captura e preserva arquivo parcial',
+      () async {
+        final recordingService = _FakeAudioRecordingCapture(
+          startPath: '/tmp/take.m4a',
+          stopPath: '/tmp/take-safe.m4a',
+        );
+        final coordinator = RecordingRealtimeCoordinator(
+          recordingService: recordingService,
+          automaticSilenceStop: false,
+          observeLifecycle: false,
+        );
+
+        await coordinator.startRecording(
+          finalizeRecording:
+              ({required path, required startedAt, required automatic}) async {
+                return Gravacao(
+                  id: 1,
+                  usuarioId: 1,
+                  nome: 'Take',
+                  caminhoArquivo: path,
+                  dataCriacao: startedAt.toIso8601String(),
+                );
+              },
+          onHistory: (_, _, {recordingId, projectId}) {},
+        );
+
+        await coordinator.handleLifecycleStateForTesting(
+          AppLifecycleState.paused,
+        );
+
+        expect(recordingService.stopCalls, 1);
+        expect(coordinator.pausedByLifecycle, isTrue);
+        expect(coordinator.wasRecordingBeforeLifecyclePause, isTrue);
+        expect(coordinator.state.recording, isTrue);
+        expect(coordinator.state.paused, isTrue);
+        expect(coordinator.state.currentPath, '/tmp/take-safe.m4a');
+        expect(coordinator.state.statusMessage, contains('interrupcao'));
+
+        final saved = await coordinator.stopRecording(
+          finalizeRecording:
+              ({required path, required startedAt, required automatic}) async {
+                return Gravacao(
+                  id: 7,
+                  usuarioId: 1,
+                  nome: 'Take seguro',
+                  caminhoArquivo: path,
+                  dataCriacao: startedAt.toIso8601String(),
+                );
+              },
+          onHistory: (_, _, {recordingId, projectId}) {},
+        );
+
+        expect(saved?.caminhoArquivo, '/tmp/take-safe.m4a');
+        expect(recordingService.stopCalls, 1);
+
+        coordinator.dispose();
+      },
+    );
+
+    test('hidden usa o mesmo caminho seguro de paused', () async {
+      final recordingService = _FakeAudioRecordingCapture(
+        startPath: '/tmp/take.m4a',
+        stopPath: '/tmp/take-hidden.m4a',
+      );
+      final coordinator = RecordingRealtimeCoordinator(
+        recordingService: recordingService,
+        automaticSilenceStop: false,
+        observeLifecycle: false,
+        realtimeShutdown: (_) async {},
+      );
+
+      await coordinator.startRecording(
+        finalizeRecording:
+            ({required path, required startedAt, required automatic}) async {
+              throw StateError('nao deve finalizar durante hidden');
+            },
+        onHistory: (_, _, {recordingId, projectId}) {},
+      );
+
+      await coordinator.handleLifecycleStateForTesting(
+        AppLifecycleState.hidden,
+      );
+
+      expect(recordingService.stopCalls, 1);
+      expect(coordinator.pausedByLifecycle, isTrue);
+      expect(coordinator.state.currentPath, '/tmp/take-hidden.m4a');
+
+      coordinator.dispose();
+    });
+
+    test('resumed apos pause por lifecycle exige acao do usuario', () async {
+      final recordingService = _FakeAudioRecordingCapture(
+        startPath: '/tmp/take.m4a',
+        stopPath: '/tmp/take-safe.m4a',
+      );
+      final coordinator = RecordingRealtimeCoordinator(
+        recordingService: recordingService,
+        automaticSilenceStop: false,
+        observeLifecycle: false,
+        realtimeShutdown: (_) async {},
+      );
+
+      await coordinator.startRecording(
+        finalizeRecording:
+            ({required path, required startedAt, required automatic}) async {
+              throw StateError('nao deve finalizar durante lifecycle');
+            },
+        onHistory: (_, _, {recordingId, projectId}) {},
+      );
+      await coordinator.handleLifecycleStateForTesting(
+        AppLifecycleState.inactive,
+      );
+      await coordinator.handleLifecycleStateForTesting(
+        AppLifecycleState.resumed,
+      );
+
+      expect(coordinator.state.statusMessage, contains('proxima acao'));
+      expect(
+        VoiceSessionManager.instance.diagnostics.eventBus.timeline
+            .whereType<VoiceStateChangedEvent>()
+            .where(
+              (event) =>
+                  event.reason == 'recording_resume_requires_user_action',
+            ),
+        isNotEmpty,
+      );
+
+      coordinator.dispose();
+    });
+
+    test('dispose e idempotente apos detached lifecycle', () async {
+      final recordingService = _FakeAudioRecordingCapture(
+        startPath: '/tmp/take.m4a',
+        stopPath: '/tmp/take.m4a',
+      );
+      final coordinator = RecordingRealtimeCoordinator(
+        recordingService: recordingService,
+        automaticSilenceStop: false,
+        observeLifecycle: false,
+        realtimeShutdown: (_) async {},
+      );
+
+      await coordinator.handleLifecycleStateForTesting(
+        AppLifecycleState.detached,
+      );
+      coordinator.dispose();
+      coordinator.dispose();
+
+      expect(recordingService.disposeCalls, 1);
+    });
   });
 }
 
@@ -201,8 +403,11 @@ class _FakeAudioRecordingCapture implements AudioRecordingCapture {
       StreamController<Uint8List>.broadcast(sync: true);
 
   int stopCalls = 0;
+  int startCalls = 0;
+  int disposeCalls = 0;
   bool recording = false;
   bool paused = false;
+  bool permission = true;
 
   @override
   Stream<Uint8List> get rawAudioChunks => _chunks.stream;
@@ -214,7 +419,10 @@ class _FakeAudioRecordingCapture implements AudioRecordingCapture {
 
   @override
   Future<void> dispose() async {
-    await _chunks.close();
+    disposeCalls += 1;
+    if (!_chunks.isClosed) {
+      await _chunks.close();
+    }
   }
 
   @override
@@ -223,7 +431,7 @@ class _FakeAudioRecordingCapture implements AudioRecordingCapture {
   }
 
   @override
-  Future<bool> hasPermission() async => true;
+  Future<bool> hasPermission() async => permission;
 
   @override
   Future<bool> isPaused() async => paused;
@@ -243,6 +451,7 @@ class _FakeAudioRecordingCapture implements AudioRecordingCapture {
 
   @override
   Future<String> startRecording() async {
+    startCalls += 1;
     recording = true;
     return startPath;
   }

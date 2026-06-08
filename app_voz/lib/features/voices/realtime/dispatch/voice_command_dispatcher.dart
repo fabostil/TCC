@@ -7,7 +7,9 @@ import '../nlu/voice_intent.dart';
 import '../voice_realtime_event_bus.dart';
 import '../voice_realtime_events.dart';
 import '../../../editor/services/audio_player_service.dart';
+import '../../../metronome/services/metronome_service_impl.dart';
 import '../../../recordings/services/recording_management_service.dart';
+import '../../../tracks/services/track_service_impl.dart';
 import '../../coordination/voice_session_manager.dart';
 import 'adapters/app_recording_context_resolver.dart';
 import 'adapters/audio_player_playback_service.dart';
@@ -25,6 +27,8 @@ class VoiceCommandDispatcher {
     VoiceSessionContextHolder? contextHolder,
     String? Function()? activeSessionTokenProvider,
     Map<Type, VoiceCommandHandler<dynamic>>? handlers,
+    MetronomeService? metronomeService,
+    TrackService? trackService,
     this.processedHistoryLimit = 100,
     this.pendingTransactionTimeout = const Duration(seconds: 30),
   }) : assert(processedHistoryLimit > 0),
@@ -36,6 +40,8 @@ class VoiceCommandDispatcher {
              eventBus ?? VoiceRealtimeEventBus.instance,
              contextHolder ?? VoiceSessionContextHolder(),
              activeSessionTokenProvider,
+             metronomeService,
+             trackService,
            );
 
   static final VoiceCommandDispatcher instance = VoiceCommandDispatcher();
@@ -420,6 +426,8 @@ class VoiceCommandDispatcher {
     VoiceRealtimeEventBus eventBus,
     VoiceSessionContextHolder contextHolder,
     String? Function()? activeSessionTokenProvider,
+    MetronomeService? metronomeService,
+    TrackService? trackService,
   ) {
     final recordingService = RecordingManagementService();
     final recordingManagementHandler = RecordingManagementCommandHandler(
@@ -436,7 +444,7 @@ class VoiceCommandDispatcher {
 
     return {
       MetronomeIntent: MetronomeCommandHandler(
-        service: StubMetronomeService(),
+        service: metronomeService ?? MetronomeServiceImpl(),
         eventBus: eventBus,
       ),
       PlaybackIntent: PlaybackCommandHandler(
@@ -449,7 +457,12 @@ class VoiceCommandDispatcher {
         eventBus: eventBus,
       ),
       TrackIntent: TrackCommandHandler(
-        service: StubTrackService(),
+        service:
+            trackService ??
+            TrackServiceImpl(
+              recordingManagementHandler: recordingManagementHandler,
+              eventBus: eventBus,
+            ),
         eventBus: eventBus,
       ),
       DeleteLastRecordingIntent: recordingManagementHandler,

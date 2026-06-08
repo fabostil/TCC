@@ -4,9 +4,30 @@ import '../../voice_realtime_events.dart';
 import '../voice_command_handler.dart';
 
 abstract class TrackService {
-  Future<void> startRecordingTrack();
-  Future<void> muteSelectedTrack();
-  Future<void> deleteSelectedTrack();
+  Future<void> startRecordingTrack({
+    TrackIntent? intent,
+    String? correlationId,
+  });
+  Future<void> muteSelectedTrack({TrackIntent? intent, String? correlationId});
+  Future<void> deleteSelectedTrack({
+    TrackIntent? intent,
+    String? correlationId,
+  });
+}
+
+class TrackCommandFailure implements Exception {
+  TrackCommandFailure({
+    required this.reason,
+    this.metadata = const {},
+    this.failureEventPublished = false,
+  });
+
+  final String reason;
+  final Map<String, Object?> metadata;
+  final bool failureEventPublished;
+
+  @override
+  String toString() => 'TrackCommandFailure($reason)';
 }
 
 class TrackCommandHandler implements VoiceCommandHandler<TrackIntent> {
@@ -24,26 +45,43 @@ class TrackCommandHandler implements VoiceCommandHandler<TrackIntent> {
     try {
       switch (intent.action) {
         case 'record':
-          await _service.startRecordingTrack();
+          await _service.startRecordingTrack(
+            intent: intent,
+            correlationId: correlationId,
+          );
         case 'mute':
-          await _service.muteSelectedTrack();
+          await _service.muteSelectedTrack(
+            intent: intent,
+            correlationId: correlationId,
+          );
         case 'delete':
-          await _service.deleteSelectedTrack();
+          await _service.deleteSelectedTrack(
+            intent: intent,
+            correlationId: correlationId,
+          );
         default:
           throw ArgumentError.value(intent.action, 'action');
       }
     } catch (error, stackTrace) {
-      _eventBus.publish(
-        VoiceCommandFailedEvent(
-          source: 'track_command_handler',
-          reason: 'track_command_failed',
-          correlationId: correlationId,
-          intent: intent,
-          metadata: {'action': intent.action, 'error': error.toString()},
-        ),
-      );
+      final failure = error is TrackCommandFailure ? error : null;
+      final reason = failure?.reason ?? 'track_command_failed';
+      if (failure == null || !failure.failureEventPublished) {
+        _eventBus.publish(
+          VoiceCommandFailedEvent(
+            source: 'track_command_handler',
+            reason: reason,
+            correlationId: correlationId,
+            intent: intent,
+            metadata: {
+              'action': intent.action,
+              'error': error.toString(),
+              ...?failure?.metadata,
+            },
+          ),
+        );
+      }
       throw VoiceCommandHandlerException(
-        reason: 'track_command_failed',
+        reason: reason,
         cause: error,
         stackTrace: stackTrace,
         failureEventPublished: true,
@@ -66,11 +104,20 @@ class TrackCommandHandler implements VoiceCommandHandler<TrackIntent> {
 class StubTrackService implements TrackService {
   // Adapter seguro ate existir dominio real de tracks/multipista com mute.
   @override
-  Future<void> deleteSelectedTrack() async {}
+  Future<void> deleteSelectedTrack({
+    TrackIntent? intent,
+    String? correlationId,
+  }) async {}
 
   @override
-  Future<void> muteSelectedTrack() async {}
+  Future<void> muteSelectedTrack({
+    TrackIntent? intent,
+    String? correlationId,
+  }) async {}
 
   @override
-  Future<void> startRecordingTrack() async {}
+  Future<void> startRecordingTrack({
+    TrackIntent? intent,
+    String? correlationId,
+  }) async {}
 }

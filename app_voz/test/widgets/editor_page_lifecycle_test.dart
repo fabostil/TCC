@@ -71,6 +71,10 @@ void main() {
     expect(holder.activeSessionToken, initialToken);
     expect(VoiceRealtimeEcosystem.instance.activeSessionToken, initialToken);
 
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump();
 

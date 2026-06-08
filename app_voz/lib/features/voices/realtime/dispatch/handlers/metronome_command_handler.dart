@@ -4,7 +4,12 @@ import '../../voice_realtime_events.dart';
 import '../voice_command_handler.dart';
 
 abstract class MetronomeService {
+  bool get isRunning;
+
+  Future<void> start(int bpm);
   Future<void> updateBpm(int bpm);
+  Future<void> stop();
+  Future<void> dispose();
 }
 
 class MetronomeCommandHandler implements VoiceCommandHandler<MetronomeIntent> {
@@ -55,5 +60,17 @@ class MetronomeCommandHandler implements VoiceCommandHandler<MetronomeIntent> {
 class StubMetronomeService implements MetronomeService {
   // Adapter seguro ate existir um controlador real de metronomo no dominio.
   @override
+  bool get isRunning => false;
+
+  @override
+  Future<void> start(int bpm) async {}
+
+  @override
   Future<void> updateBpm(int bpm) async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
 }

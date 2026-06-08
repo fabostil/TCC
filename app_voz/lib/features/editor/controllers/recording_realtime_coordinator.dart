@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../../models/gravacao.dart';
 import '../../voices/coordination/voice_diagnostics.dart';
 import '../../voices/coordination/voice_session_manager.dart';
+import '../../voices/realtime/runtime/voice_realtime_ecosystem.dart';
 import '../../voices/realtime/voice_realtime_events.dart';
 import '../../voices/realtime/infrastructure/bridge/audio_stream_shadow_router.dart';
 import '../services/audio_recording_capture.dart';
@@ -106,10 +108,16 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     this.ownerId = 'editor',
     int silenceLimitMs = 6000,
     bool automaticSilenceStop = true,
+    bool observeLifecycle = true,
+    Future<void> Function(String reason)? realtimeShutdown,
   }) : _recordingService = recordingService ?? _createRecordingService(ownerId),
        _playerService = playerService ?? AudioPlayerService(ownerId: ownerId),
        _shadowRouter = shadowRouter ?? AudioStreamShadowRouter(),
        _sessionManager = sessionManager ?? VoiceSessionManager.instance,
+       _realtimeShutdown =
+           realtimeShutdown ??
+           ((reason) =>
+               VoiceRealtimeEcosystem.instance.shutdown(reason: reason)),
        _silenceLimitMs = silenceLimitMs,
        _automaticSilenceStop = automaticSilenceStop {
     _playerStateSubscription = _playerService.playerStateStream.listen((state) {
@@ -130,6 +138,11 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     _playbackDurationSubscription = _playerService.durationStream.listen(
       (duration) => _playbackDuration = duration,
     );
+    if (observeLifecycle) {
+      _lifecycleListener = AppLifecycleListener(
+        onStateChange: _handleLifecycleStateChanged,
+      );
+    }
   }
 
   static const int silenceMonitorIntervalMs = 500;
@@ -143,6 +156,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   final AudioPlayerService _playerService;
   final AudioStreamShadowRouter _shadowRouter;
   final VoiceSessionManager _sessionManager;
+  final Future<void> Function(String reason) _realtimeShutdown;
   final String ownerId;
 
   StreamSubscription? _playerStateSubscription;
@@ -150,13 +164,28 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   StreamSubscription<Duration?>? _playbackDurationSubscription;
   Timer? _silenceTimer;
   Timer? _recordingProgressTimer;
+  AppLifecycleListener? _lifecycleListener;
   Duration? _playbackDuration;
   int _silenceLimitMs;
   bool _automaticSilenceStop;
+  bool _wasRecordingBeforeLifecyclePause = false;
+  bool _wasSttActiveBeforeLifecyclePause = false;
+  bool _pausedByLifecycle = false;
+  bool _captureClosedByLifecycle = false;
+  bool _handlingLifecycle = false;
+  bool _disposed = false;
 
   RecordingRealtimeState _state = const RecordingRealtimeState();
 
   RecordingRealtimeState get state => _state;
+
+  bool get pausedByLifecycle => _pausedByLifecycle;
+
+  bool get wasRecordingBeforeLifecyclePause =>
+      _wasRecordingBeforeLifecyclePause;
+
+  bool get wasSttActiveBeforeLifecyclePause =>
+      _wasSttActiveBeforeLifecyclePause;
 
   Stream<Uint8List> get rawAudioChunks => _recordingService.rawAudioChunks;
 
@@ -201,6 +230,21 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       await stopPlayback();
     }
 
+    final hasPermission = await _checkMicrophonePermissionBeforeCapture();
+    if (!hasPermission) {
+      _publishMicrophonePermissionLost(
+        reason: 'microphone_permission_denied_before_recording',
+      );
+      _setState(
+        _state.copyWith(
+          processing: false,
+          statusMessage:
+              'Permissao do microfone removida. Reative para gravar novamente.',
+        ),
+      );
+      return;
+    }
+
     _sessionManager.diagnostics.record(
       VoiceDiagnosticEventType.recordingStarted,
       ownerId: ownerId,
@@ -235,10 +279,18 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
           statusMessage: 'Gravacao real iniciada.',
         ),
       );
+      _clearLifecyclePauseFlags();
       _startRecordingProgressTimer();
       _startSilenceMonitoring(finalizeRecording, onHistory, onAutomaticStop);
       onHistory('Iniciou gravacao real', 'gravacao_iniciada');
     } catch (e) {
+      if (_isMicrophonePermissionError(e)) {
+        await _handleMicrophonePermissionLost(
+          reason: 'microphone_permission_lost_during_start',
+          error: e,
+        );
+        return;
+      }
       _sessionManager.registerFailure(
         ownerId: ownerId,
         reason: 'recording_start_failed',
@@ -270,7 +322,18 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     _setState(
       _state.copyWith(processing: true, statusMessage: 'Pausando gravacao...'),
     );
-    await _recordingService.pauseRecording();
+    try {
+      await _recordingService.pauseRecording();
+    } catch (e) {
+      if (_isMicrophonePermissionError(e)) {
+        await _handleMicrophonePermissionLost(
+          reason: 'microphone_permission_lost_during_pause',
+          error: e,
+        );
+        return;
+      }
+      rethrow;
+    }
     _stopSilenceMonitoring();
     unawaited(_shadowRouter.stop());
     _setState(
@@ -297,7 +360,29 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     _setState(
       _state.copyWith(processing: true, statusMessage: 'Retomando gravacao...'),
     );
-    await _recordingService.resumeRecording();
+    if (_captureClosedByLifecycle) {
+      _setState(
+        _state.copyWith(
+          processing: false,
+          statusMessage:
+              'Gravacao pausada por interrupcao do sistema. Encerre e salve antes de continuar.',
+        ),
+      );
+      return;
+    }
+
+    try {
+      await _recordingService.resumeRecording();
+    } catch (e) {
+      if (_isMicrophonePermissionError(e)) {
+        await _handleMicrophonePermissionLost(
+          reason: 'microphone_permission_lost_during_resume',
+          error: e,
+        );
+        return;
+      }
+      rethrow;
+    }
     _shadowRouter.start(
       _recordingService.rawAudioChunks,
       correlationId:
@@ -337,7 +422,10 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     );
 
     try {
-      final completedPath = await _recordingService.stopRecording();
+      final completedPath = _captureClosedByLifecycle
+          ? _state.currentPath
+          : await _recordingService.stopRecording();
+      _captureClosedByLifecycle = false;
       final startedAt = _state.startedAt;
       if (completedPath == null || completedPath.isEmpty || startedAt == null) {
         _sessionManager.registerFailure(
@@ -369,6 +457,13 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       );
       return saved;
     } catch (e) {
+      if (_isMicrophonePermissionError(e)) {
+        await _handleMicrophonePermissionLost(
+          reason: 'microphone_permission_lost_during_stop',
+          error: e,
+        );
+        return null;
+      }
       _sessionManager.registerFailure(
         ownerId: ownerId,
         reason: 'recording_stop_failed',
@@ -492,6 +587,13 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
             await onAutomaticStop?.call();
           }
         } catch (e) {
+          if (_isMicrophonePermissionError(e)) {
+            await _handleMicrophonePermissionLost(
+              reason: 'microphone_permission_lost_during_monitoring',
+              error: e,
+            );
+            return;
+          }
           _sessionManager.diagnostics.record(
             VoiceDiagnosticEventType.error,
             ownerId: ownerId,
@@ -511,6 +613,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   void _resetAfterRecording(String statusMessage) {
     _stopSilenceMonitoring();
     _stopRecordingProgressTimer();
+    _clearLifecyclePauseFlags();
     _setState(
       _state.copyWith(
         recording: false,
@@ -537,6 +640,259 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   void _stopRecordingProgressTimer() {
     _recordingProgressTimer?.cancel();
     _recordingProgressTimer = null;
+  }
+
+  void _handleLifecycleStateChanged(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        unawaited(_pauseForLifecycle(state));
+      case AppLifecycleState.resumed:
+        _handleLifecycleResumed();
+      case AppLifecycleState.detached:
+        unawaited(_safeTeardownForDetached());
+    }
+  }
+
+  @visibleForTesting
+  Future<void> handleLifecycleStateForTesting(AppLifecycleState state) async {
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        await _pauseForLifecycle(state);
+      case AppLifecycleState.resumed:
+        _handleLifecycleResumed();
+      case AppLifecycleState.detached:
+        await _safeTeardownForDetached();
+    }
+  }
+
+  Future<void> _pauseForLifecycle(AppLifecycleState state) async {
+    if (_disposed || _handlingLifecycle || _pausedByLifecycle) {
+      return;
+    }
+    _handlingLifecycle = true;
+    try {
+      _wasRecordingBeforeLifecyclePause = _state.recording && !_state.paused;
+      _wasSttActiveBeforeLifecyclePause = _sessionManager.listeningActive;
+      if (!_wasRecordingBeforeLifecyclePause &&
+          !_wasSttActiveBeforeLifecyclePause) {
+        return;
+      }
+
+      _pausedByLifecycle = true;
+      if (_wasSttActiveBeforeLifecyclePause) {
+        await _sessionManager.cancelListening(
+          ownerId: _sessionManager.activeOwnerId,
+          reason: 'lifecycle_${state.name}',
+        );
+      }
+
+      if (_wasRecordingBeforeLifecyclePause) {
+        await _closeActiveCaptureForLifecycle(state);
+      }
+
+      _publishLifecyclePauseTelemetry(state);
+    } finally {
+      _handlingLifecycle = false;
+    }
+  }
+
+  Future<void> _closeActiveCaptureForLifecycle(AppLifecycleState state) async {
+    _stopSilenceMonitoring();
+    _stopRecordingProgressTimer();
+    await _safeStopShadowRouter();
+    _setState(
+      _state.copyWith(
+        processing: true,
+        statusMessage: 'Interrupcao do sistema detectada. Salvando buffer...',
+      ),
+    );
+
+    try {
+      final completedPath = await _recordingService.stopRecording();
+      final safePath = completedPath != null && completedPath.isNotEmpty
+          ? completedPath
+          : _state.currentPath;
+      _captureClosedByLifecycle = safePath != null && safePath.isNotEmpty;
+      _setState(
+        _state.copyWith(
+          recording: true,
+          paused: true,
+          processing: false,
+          currentPath: safePath,
+          silenceMs: 0,
+          statusMessage:
+              'Gravacao pausada por interrupcao do sistema. Encerre e salve para continuar.',
+        ),
+      );
+    } catch (e) {
+      await _handleMicrophonePermissionLost(
+        reason: 'microphone_permission_lost_during_lifecycle_${state.name}',
+        error: e,
+      );
+    }
+  }
+
+  void _handleLifecycleResumed() {
+    if (!_pausedByLifecycle) {
+      return;
+    }
+    _publishLifecycleResumeTelemetry();
+    _setState(
+      _state.copyWith(
+        processing: false,
+        statusMessage:
+            'Gravacao pausada por interrupcao do sistema. Escolha a proxima acao.',
+      ),
+    );
+  }
+
+  Future<void> _safeTeardownForDetached() async {
+    if (_disposed) {
+      return;
+    }
+    await _safeStopShadowRouter();
+    _stopSilenceMonitoring();
+    _stopRecordingProgressTimer();
+    await _realtimeShutdown('app_detached');
+    dispose();
+  }
+
+  Future<bool> _checkMicrophonePermissionBeforeCapture() async {
+    try {
+      return _recordingService.hasPermission();
+    } catch (e) {
+      if (_isMicrophonePermissionError(e)) {
+        return false;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _handleMicrophonePermissionLost({
+    required String reason,
+    required Object error,
+  }) async {
+    _stopSilenceMonitoring();
+    _stopRecordingProgressTimer();
+    await _safeStopShadowRouter();
+    if (_state.recording && !_captureClosedByLifecycle) {
+      try {
+        final completedPath = await _recordingService.stopRecording();
+        if (completedPath != null && completedPath.isNotEmpty) {
+          _captureClosedByLifecycle = true;
+          _setState(_state.copyWith(currentPath: completedPath));
+        }
+      } catch (_) {
+        // Best-effort: keep UI/runtime stable after abrupt permission loss.
+      }
+    }
+    _publishMicrophonePermissionLost(reason: reason, error: error);
+    _sessionManager.exitRecordingMode(
+      ownerId: ownerId,
+      reason: 'microphone_permission_lost',
+    );
+    _setState(
+      _state.copyWith(
+        recording: _state.currentPath != null,
+        paused: true,
+        processing: false,
+        silenceMs: 0,
+        statusMessage:
+            'Permissao do microfone removida. Encerre e salve o audio parcial ou reative a permissao.',
+      ),
+    );
+  }
+
+  Future<void> _safeStopShadowRouter() async {
+    try {
+      await _shadowRouter.stop();
+    } catch (_) {
+      // Best-effort cleanup during OS interruption.
+    }
+  }
+
+  bool _isMicrophonePermissionError(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('permission') ||
+        text.contains('permiss') ||
+        text.contains('denied') ||
+        text.contains('microphone') ||
+        text.contains('record_audio');
+  }
+
+  void _publishMicrophonePermissionLost({
+    required String reason,
+    Object? error,
+  }) {
+    _sessionManager.diagnostics.eventBus.publish(
+      VoiceCommandFailedEvent(
+        source: 'recording_realtime_coordinator',
+        reason: reason,
+        ownerId: ownerId,
+        metadata: {
+          'message': 'Permissao do microfone removida.',
+          if (error != null) 'error': error.toString(),
+        },
+      ),
+    );
+    _sessionManager.diagnostics.eventBus.publish(
+      VoiceSystemDegradedEvent(
+        source: 'recording_realtime_coordinator',
+        reason: reason,
+        ownerId: ownerId,
+        metadata: {
+          'message': 'Permissao do microfone removida.',
+          if (error != null) 'error': error.toString(),
+        },
+      ),
+    );
+  }
+
+  void _publishLifecyclePauseTelemetry(AppLifecycleState state) {
+    _sessionManager.diagnostics.eventBus.publish(
+      VoiceStateChangedEvent(
+        source: 'recording_realtime_coordinator',
+        previousState: _wasRecordingBeforeLifecyclePause
+            ? 'recording'
+            : 'listening',
+        nextState: 'pausedByLifecycle',
+        reason: 'recording_paused_by_lifecycle_${state.name}',
+        ownerId: ownerId,
+        metadata: {
+          'wasRecording': _wasRecordingBeforeLifecyclePause,
+          'wasSttActive': _wasSttActiveBeforeLifecyclePause,
+          'captureClosed': _captureClosedByLifecycle,
+        },
+      ),
+    );
+  }
+
+  void _publishLifecycleResumeTelemetry() {
+    _sessionManager.diagnostics.eventBus.publish(
+      VoiceStateChangedEvent(
+        source: 'recording_realtime_coordinator',
+        previousState: 'pausedByLifecycle',
+        nextState: 'userActionRequired',
+        reason: 'recording_resume_requires_user_action',
+        ownerId: ownerId,
+        metadata: {
+          'wasRecording': _wasRecordingBeforeLifecyclePause,
+          'wasSttActive': _wasSttActiveBeforeLifecyclePause,
+          'captureClosed': _captureClosedByLifecycle,
+        },
+      ),
+    );
+  }
+
+  void _clearLifecyclePauseFlags() {
+    _wasRecordingBeforeLifecyclePause = false;
+    _wasSttActiveBeforeLifecyclePause = false;
+    _pausedByLifecycle = false;
+    _captureClosedByLifecycle = false;
   }
 
   void _updateRecordingProgress() {
@@ -611,6 +967,12 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    _lifecycleListener?.dispose();
+    _lifecycleListener = null;
     _stopSilenceMonitoring();
     _stopRecordingProgressTimer();
     unawaited(_shadowRouter.dispose());

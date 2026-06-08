@@ -678,6 +678,12 @@ class _FakeMetronomeService implements MetronomeService {
   Future<void>? blockNext;
 
   @override
+  bool get isRunning => false;
+
+  @override
+  Future<void> start(int bpm) => updateBpm(bpm);
+
+  @override
   Future<void> updateBpm(int bpm) async {
     final blocker = blockNext;
     blockNext = null;
@@ -690,6 +696,12 @@ class _FakeMetronomeService implements MetronomeService {
     }
     bpms.add(bpm);
   }
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
 }
 
 class _FakePlaybackService implements PlaybackService {
@@ -736,17 +748,26 @@ class _FakeTrackService implements TrackService {
   final List<String> actions = [];
 
   @override
-  Future<void> deleteSelectedTrack() async {
+  Future<void> deleteSelectedTrack({
+    TrackIntent? intent,
+    String? correlationId,
+  }) async {
     actions.add('deleteSelectedTrack');
   }
 
   @override
-  Future<void> muteSelectedTrack() async {
+  Future<void> muteSelectedTrack({
+    TrackIntent? intent,
+    String? correlationId,
+  }) async {
     actions.add('muteSelectedTrack');
   }
 
   @override
-  Future<void> startRecordingTrack() async {
+  Future<void> startRecordingTrack({
+    TrackIntent? intent,
+    String? correlationId,
+  }) async {
     actions.add('startRecordingTrack');
   }
 }

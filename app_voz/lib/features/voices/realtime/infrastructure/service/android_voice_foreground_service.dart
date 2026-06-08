@@ -85,11 +85,11 @@ class AndroidVoiceForegroundService implements VoiceForegroundService {
            notificationPermissionRequester ??
            _requestNotificationPermissionIfNeeded;
 
-  static const String notificationTitle = 'Assistente Musical';
+  static const String notificationTitle = 'Touchless';
   static const String notificationMessage =
       'Escuta hands-free ligada — Pronto para comandos';
   static const String _channelId = 'voice_assistant_channel';
-  static const String _channelName = 'Assistente Musical';
+  static const String _channelName = 'Touchless';
   static const String _correlationId = 'foreground_service';
 
   final VoiceRealtimeEventBus eventBus;

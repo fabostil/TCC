@@ -5,6 +5,7 @@ import 'package:app_voz/features/voices/realtime/runtime/runtime_engine.dart';
 import 'package:app_voz/features/voices/realtime/runtime/runtime_registry.dart';
 import 'package:app_voz/features/voices/realtime/runtime/voice_realtime_ecosystem.dart';
 import 'package:app_voz/features/voices/realtime/dispatch/contracts/voice_session_context_holder.dart';
+import 'package:app_voz/features/voices/realtime/dispatch/handlers/metronome_command_handler.dart';
 import 'package:app_voz/features/voices/realtime/tts/text_to_speech_engine.dart';
 import 'package:app_voz/features/voices/realtime/tts/voice_response_bridge.dart';
 import 'package:app_voz/features/voices/realtime/voice_realtime_event_bus.dart';
@@ -179,6 +180,52 @@ void main() {
       expect(contextHolder.activeSessionToken, isNull);
       expect(localEcosystem.activeSessionToken, isNull);
     });
+
+    test(
+      'RecordingStartedEvent interrompe metronomo e registra telemetria',
+      () async {
+        final metronomeService = _FakeMetronomeService();
+        final localRuntime = VoiceRuntimeEngine(
+          eventBus: bus,
+          registry: VoiceRuntimeRegistry(eventBus: bus),
+          useStreamFirstAudio: false,
+        );
+        final localBridge = VoiceResponseBridge(
+          eventBus: bus,
+          ttsEngine: _FakeTextToSpeechEngine(),
+        );
+        final localEcosystem = VoiceRealtimeEcosystem(
+          eventBus: bus,
+          runtimeEngine: localRuntime,
+          responseBridge: localBridge,
+          foregroundService: _FakeVoiceForegroundService(),
+          metronomeService: metronomeService,
+          useStreamFirstAudio: false,
+        );
+
+        await localEcosystem.start();
+        final started = RecordingStartedEvent(
+          source: 'test',
+          ownerId: 'editor',
+          reason: 'recording_started',
+          correlationId: 'recording-flow',
+        );
+        bus.publish(started);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(metronomeService.stopCalls, 1);
+        final telemetry = bus.timeline
+            .whereType<VoiceStateChangedEvent>()
+            .where((event) => event.reason == 'metronome_stopped_for_recording')
+            .single;
+        expect(telemetry.correlationId, 'recording-flow');
+        expect(telemetry.causationId, started.id);
+
+        await localEcosystem.stop();
+        await localRuntime.dispose();
+        await localBridge.dispose();
+      },
+    );
   });
 }
 
@@ -223,6 +270,29 @@ class _FakeTextToSpeechEngine implements TextToSpeechEngine {
 
   @override
   Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _FakeMetronomeService implements MetronomeService {
+  var stopCalls = 0;
+  var running = true;
+
+  @override
+  bool get isRunning => running;
+
+  @override
+  Future<void> start(int bpm) async {}
+
+  @override
+  Future<void> updateBpm(int bpm) async {}
+
+  @override
+  Future<void> stop() async {
+    stopCalls += 1;
+    running = false;
+  }
 
   @override
   Future<void> dispose() async {}

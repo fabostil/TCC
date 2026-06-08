@@ -69,6 +69,8 @@ flutter:
 
   assets:
     - assets/branding/voice_first_app.png
+    - assets/branding/touchless_icon.png
+    - assets/branding/touchless_launcher.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

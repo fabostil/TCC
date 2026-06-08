@@ -7,7 +7,15 @@ class VoicePermissionService {
 
   Future<VoicePermissionResult> requestMicrophone() async {
     final status = await Permission.microphone.request();
+    return _resultFromStatus(status);
+  }
 
+  Future<VoicePermissionResult> checkMicrophone() async {
+    final status = await Permission.microphone.status;
+    return _resultFromStatus(status);
+  }
+
+  VoicePermissionResult _resultFromStatus(PermissionStatus status) {
     if (status.isGranted) {
       return VoicePermissionResult.granted;
     }

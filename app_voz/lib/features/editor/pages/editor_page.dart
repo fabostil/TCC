@@ -26,7 +26,12 @@ import '../controllers/recording_realtime_coordinator.dart';
 
 enum EditorInteractionMode { normal, recording }
 
-enum _EditorFsmVisualState { sleeping, listeningCommand, processingCommand }
+enum _EditorFsmVisualState {
+  sleeping,
+  listeningCommand,
+  processingCommand,
+  error,
+}
 
 class EditorPage extends StatefulWidget {
   final Usuario usuario;
@@ -802,6 +807,19 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         return;
       }
 
+      if (!recordingState.recording) {
+        setState(() {
+          _setVoiceSession(
+            VoiceSessionPhase.idle,
+            message: recordingState.statusMessage,
+          );
+          _interactionMode = EditorInteractionMode.normal;
+          statusProjeto = recordingState.statusMessage;
+        });
+        unawaited(_retomarEscutaContinuaAposModoGravacao());
+        return;
+      }
+
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.recordingLocked,
@@ -1138,15 +1156,17 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       VoiceSessionPhase.listening => _EditorFsmVisualState.listeningCommand,
       VoiceSessionPhase.processingCommand ||
       VoiceSessionPhase.aiThinking => _EditorFsmVisualState.processingCommand,
+      VoiceSessionPhase.error => _EditorFsmVisualState.error,
       _ => _EditorFsmVisualState.sleeping,
     };
   }
 
-  Color get _fsmAccent {
+  Color _fsmAccentFor(_EditorThemeColors colors) {
     return switch (_fsmVisualState) {
-      _EditorFsmVisualState.sleeping => _EditorPalette.muted,
+      _EditorFsmVisualState.sleeping => colors.muted,
       _EditorFsmVisualState.listeningCommand => _EditorPalette.cyan,
       _EditorFsmVisualState.processingCommand => _EditorPalette.playback,
+      _EditorFsmVisualState.error => _EditorPalette.error,
     };
   }
 
@@ -1155,6 +1175,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       _EditorFsmVisualState.sleeping => 'sleeping',
       _EditorFsmVisualState.listeningCommand => 'listeningCommand',
       _EditorFsmVisualState.processingCommand => 'processingCommand',
+      _EditorFsmVisualState.error => 'error',
     };
   }
 
@@ -1163,6 +1184,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       _EditorFsmVisualState.sleeping => Icons.radio_button_unchecked,
       _EditorFsmVisualState.listeningCommand => Icons.graphic_eq,
       _EditorFsmVisualState.processingCommand => Icons.sync,
+      _EditorFsmVisualState.error => Icons.error_outline,
     };
   }
 
@@ -1198,15 +1220,17 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _EditorThemeColors.of(context);
+    final theme = Theme.of(context);
+
     return Theme(
-      data: Theme.of(context).copyWith(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: _EditorPalette.black,
-        colorScheme: const ColorScheme.dark(
+      data: theme.copyWith(
+        scaffoldBackgroundColor: colors.background,
+        colorScheme: theme.colorScheme.copyWith(
           primary: _EditorPalette.cyan,
           secondary: _EditorPalette.playback,
-          surface: _EditorPalette.panel,
-          error: _EditorPalette.record,
+          surface: colors.panel,
+          error: _EditorPalette.error,
         ),
       ),
       child: PopScope(
@@ -1228,18 +1252,14 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
             centerTitle: true,
             elevation: 0,
             backgroundColor: Colors.transparent,
-            foregroundColor: _EditorPalette.textPrimary,
+            foregroundColor: colors.textPrimary,
           ),
           body: DecoratedBox(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFF05080C),
-                  Color(0xFF080B10),
-                  Color(0xFF020304),
-                ],
+                colors: colors.backgroundGradient,
               ),
             ),
             child: SafeArea(
@@ -1279,6 +1299,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Widget _cabecalhoProjeto() {
+    final colors = _EditorThemeColors.of(context);
+    final fsmAccent = _fsmAccentFor(colors);
+
     return _EditorPanel(
       accentColor: corStatus,
       child: Padding(
@@ -1298,8 +1321,8 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                         nomeProjeto,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _EditorPalette.textPrimary,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
                         ),
@@ -1309,8 +1332,8 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                         statusProjeto,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _EditorPalette.textSecondary,
+                        style: TextStyle(
+                          color: colors.textSecondary,
                           fontSize: 14,
                           height: 1.35,
                         ),
@@ -1339,25 +1362,22 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: _EditorPalette.black.withValues(alpha: 0.42),
+                  color: colors.recessed,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _EditorPalette.border),
+                  border: Border.all(color: colors.border),
                 ),
                 child: Text(
                   caminhoGravacaoAtual!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _EditorPalette.textMuted,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: colors.textMuted, fontSize: 12),
                 ),
               ),
             ],
             const SizedBox(height: 18),
             _VoiceFsmHeader(
               state: _fsmVisualState,
-              accent: _fsmAccent,
+              accent: fsmAccent,
               icon: _fsmIcon,
               label: _fsmLabel,
               message: _voiceSessionState.message,
@@ -1489,6 +1509,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Widget _linhaDoTempo() {
+    final colors = _EditorThemeColors.of(context);
     final progress = progressoLinhaDoTempo.clamp(0.0, 1.0);
     final accent = gravando
         ? _EditorPalette.record
@@ -1516,10 +1537,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
             const SizedBox(height: 18),
             Row(
               children: [
-                const Text(
-                  '00:00',
-                  style: TextStyle(color: _EditorPalette.textMuted),
-                ),
+                Text('00:00', style: TextStyle(color: colors.textMuted)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ClipRRect(
@@ -1532,7 +1550,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                         return LinearProgressIndicator(
                           value: value,
                           minHeight: 10,
-                          backgroundColor: _EditorPalette.track,
+                          backgroundColor: colors.track,
                           valueColor: AlwaysStoppedAnimation<Color>(accent),
                         );
                       },
@@ -1542,7 +1560,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                 const SizedBox(width: 12),
                 Text(
                   '${(progress * 100).round().clamp(0, 100)}%',
-                  style: const TextStyle(color: _EditorPalette.textSecondary),
+                  style: TextStyle(color: colors.textSecondary),
                 ),
               ],
             ),
@@ -1626,8 +1644,11 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Widget _painelVoz() {
+    final colors = _EditorThemeColors.of(context);
+    final fsmAccent = _fsmAccentFor(colors);
+
     return _EditorPanel(
-      accentColor: _fsmAccent,
+      accentColor: fsmAccent,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -1672,15 +1693,15 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: _fsmAccent.withValues(alpha: 0.08),
+                color: fsmAccent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _fsmAccent.withValues(alpha: 0.22)),
+                border: Border.all(color: fsmAccent.withValues(alpha: 0.22)),
               ),
               child: Text(
                 textoReconhecido,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: _EditorPalette.textPrimary,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontSize: 16,
                   height: 1.35,
                 ),
@@ -1692,8 +1713,8 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                 onPressed: carregandoAudio || gravando
                     ? null
                     : alternarMicrofone,
-                backgroundColor: ouvindo ? _EditorPalette.record : _fsmAccent,
-                foregroundColor: _EditorPalette.black,
+                backgroundColor: ouvindo ? _EditorPalette.record : fsmAccent,
+                foregroundColor: colors.functionalForeground,
                 icon: Icon(
                   gravando
                       ? Icons.mic_off
@@ -1806,6 +1827,80 @@ abstract final class _EditorPalette {
   static const playback = Color(0xFF28D7FF);
   static const record = Color(0xFF55FFB4);
   static const warning = Color(0xFFFFB84D);
+  static const error = Color(0xFFD64545);
+}
+
+class _EditorThemeColors {
+  const _EditorThemeColors({
+    required this.background,
+    required this.backgroundGradient,
+    required this.panel,
+    required this.panelSoft,
+    required this.recessed,
+    required this.border,
+    required this.track,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textMuted,
+    required this.muted,
+    required this.functionalForeground,
+  });
+
+  final Color background;
+  final List<Color> backgroundGradient;
+  final Color panel;
+  final Color panelSoft;
+  final Color recessed;
+  final Color border;
+  final Color track;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color textMuted;
+  final Color muted;
+  final Color functionalForeground;
+
+  static _EditorThemeColors of(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark ? dark : light;
+  }
+
+  static const dark = _EditorThemeColors(
+    background: _EditorPalette.black,
+    backgroundGradient: [
+      Color(0xFF05080C),
+      Color(0xFF080B10),
+      _EditorPalette.black,
+    ],
+    panel: _EditorPalette.panel,
+    panelSoft: _EditorPalette.panelSoft,
+    recessed: Color(0xAA020304),
+    border: _EditorPalette.border,
+    track: _EditorPalette.track,
+    textPrimary: _EditorPalette.textPrimary,
+    textSecondary: _EditorPalette.textSecondary,
+    textMuted: _EditorPalette.textMuted,
+    muted: _EditorPalette.muted,
+    functionalForeground: _EditorPalette.black,
+  );
+
+  static const light = _EditorThemeColors(
+    background: Color(0xFFF7F4FB),
+    backgroundGradient: [
+      Color(0xFFFFFFFF),
+      Color(0xFFF7F4FB),
+      Color(0xFFEDE5F5),
+    ],
+    panel: Color(0xFFFFFFFF),
+    panelSoft: Color(0xFFF4EEF9),
+    recessed: Color(0xFFF1EAF7),
+    border: Color(0xFFDCD0E8),
+    track: Color(0xFFE8DFEF),
+    textPrimary: Color(0xFF21172E),
+    textSecondary: Color(0xFF4C405A),
+    textMuted: Color(0xFF756783),
+    muted: Color(0xFF7D6E8C),
+    functionalForeground: Color(0xFF061016),
+  );
 }
 
 class _EditorPanel extends StatelessWidget {
@@ -1816,12 +1911,13 @@ class _EditorPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentColor ?? _EditorPalette.border;
+    final colors = _EditorThemeColors.of(context);
+    final accent = accentColor ?? colors.border;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       decoration: BoxDecoration(
-        color: _EditorPalette.panel.withValues(alpha: 0.92),
+        color: colors.panel.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: accent.withValues(alpha: 0.24)),
         boxShadow: [
@@ -1852,6 +1948,8 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _EditorThemeColors.of(context);
+
     return Row(
       children: [
         Icon(icon, color: color, size: 22),
@@ -1862,8 +1960,8 @@ class _SectionHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  color: _EditorPalette.textPrimary,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1873,10 +1971,7 @@ class _SectionHeader extends StatelessWidget {
                 subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _EditorPalette.textMuted,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: colors.textMuted, fontSize: 12),
               ),
             ],
           ),
@@ -1921,6 +2016,8 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _EditorThemeColors.of(context);
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1936,8 +2033,8 @@ class _StatusPill extends StatelessWidget {
           const SizedBox(width: 7),
           Text(
             label,
-            style: const TextStyle(
-              color: _EditorPalette.textPrimary,
+            style: TextStyle(
+              color: colors.textPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
@@ -1965,6 +2062,7 @@ class _VoiceFsmHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _EditorThemeColors.of(context);
     final listening = state == _EditorFsmVisualState.listeningCommand;
     final processing = state == _EditorFsmVisualState.processingCommand;
 
@@ -1972,7 +2070,7 @@ class _VoiceFsmHeader extends StatelessWidget {
       duration: const Duration(milliseconds: 260),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _EditorPalette.panelSoft.withValues(alpha: 0.76),
+        color: colors.panelSoft.withValues(alpha: 0.76),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: accent.withValues(alpha: listening ? 0.55 : 0.28),
@@ -2019,10 +2117,7 @@ class _VoiceFsmHeader extends StatelessWidget {
                       : 'Assistente aguardando estado de voz.',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _EditorPalette.textSecondary,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
               ],
             ),

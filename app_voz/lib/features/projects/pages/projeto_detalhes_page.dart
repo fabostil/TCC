@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -578,7 +578,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
                               reproduzindo
                                   ? Icons.stop_circle
                                   : Icons.play_circle,
-                              color: Colors.deepPurple,
+                              color: Theme.of(context).colorScheme.primary,
                               size: 34,
                             ),
                           ),
@@ -667,7 +667,7 @@ class _ResumoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.deepPurple.withValues(alpha: 0.08),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(

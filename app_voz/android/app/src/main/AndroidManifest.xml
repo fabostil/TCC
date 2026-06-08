@@ -23,7 +23,7 @@
         </intent>
     </queries>
     <application
-        android:label="Assistente Musical"
+        android:label="Touchless"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

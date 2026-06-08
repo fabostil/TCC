@@ -464,7 +464,7 @@ class _HomePageState extends State<HomePage>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Assistente Musical'),
+        title: const Text('Touchless'),
         actions: [
           IconButton(
             tooltip: 'Configuracoes',
