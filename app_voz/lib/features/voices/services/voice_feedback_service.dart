@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/services.dart';
 
 import '../../../repositories/configuracao_app_repository.dart';
@@ -33,8 +35,13 @@ class SystemVoiceFeedbackService extends VoiceFeedbackService {
         await SystemSound.play(SystemSoundType.alert);
         await HapticFeedback.lightImpact();
       }
-    } catch (_) {
-      // Feedback is optional; unsupported devices/tests must not break commands.
+    } catch (error, stackTrace) {
+      developer.log(
+        'voice_feedback_notify_failed',
+        name: 'VoiceFeedbackService',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 }

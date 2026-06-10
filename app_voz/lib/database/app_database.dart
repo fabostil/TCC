@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -12,6 +13,40 @@ class AppDatabase {
   AppDatabase._internal();
 
   static final AppDatabase instance = AppDatabase._internal();
+
+  static const Set<String> _allowedMigrationColumns = {
+    'configuracao_app.tema_escuro',
+    'usuario.auth_provider',
+    'usuario.google_id',
+    'usuario.foto_url',
+    'usuario.data_cadastro',
+    'usuario.senha_salt',
+    'usuario.senha_algoritmo',
+    'usuario.senha_iteracoes',
+    'usuario.senha_versao',
+    'gravacao.status',
+    'gravacao.tamanho_bytes',
+    'gravacao.formato_audio',
+  };
+
+  static const Map<String, String> _allowedMigrationDefinitions = {
+    'configuracao_app.tema_escuro': 'INTEGER NOT NULL DEFAULT 0',
+    'usuario.auth_provider': "TEXT NOT NULL DEFAULT 'local'",
+    'usuario.google_id': 'TEXT',
+    'usuario.foto_url': 'TEXT',
+    'usuario.data_cadastro': 'TEXT',
+    'usuario.senha_salt': 'TEXT',
+    'usuario.senha_algoritmo': "TEXT NOT NULL DEFAULT 'sha256_legacy'",
+    'usuario.senha_iteracoes': 'INTEGER NOT NULL DEFAULT 0',
+    'usuario.senha_versao': 'INTEGER NOT NULL DEFAULT 1',
+    'gravacao.status':
+        "TEXT NOT NULL DEFAULT 'concluida' "
+        "CHECK (status IN ('concluida', 'interrompida', "
+        "'arquivo_ausente', 'excluida'))",
+    'gravacao.tamanho_bytes':
+        'INTEGER NOT NULL DEFAULT 0 CHECK (tamanho_bytes >= 0)',
+    'gravacao.formato_audio': "TEXT NOT NULL DEFAULT 'm4a'",
+  };
 
   Database? _database;
   String _databaseName = 'assistente_musical.db';
@@ -31,7 +66,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 8,
+      version: 9,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -47,6 +82,10 @@ class AppDatabase {
         nome TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
         senha_hash TEXT NOT NULL,
+        senha_salt TEXT,
+        senha_algoritmo TEXT NOT NULL DEFAULT 'sha256_legacy',
+        senha_iteracoes INTEGER NOT NULL DEFAULT 0,
+        senha_versao INTEGER NOT NULL DEFAULT 1,
         auth_provider TEXT NOT NULL DEFAULT 'local',
         google_id TEXT UNIQUE,
         foto_url TEXT,
@@ -222,6 +261,46 @@ class AppDatabase {
         await db.execute(index);
       }
     }
+
+    if (oldVersion < 9) {
+      await _addColumnIfMissing(
+        db,
+        tableName: 'usuario',
+        columnName: 'senha_salt',
+        definition: 'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        tableName: 'usuario',
+        columnName: 'senha_algoritmo',
+        definition: "TEXT NOT NULL DEFAULT 'sha256_legacy'",
+      );
+      await _addColumnIfMissing(
+        db,
+        tableName: 'usuario',
+        columnName: 'senha_iteracoes',
+        definition: 'INTEGER NOT NULL DEFAULT 0',
+      );
+      await _addColumnIfMissing(
+        db,
+        tableName: 'usuario',
+        columnName: 'senha_versao',
+        definition: 'INTEGER NOT NULL DEFAULT 1',
+      );
+
+      await db.update(
+        'usuario',
+        {
+          'senha_hash': 'external_provider',
+          'senha_salt': null,
+          'senha_algoritmo': 'external_provider',
+          'senha_iteracoes': 0,
+          'senha_versao': 2,
+        },
+        where: 'auth_provider = ? AND google_id IS NOT NULL',
+        whereArgs: ['google'],
+      );
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -230,6 +309,12 @@ class AppDatabase {
     required String columnName,
     required String definition,
   }) async {
+    validateAllowedMigrationColumnForTesting(
+      tableName: tableName,
+      columnName: columnName,
+      definition: definition,
+    );
+
     final columns = await db.rawQuery('PRAGMA table_info($tableName)');
     final columnNames = columns.map((column) => column['name']).toSet();
 
@@ -240,6 +325,27 @@ class AppDatabase {
     await db.execute(
       'ALTER TABLE $tableName ADD COLUMN $columnName $definition',
     );
+  }
+
+  @visibleForTesting
+  void validateAllowedMigrationColumnForTesting({
+    required String tableName,
+    required String columnName,
+    required String definition,
+  }) {
+    final migrationKey = '$tableName.$columnName';
+
+    if (!_allowedMigrationColumns.contains(migrationKey)) {
+      throw ArgumentError('Unauthorized migration column: $migrationKey');
+    }
+
+    final allowedDefinition = _allowedMigrationDefinitions[migrationKey];
+    if (allowedDefinition == null ||
+        definition.trim() != allowedDefinition.trim()) {
+      throw ArgumentError(
+        'Unauthorized migration definition for $migrationKey',
+      );
+    }
   }
 
   Future<void> _migrateComandoVozToVersion3(Database db) async {

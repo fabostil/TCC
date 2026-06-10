@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -51,9 +52,24 @@ class PcmWavFileWriter {
       );
       file.writeFromSync(writer._buildHeader(audioBytes: 0));
       return writer;
-    } catch (_) {
-      file.closeSync();
-      rethrow;
+    } catch (error, stackTrace) {
+      developer.log(
+        'pcm_wav_file_open_failed',
+        name: 'PcmWavFileWriter',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      try {
+        file.closeSync();
+      } catch (closeError, closeStackTrace) {
+        developer.log(
+          'pcm_wav_file_close_after_open_failed',
+          name: 'PcmWavFileWriter',
+          error: closeError,
+          stackTrace: closeStackTrace,
+        );
+      }
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
@@ -69,9 +85,15 @@ class PcmWavFileWriter {
     try {
       _file.writeFromSync(chunk);
       _audioBytesWritten += chunk.length;
-    } catch (_) {
+    } catch (error, stackTrace) {
       failed = true;
-      rethrow;
+      developer.log(
+        'pcm_wav_file_write_failed',
+        name: 'PcmWavFileWriter',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      Error.throwWithStackTrace(error, stackTrace);
     } finally {
       if (failed) {
         _closeAfterFailure();
@@ -140,8 +162,13 @@ class PcmWavFileWriter {
     _closed = true;
     try {
       _file.closeSync();
-    } catch (_) {
-      // Best-effort cleanup after a lower-level file write failure.
+    } catch (error, stackTrace) {
+      developer.log(
+        'pcm_wav_file_close_after_failure_failed',
+        name: 'PcmWavFileWriter',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 }

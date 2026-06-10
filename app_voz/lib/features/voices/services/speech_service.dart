@@ -127,8 +127,14 @@ class SpeechService {
           }
         },
       );
-    } catch (e) {
-      onError?.call('Nao foi possivel iniciar a escuta de voz: $e');
+    } catch (error, stackTrace) {
+      developer.log(
+        'speech_listen_failed',
+        name: 'SpeechService',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      onError?.call('Nao foi possivel iniciar a escuta de voz: $error');
       return false;
     }
 

@@ -165,6 +165,12 @@ Tabelas:
 - `historico_acao`
 - `configuracao_app`
 
+## Segurança e armazenamento local
+
+Senhas locais usam PBKDF2-HMAC-SHA256 com salt individual. O SQLite local ainda nao possui criptografia em repouso; essa limitacao conhecida esta documentada em [docs/security/sqlite_local_storage.md](docs/security/sqlite_local_storage.md).
+
+Para producao, recomenda-se avaliar SQLCipher/`sqflite_sqlcipher` ou criptografia seletiva de campos sensiveis.
+
 ## Pendencias Principais
 
 - Teste manual completo em Android real (gravacao + escuta continua + navegacao).

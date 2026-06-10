@@ -19,6 +19,23 @@ import '../../voices/services/command_service.dart';
 import '../services/recording_management_service.dart';
 import '../widgets/recording_status_chip.dart';
 
+const int _minRecordingNameLength = 2;
+const int _maxRecordingNameLength = 80;
+
+String? _validateRecordingName(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return 'Informe o nome da gravação.';
+  }
+  if (trimmed.length < _minRecordingNameLength) {
+    return 'O nome deve ter pelo menos 2 caracteres.';
+  }
+  if (trimmed.length > _maxRecordingNameLength) {
+    return 'O nome deve ter no máximo 80 caracteres.';
+  }
+  return null;
+}
+
 class DetalhesGravacaoPage extends StatefulWidget {
   const DetalhesGravacaoPage({
     super.key,
@@ -44,6 +61,9 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   List<Gravacao> _gravacoesRelacionadas = [];
   bool _carregando = true;
   bool _reproduzindo = false;
+  bool _alternandoReproducao = false;
+  bool _salvandoNome = false;
+  bool _excluindo = false;
   String? _erro;
   StreamSubscription? _playerStateSubscription;
 
@@ -165,6 +185,10 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       return;
     }
 
+    setState(() {
+      _alternandoReproducao = true;
+    });
+
     try {
       if (_reproduzindo && _playerService.isPlaying) {
         await _playerService.stop();
@@ -206,6 +230,12 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       }
 
       AppFeedback.showMessage(context, 'Nao foi possivel reproduzir: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _alternandoReproducao = false;
+        });
+      }
     }
   }
 
@@ -235,6 +265,10 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     if (gravacao == null) {
       return;
     }
+
+    setState(() {
+      _salvandoNome = true;
+    });
 
     try {
       final atualizada = await _recordingService.renameRecording(
@@ -268,6 +302,12 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       }
 
       AppFeedback.showMessage(context, 'Nao foi possivel renomear: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _salvandoNome = false;
+        });
+      }
     }
   }
 
@@ -299,6 +339,11 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       return;
     }
 
+    var navegouAposExcluir = false;
+    setState(() {
+      _excluindo = true;
+    });
+
     try {
       await _playerService.stop();
       await _recordingService.deleteRecording(gravacao);
@@ -316,13 +361,20 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return;
       }
 
+      navegouAposExcluir = true;
       Navigator.pop(context, true);
     } catch (e) {
-      if (!mounted) {
+      if (!mounted || navegouAposExcluir) {
         return;
       }
 
       AppFeedback.showMessage(context, 'Nao foi possivel excluir: $e');
+    } finally {
+      if (mounted && !navegouAposExcluir) {
+        setState(() {
+          _excluindo = false;
+        });
+      }
     }
   }
 
@@ -577,22 +629,61 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
                           runSpacing: AppSpacing.sm,
                           children: [
                             FilledButton.icon(
-                              onPressed: _alternarReproducao,
-                              icon: Icon(
-                                _reproduzindo
-                                    ? Icons.stop_circle_outlined
-                                    : Icons.play_circle_outline,
-                              ),
+                              onPressed:
+                                  _alternandoReproducao ||
+                                      _salvandoNome ||
+                                      _excluindo
+                                  ? null
+                                  : _alternarReproducao,
+                              icon: _alternandoReproducao
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(
+                                      _reproduzindo
+                                          ? Icons.stop_circle_outlined
+                                          : Icons.play_circle_outline,
+                                    ),
                               label: Text(_reproduzindo ? 'Parar' : 'Tocar'),
                             ),
                             OutlinedButton.icon(
-                              onPressed: _renomearGravacao,
-                              icon: const Icon(Icons.edit_outlined),
+                              onPressed:
+                                  _alternandoReproducao ||
+                                      _salvandoNome ||
+                                      _excluindo
+                                  ? null
+                                  : _renomearGravacao,
+                              icon: _salvandoNome
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.edit_outlined),
                               label: const Text('Renomear'),
                             ),
                             OutlinedButton.icon(
-                              onPressed: _excluirGravacao,
-                              icon: const Icon(Icons.delete_outline),
+                              onPressed:
+                                  _alternandoReproducao ||
+                                      _salvandoNome ||
+                                      _excluindo
+                                  ? null
+                                  : _excluirGravacao,
+                              icon: _excluindo
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.delete_outline),
                               label: const Text('Excluir'),
                             ),
                           ],
@@ -751,6 +842,7 @@ class _RenomearGravacaoDialog extends StatefulWidget {
 }
 
 class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
 
@@ -780,26 +872,35 @@ class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
     super.dispose();
   }
 
+  void _salvar() {
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    Navigator.pop(context, _controller.text.trim());
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Renomear gravacao'),
-      content: TextField(
-        controller: _controller,
-        focusNode: _focusNode,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => Navigator.pop(context, _controller.text.trim()),
-        decoration: const InputDecoration(labelText: 'Novo nome'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          focusNode: _focusNode,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _salvar(),
+          decoration: const InputDecoration(labelText: 'Novo nome'),
+          validator: _validateRecordingName,
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, _controller.text.trim()),
-          child: const Text('Salvar'),
-        ),
+        ElevatedButton(onPressed: _salvar, child: const Text('Salvar')),
       ],
     );
   }

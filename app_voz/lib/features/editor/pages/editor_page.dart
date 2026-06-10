@@ -71,6 +71,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   bool feedbackSonoroAtivo = false;
   bool _paradaManualEscuta = false;
   bool _executandoComandoVoz = false;
+  bool _interpretandoComando = false;
   bool _saidaEditorEmAndamento = false;
   EditorInteractionMode _interactionMode = EditorInteractionMode.normal;
   VoiceSessionState _voiceSessionState = const VoiceSessionState.idle();
@@ -426,6 +427,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       _paradaManualEscuta = true;
       await _voiceSessionManager.stopListening(_voiceOwnerId, manual: true);
 
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.manualPaused,
@@ -571,173 +576,195 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Future<void> interpretarComando(String comando) async {
-    final resultadoController = await commandController.interpret(
-      comando,
-      usuarioId: widget.usuario.id,
-      onAiStarted: () {
+    if (_interpretandoComando) {
+      return;
+    }
+
+    setState(() {
+      _interpretandoComando = true;
+      _setVoiceSession(
+        VoiceSessionPhase.processingCommand,
+        message: 'Interpretando comando.',
+        listening: ouvindo,
+      );
+      statusProjeto = 'Interpretando comando...';
+    });
+
+    try {
+      final resultadoController = await commandController.interpret(
+        comando,
+        usuarioId: widget.usuario.id,
+        onAiStarted: () {
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            _setVoiceSession(
+              VoiceSessionPhase.aiThinking,
+              message: 'IA interpretando comando.',
+              listening: ouvindo,
+            );
+            statusProjeto = 'IA pensando...';
+          });
+        },
+      );
+      final resultado = resultadoController.commandResult;
+
+      if (resultado.normalizedText.isEmpty) {
+        return;
+      }
+
+      if (resultado.recognized) {
+        registrarComandoVoz(
+          comando,
+          tipoComando: resultado.tipoComando,
+          acaoExecutada: resultado.acaoExecutada,
+        );
+      }
+
+      if (_executandoComandoVoz) {
+        return;
+      }
+
+      final globalResult = await _globalCommandService.execute(resultado);
+      if (globalResult.handled) {
         if (!mounted) {
           return;
         }
 
-        setState(() {
-          _setVoiceSession(
-            VoiceSessionPhase.aiThinking,
-            message: 'IA interpretando comando.',
-            listening: ouvindo,
+        final updatedConfig = globalResult.updatedConfig;
+        if (updatedConfig != null) {
+          _aplicarConfiguracao(updatedConfig);
+        }
+
+        if (globalResult.shouldStopListening &&
+            (ouvindo || _voiceSessionManager.isSpeechListening)) {
+          await _voiceSessionManager.cancelListening(
+            ownerId: _voiceOwnerId,
+            reason: 'global_command_stop',
           );
-          statusProjeto = 'IA pensando...';
+        }
+
+        setState(() {
+          if (globalResult.shouldStopListening) {
+            _setVoiceSession(
+              VoiceSessionPhase.manualPaused,
+              message: globalResult.message,
+            );
+          }
+          statusProjeto = globalResult.message ?? statusProjeto;
         });
-      },
-    );
-    final resultado = resultadoController.commandResult;
 
-    if (resultado.normalizedText.isEmpty) {
-      return;
-    }
+        if (!globalResult.shouldStopListening) {
+          _reiniciarEscutaContinuaSeNecessario();
+        }
+        return;
+      }
 
-    if (resultado.recognized) {
+      switch (resultado.type) {
+        case VoiceCommandType.iniciarGravacao:
+          await iniciarGravacao(comando);
+          return;
+        case VoiceCommandType.pausarGravacao:
+          await pausarGravacao(comando);
+          return;
+        case VoiceCommandType.retomarGravacao:
+          await retomarGravacao(comando);
+          return;
+        case VoiceCommandType.encerrarGravacao:
+          await encerrarGravacao(comando);
+          return;
+        case VoiceCommandType.pararReproducao:
+          await pararReproducao(comando);
+          return;
+        case VoiceCommandType.reproduzirGravacao:
+          await reproduzirProjeto(comando);
+          return;
+        case VoiceCommandType.criarMarcador:
+          criarMarcador(comando);
+          return;
+        case VoiceCommandType.limparTexto:
+          limparTexto(comando);
+          return;
+        case VoiceCommandType.listarGravacoes:
+          setState(() {
+            statusProjeto = 'Lista de gravacoes disponivel nesta tela.';
+          });
+          return;
+        case VoiceCommandType.buscarGravacoes:
+        case VoiceCommandType.buscarProjetos:
+        case VoiceCommandType.limparBusca:
+        case VoiceCommandType.abrirEditor:
+          setState(() {
+            statusProjeto = 'Editor ja esta aberto.';
+          });
+          return;
+        case VoiceCommandType.definirNomeProjeto:
+        case VoiceCommandType.definirDescricaoProjeto:
+        case VoiceCommandType.substituirNomeProjeto:
+        case VoiceCommandType.substituirDescricaoProjeto:
+        case VoiceCommandType.abrirProjetoPorNome:
+        case VoiceCommandType.renomearProjeto:
+        case VoiceCommandType.excluirProjeto:
+        case VoiceCommandType.abrirNovoProjeto:
+        case VoiceCommandType.criarProjeto:
+        case VoiceCommandType.cancelarProjeto:
+        case VoiceCommandType.abrirDashboard:
+        case VoiceCommandType.abrirProjetos:
+        case VoiceCommandType.abrirGravacoes:
+        case VoiceCommandType.abrirDetalhesGravacao:
+        case VoiceCommandType.abrirConfiguracoes:
+        case VoiceCommandType.abrirAssistente:
+        case VoiceCommandType.abrirHistorico:
+        case VoiceCommandType.voltar:
+        case VoiceCommandType.sair:
+        case VoiceCommandType.renomearGravacao:
+        case VoiceCommandType.excluirGravacao:
+        case VoiceCommandType.ativarControleVoz:
+        case VoiceCommandType.desativarControleVoz:
+        case VoiceCommandType.ativarEscutaContinua:
+        case VoiceCommandType.desativarEscutaContinua:
+        case VoiceCommandType.ativarFeedbackSonoro:
+        case VoiceCommandType.desativarFeedbackSonoro:
+        case VoiceCommandType.ativarTemaEscuro:
+        case VoiceCommandType.desativarTemaEscuro:
+        case VoiceCommandType.ativarParadaSilencio:
+        case VoiceCommandType.desativarParadaSilencio:
+        case VoiceCommandType.definirTempoSilencio:
+        case VoiceCommandType.confirmarAcao:
+        case VoiceCommandType.cancelarAcao:
+          setState(() {
+            statusProjeto =
+                'Comando de navegacao reconhecido. Use o assistente de voz para navegar.';
+          });
+          return;
+        case VoiceCommandType.desconhecido:
+          break;
+      }
+
       registrarComandoVoz(
         comando,
         tipoComando: resultado.tipoComando,
-        acaoExecutada: resultado.acaoExecutada,
+        statusReconhecimento: resultado.statusReconhecimento,
       );
-    }
 
-    if (_executandoComandoVoz) {
-      return;
-    }
-
-    final globalResult = await _globalCommandService.execute(resultado);
-    if (globalResult.handled) {
-      final updatedConfig = globalResult.updatedConfig;
-      if (updatedConfig != null) {
-        _aplicarConfiguracao(updatedConfig);
-      }
-
-      if (globalResult.shouldStopListening &&
-          (ouvindo || _voiceSessionManager.isSpeechListening)) {
-        await _voiceSessionManager.cancelListening(
-          ownerId: _voiceOwnerId,
-          reason: 'global_command_stop',
-        );
-      }
-
-      if (!mounted) {
-        return;
-      }
+      adicionarHistorico(
+        comandoOriginal: comando,
+        acao: 'Comando nao reconhecido',
+        tipo: 'comando_nao_reconhecido',
+      );
 
       setState(() {
-        if (globalResult.shouldStopListening) {
-          _setVoiceSession(
-            VoiceSessionPhase.manualPaused,
-            message: globalResult.message,
-          );
-        }
-        statusProjeto = globalResult.message ?? statusProjeto;
+        statusProjeto = 'Comando nao reconhecido.';
       });
-
-      if (!globalResult.shouldStopListening) {
-        _reiniciarEscutaContinuaSeNecessario();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _interpretandoComando = false;
+        });
       }
-      return;
     }
-
-    switch (resultado.type) {
-      case VoiceCommandType.iniciarGravacao:
-        await iniciarGravacao(comando);
-        return;
-      case VoiceCommandType.pausarGravacao:
-        await pausarGravacao(comando);
-        return;
-      case VoiceCommandType.retomarGravacao:
-        await retomarGravacao(comando);
-        return;
-      case VoiceCommandType.encerrarGravacao:
-        await encerrarGravacao(comando);
-        return;
-      case VoiceCommandType.pararReproducao:
-        await pararReproducao(comando);
-        return;
-      case VoiceCommandType.reproduzirGravacao:
-        await reproduzirProjeto(comando);
-        return;
-      case VoiceCommandType.criarMarcador:
-        criarMarcador(comando);
-        return;
-      case VoiceCommandType.limparTexto:
-        limparTexto(comando);
-        return;
-      case VoiceCommandType.listarGravacoes:
-        setState(() {
-          statusProjeto = 'Lista de gravacoes disponivel nesta tela.';
-        });
-        return;
-      case VoiceCommandType.buscarGravacoes:
-      case VoiceCommandType.buscarProjetos:
-      case VoiceCommandType.limparBusca:
-      case VoiceCommandType.abrirEditor:
-        setState(() {
-          statusProjeto = 'Editor ja esta aberto.';
-        });
-        return;
-      case VoiceCommandType.definirNomeProjeto:
-      case VoiceCommandType.definirDescricaoProjeto:
-      case VoiceCommandType.substituirNomeProjeto:
-      case VoiceCommandType.substituirDescricaoProjeto:
-      case VoiceCommandType.abrirProjetoPorNome:
-      case VoiceCommandType.renomearProjeto:
-      case VoiceCommandType.excluirProjeto:
-      case VoiceCommandType.abrirNovoProjeto:
-      case VoiceCommandType.criarProjeto:
-      case VoiceCommandType.cancelarProjeto:
-      case VoiceCommandType.abrirDashboard:
-      case VoiceCommandType.abrirProjetos:
-      case VoiceCommandType.abrirGravacoes:
-      case VoiceCommandType.abrirDetalhesGravacao:
-      case VoiceCommandType.abrirConfiguracoes:
-      case VoiceCommandType.abrirAssistente:
-      case VoiceCommandType.abrirHistorico:
-      case VoiceCommandType.voltar:
-      case VoiceCommandType.sair:
-      case VoiceCommandType.renomearGravacao:
-      case VoiceCommandType.excluirGravacao:
-      case VoiceCommandType.ativarControleVoz:
-      case VoiceCommandType.desativarControleVoz:
-      case VoiceCommandType.ativarEscutaContinua:
-      case VoiceCommandType.desativarEscutaContinua:
-      case VoiceCommandType.ativarFeedbackSonoro:
-      case VoiceCommandType.desativarFeedbackSonoro:
-      case VoiceCommandType.ativarTemaEscuro:
-      case VoiceCommandType.desativarTemaEscuro:
-      case VoiceCommandType.ativarParadaSilencio:
-      case VoiceCommandType.desativarParadaSilencio:
-      case VoiceCommandType.definirTempoSilencio:
-      case VoiceCommandType.confirmarAcao:
-      case VoiceCommandType.cancelarAcao:
-        setState(() {
-          statusProjeto =
-              'Comando de navegacao reconhecido. Use o assistente de voz para navegar.';
-        });
-        return;
-      case VoiceCommandType.desconhecido:
-        break;
-    }
-
-    registrarComandoVoz(
-      comando,
-      tipoComando: resultado.tipoComando,
-      statusReconhecimento: resultado.statusReconhecimento,
-    );
-
-    adicionarHistorico(
-      comandoOriginal: comando,
-      acao: 'Comando nao reconhecido',
-      tipo: 'comando_nao_reconhecido',
-    );
-
-    setState(() {
-      statusProjeto = 'Comando nao reconhecido.';
-    });
   }
 
   Future<Gravacao> _finalizarGravacao({
@@ -1136,6 +1163,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       return 'Processando';
     }
 
+    if (_interpretandoComando) {
+      return 'Interpretando';
+    }
+
     if (gravando && !pausado) {
       return 'Gravando';
     }
@@ -1152,6 +1183,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   _EditorFsmVisualState get _fsmVisualState {
+    if (_interpretandoComando) {
+      return _EditorFsmVisualState.processingCommand;
+    }
+
     return switch (_voiceSessionState.phase) {
       VoiceSessionPhase.listening => _EditorFsmVisualState.listeningCommand,
       VoiceSessionPhase.processingCommand ||
@@ -1670,6 +1705,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 16),
             ],
+            if (_interpretandoComando) ...[
+              const LinearProgressIndicator(minHeight: 2),
+              const SizedBox(height: 16),
+            ],
             if (escutaContinuaAtiva || feedbackSonoroAtivo) ...[
               Wrap(
                 spacing: 8,
@@ -1710,7 +1749,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
             const SizedBox(height: 16),
             Center(
               child: FloatingActionButton.extended(
-                onPressed: carregandoAudio || gravando
+                onPressed: carregandoAudio || gravando || _interpretandoComando
                     ? null
                     : alternarMicrofone,
                 backgroundColor: ouvindo ? _EditorPalette.record : fsmAccent,

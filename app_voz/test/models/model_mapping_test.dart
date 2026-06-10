@@ -15,6 +15,10 @@ void main() {
         nome: 'Alex',
         email: 'alex@example.com',
         senhaHash: 'hash',
+        senhaSalt: 'salt',
+        senhaAlgoritmo: 'pbkdf2_sha256',
+        senhaIteracoes: 120000,
+        senhaVersao: 2,
         authProvider: 'google',
         googleId: 'google-123',
         fotoUrl: 'https://example.com/foto.png',
@@ -28,6 +32,10 @@ void main() {
       expect(parsed.nome, 'Alex');
       expect(parsed.email, 'alex@example.com');
       expect(parsed.senhaHash, 'hash');
+      expect(parsed.senhaSalt, 'salt');
+      expect(parsed.senhaAlgoritmo, 'pbkdf2_sha256');
+      expect(parsed.senhaIteracoes, 120000);
+      expect(parsed.senhaVersao, 2);
       expect(parsed.authProvider, 'google');
       expect(parsed.googleId, 'google-123');
       expect(parsed.fotoUrl, 'https://example.com/foto.png');
@@ -43,6 +51,10 @@ void main() {
       });
 
       expect(parsed.authProvider, 'local');
+      expect(parsed.senhaSalt, isNull);
+      expect(parsed.senhaAlgoritmo, 'sha256_legacy');
+      expect(parsed.senhaIteracoes, 0);
+      expect(parsed.senhaVersao, 1);
       expect(parsed.googleId, isNull);
       expect(parsed.fotoUrl, isNull);
       expect(parsed.dataCadastro, isNull);

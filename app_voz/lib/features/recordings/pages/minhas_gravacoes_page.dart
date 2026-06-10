@@ -18,6 +18,23 @@ import '../controllers/recordings_list_controller.dart';
 import '../widgets/recording_status_chip.dart';
 import 'detalhes_gravacao_page.dart';
 
+const int _minRecordingNameLength = 2;
+const int _maxRecordingNameLength = 80;
+
+String? _validateRecordingName(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return 'Informe o nome da gravação.';
+  }
+  if (trimmed.length < _minRecordingNameLength) {
+    return 'O nome deve ter pelo menos 2 caracteres.';
+  }
+  if (trimmed.length > _maxRecordingNameLength) {
+    return 'O nome deve ter no máximo 80 caracteres.';
+  }
+  return null;
+}
+
 class MinhasGravacoesPage extends StatefulWidget {
   final Usuario usuario;
 
@@ -35,6 +52,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
   StreamSubscription? _playerStateSubscription;
   Timer? _buscaDebounce;
+  int? _renomeandoGravacaoId;
+  int? _excluindoGravacaoId;
+  bool _confirmandoExclusaoPendente = false;
 
   RecordingsListState get _recordingsState => _recordingsController.state;
 
@@ -162,14 +182,19 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   }
 
   Future<void> _renomearGravacao(Gravacao gravacao) async {
+    final gravacaoId = gravacao.id;
     final novoNome = await showDialog<String>(
       context: context,
       builder: (context) => _RenomearGravacaoDialog(nomeInicial: gravacao.nome),
     );
 
-    if (novoNome == null || novoNome.isEmpty || gravacao.id == null) {
+    if (novoNome == null || novoNome.isEmpty || gravacaoId == null) {
       return;
     }
+
+    setState(() {
+      _renomeandoGravacaoId = gravacaoId;
+    });
 
     try {
       await _recordingsController.renameRecording(
@@ -185,6 +210,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Não foi possível renomear a gravação: $e')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _renomeandoGravacaoId = null;
+        });
+      }
     }
   }
 
@@ -214,6 +245,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   }
 
   Future<void> _excluirGravacao(Gravacao gravacao) async {
+    final gravacaoId = gravacao.id;
     final confirmar = await AppFeedback.confirm(
       context,
       title: 'Excluir gravação',
@@ -223,9 +255,18 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       destructive: true,
     );
 
-    if (confirmar != true || gravacao.id == null) {
+    if (confirmar != true || gravacaoId == null) {
       return;
     }
+
+    setState(() {
+      _excluindoGravacaoId = gravacaoId;
+    });
+
+    setState(() {
+      _confirmandoExclusaoPendente = true;
+      _excluindoGravacaoId = gravacao.id;
+    });
 
     try {
       await _recordingsController.deleteRecording(
@@ -246,6 +287,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Não foi possível excluir a gravação: $e')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _excluindoGravacaoId = null;
+        });
+      }
     }
   }
 
@@ -274,6 +321,10 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     if (mounted) {
       await _carregarGravacoes();
+      if (!mounted) {
+        return;
+      }
+
       await startContinuousVoiceListeningIfActive();
     }
   }
@@ -477,6 +528,11 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       );
     }
 
+    setState(() {
+      _confirmandoExclusaoPendente = true;
+      _excluindoGravacaoId = gravacao.id;
+    });
+
     try {
       await _recordingsController.deleteRecording(
         gravacao: gravacao,
@@ -507,6 +563,13 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       return VoiceCommandPageResult.handled(
         message: 'Nao foi possivel excluir a gravacao: $e',
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _confirmandoExclusaoPendente = false;
+          _excluindoGravacaoId = null;
+        });
+      }
     }
   }
 
@@ -581,6 +644,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                   if (gravacaoPendenteExclusao != null) ...[
                     _ConfirmacaoExclusaoCard(
                       gravacao: gravacaoPendenteExclusao,
+                      processando: _confirmandoExclusaoPendente,
                       onConfirmar: () {
                         unawaited(_handleConfirmarExclusaoPendente());
                       },
@@ -620,6 +684,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                 if (gravacaoPendenteExclusao != null && index == 1) {
                   return _ConfirmacaoExclusaoCard(
                     gravacao: gravacaoPendenteExclusao,
+                    processando: _confirmandoExclusaoPendente,
                     onConfirmar: () {
                       unawaited(_handleConfirmarExclusaoPendente());
                     },
@@ -638,6 +703,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                 final gravacao = gravacoes[gravacaoIndex];
                 final reproduzindo =
                     recordingsState.playingRecordingId == gravacao.id;
+                final renomeando = _renomeandoGravacaoId == gravacao.id;
+                final excluindo = _excluindoGravacaoId == gravacao.id;
+                final processandoItem = renomeando || excluindo;
 
                 return Card(
                   shape: RoundedRectangleBorder(
@@ -645,9 +713,13 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
-                    onTap: () => _abrirDetalhesGravacao(gravacao),
+                    onTap: processandoItem
+                        ? null
+                        : () => _abrirDetalhesGravacao(gravacao),
                     leading: IconButton(
-                      onPressed: () => _alternarReproducao(gravacao),
+                      onPressed: processandoItem
+                          ? null
+                          : () => _alternarReproducao(gravacao),
                       icon: Icon(
                         reproduzindo ? Icons.stop_circle : Icons.play_circle,
                         color: Theme.of(context).colorScheme.primary,
@@ -679,27 +751,39 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                         ],
                       ),
                     ),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'rename') {
-                          _renomearGravacao(gravacao);
-                        }
-                        if (value == 'delete') {
-                          _excluirGravacao(gravacao);
-                        }
-                        if (value == 'details') {
-                          _abrirDetalhesGravacao(gravacao);
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'details',
-                          child: Text('Detalhes'),
-                        ),
-                        PopupMenuItem(value: 'rename', child: Text('Renomear')),
-                        PopupMenuItem(value: 'delete', child: Text('Excluir')),
-                      ],
-                    ),
+                    trailing: processandoItem
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'rename') {
+                                _renomearGravacao(gravacao);
+                              }
+                              if (value == 'delete') {
+                                _excluirGravacao(gravacao);
+                              }
+                              if (value == 'details') {
+                                _abrirDetalhesGravacao(gravacao);
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: 'details',
+                                child: Text('Detalhes'),
+                              ),
+                              PopupMenuItem(
+                                value: 'rename',
+                                child: Text('Renomear'),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Excluir'),
+                              ),
+                            ],
+                          ),
                   ),
                 );
               },
@@ -730,11 +814,13 @@ class _RenomearGravacaoDialog extends StatefulWidget {
 
 class _ConfirmacaoExclusaoCard extends StatelessWidget {
   final Gravacao gravacao;
+  final bool processando;
   final VoidCallback onConfirmar;
   final VoidCallback onCancelar;
 
   const _ConfirmacaoExclusaoCard({
     required this.gravacao,
+    required this.processando,
     required this.onConfirmar,
     required this.onCancelar,
   });
@@ -768,15 +854,21 @@ class _ConfirmacaoExclusaoCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: onCancelar,
+                    onPressed: processando ? null : onCancelar,
                     child: const Text('Cancelar'),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: onConfirmar,
-                    child: const Text('Excluir'),
+                    onPressed: processando ? null : onConfirmar,
+                    child: processando
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Excluir'),
                   ),
                 ),
               ],
@@ -789,6 +881,7 @@ class _ConfirmacaoExclusaoCard extends StatelessWidget {
 }
 
 class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
 
@@ -816,27 +909,36 @@ class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
     super.dispose();
   }
 
+  void _salvar() {
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    Navigator.pop(context, _controller.text.trim());
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Renomear gravação'),
-      content: TextField(
-        controller: _controller,
-        focusNode: _focusNode,
-        autofocus: false,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => Navigator.pop(context, _controller.text.trim()),
-        decoration: const InputDecoration(labelText: 'Novo nome'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          focusNode: _focusNode,
+          autofocus: false,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _salvar(),
+          decoration: const InputDecoration(labelText: 'Novo nome'),
+          validator: _validateRecordingName,
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, _controller.text.trim()),
-          child: const Text('Salvar'),
-        ),
+        ElevatedButton(onPressed: _salvar, child: const Text('Salvar')),
       ],
     );
   }

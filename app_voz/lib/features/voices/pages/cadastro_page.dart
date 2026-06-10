@@ -1,15 +1,29 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/ui/app_logo.dart';
-import '../../../repositories/usuario_repository.dart';
+import '../../../models/usuario.dart';
 import '../../home/pages/home_page.dart';
+import '../services/auth_service.dart';
 import '../services/auth_validation_service.dart';
 import '../services/google_auth_service.dart';
 import '../widgets/google_sign_in_button.dart';
 import 'login_page.dart';
 
+typedef CadastroHomeBuilder = Widget Function(Usuario usuario);
+
 class CadastroPage extends StatefulWidget {
-  const CadastroPage({super.key});
+  const CadastroPage({
+    super.key,
+    this.authService,
+    this.homeBuilder,
+    this.loginBuilder,
+    this.logoBuilder,
+  });
+
+  final AuthService? authService;
+  final CadastroHomeBuilder? homeBuilder;
+  final WidgetBuilder? loginBuilder;
+  final WidgetBuilder? logoBuilder;
 
   @override
   State<CadastroPage> createState() => _CadastroPageState();
@@ -28,6 +42,8 @@ class _CadastroPageState extends State<CadastroPage> {
   bool _carregandoGoogle = false;
   bool _mostrarSenha = false;
 
+  AuthService get _authService => widget.authService ?? AuthService.instance;
+
   Future<void> _cadastrar() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -38,7 +54,7 @@ class _CadastroPageState extends State<CadastroPage> {
     });
 
     try {
-      final sucesso = await UsuarioRepository.instance.cadastrarUsuario(
+      final sucesso = await _authService.cadastrarUsuario(
         nome: _nomeController.text,
         email: _emailController.text,
         senha: _senhaController.text,
@@ -69,7 +85,10 @@ class _CadastroPageState extends State<CadastroPage> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginPage()),
+        MaterialPageRoute(
+          builder: (_) =>
+              widget.loginBuilder?.call(context) ?? const LoginPage(),
+        ),
       );
     } catch (e) {
       if (!mounted) {
@@ -92,7 +111,7 @@ class _CadastroPageState extends State<CadastroPage> {
     });
 
     try {
-      final usuario = await GoogleAuthService.instance.entrarComGoogle();
+      final usuario = await _authService.entrarComGoogle();
 
       if (!mounted) {
         return;
@@ -108,7 +127,10 @@ class _CadastroPageState extends State<CadastroPage> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => HomePage(usuario: usuario)),
+        MaterialPageRoute(
+          builder: (_) =>
+              widget.homeBuilder?.call(usuario) ?? HomePage(usuario: usuario),
+        ),
       );
     } on GoogleAuthException catch (e) {
       if (!mounted) {
@@ -157,7 +179,7 @@ class _CadastroPageState extends State<CadastroPage> {
             key: _formKey,
             child: Column(
               children: [
-                const AppLogo(height: 96),
+                widget.logoBuilder?.call(context) ?? const AppLogo(height: 96),
 
                 const SizedBox(height: 16),
 
@@ -177,6 +199,7 @@ class _CadastroPageState extends State<CadastroPage> {
                 const SizedBox(height: 24),
 
                 GoogleSignInButton(
+                  key: const Key('cadastro_google_button'),
                   onPressed: _carregando ? null : _cadastrarComGoogle,
                   loading: _carregandoGoogle,
                 ),
@@ -184,6 +207,7 @@ class _CadastroPageState extends State<CadastroPage> {
                 const SizedBox(height: 24),
 
                 TextFormField(
+                  key: const Key('cadastro_nome_field'),
                   controller: _nomeController,
                   decoration: const InputDecoration(
                     labelText: 'Nome',
@@ -196,6 +220,7 @@ class _CadastroPageState extends State<CadastroPage> {
                 const SizedBox(height: 16),
 
                 TextFormField(
+                  key: const Key('cadastro_email_field'),
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
@@ -209,6 +234,7 @@ class _CadastroPageState extends State<CadastroPage> {
                 const SizedBox(height: 16),
 
                 TextFormField(
+                  key: const Key('cadastro_password_field'),
                   controller: _senhaController,
                   obscureText: !_mostrarSenha,
                   decoration: InputDecoration(
@@ -232,6 +258,7 @@ class _CadastroPageState extends State<CadastroPage> {
                 const SizedBox(height: 16),
 
                 TextFormField(
+                  key: const Key('cadastro_confirm_password_field'),
                   controller: _confirmarSenhaController,
                   obscureText: !_mostrarSenha,
                   decoration: const InputDecoration(
@@ -246,6 +273,7 @@ class _CadastroPageState extends State<CadastroPage> {
                 const SizedBox(height: 24),
 
                 ElevatedButton(
+                  key: const Key('cadastro_submit_button'),
                   onPressed: _carregando || _carregandoGoogle
                       ? null
                       : _cadastrar,
@@ -270,7 +298,9 @@ class _CadastroPageState extends State<CadastroPage> {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const LoginPage(),
+                              builder: (_) =>
+                                  widget.loginBuilder?.call(context) ??
+                                  const LoginPage(),
                             ),
                           );
                         },

@@ -19,6 +19,23 @@ import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
 
+const int _minRecordingNameLength = 2;
+const int _maxRecordingNameLength = 80;
+
+String? _validateRecordingName(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return 'Informe o nome da gravação.';
+  }
+  if (trimmed.length < _minRecordingNameLength) {
+    return 'O nome deve ter pelo menos 2 caracteres.';
+  }
+  if (trimmed.length > _maxRecordingNameLength) {
+    return 'O nome deve ter no máximo 80 caracteres.';
+  }
+  return null;
+}
+
 class ProjetoDetalhesPage extends StatefulWidget {
   final Usuario usuario;
   final Projeto projeto;
@@ -39,6 +56,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       RecordingsListController();
 
   StreamSubscription? _playerStateSubscription;
+  int? _renomeandoGravacaoId;
+  int? _excluindoGravacaoId;
 
   RecordingsListState get _recordingsState => _recordingsController.state;
 
@@ -149,14 +168,19 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
   }
 
   Future<void> _renomearGravacao(Gravacao gravacao) async {
+    final gravacaoId = gravacao.id;
     final novoNome = await showDialog<String>(
       context: context,
       builder: (context) => _RenomearGravacaoDialog(nomeInicial: gravacao.nome),
     );
 
-    if (novoNome == null || novoNome.isEmpty || gravacao.id == null) {
+    if (novoNome == null || novoNome.isEmpty || gravacaoId == null) {
       return;
     }
+
+    setState(() {
+      _renomeandoGravacaoId = gravacaoId;
+    });
 
     try {
       await _recordingsController.renameRecording(
@@ -172,10 +196,17 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Não foi possível renomear a gravação: $e')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _renomeandoGravacaoId = null;
+        });
+      }
     }
   }
 
   Future<void> _excluirGravacao(Gravacao gravacao) async {
+    final gravacaoId = gravacao.id;
     final confirmar = await AppFeedback.confirm(
       context,
       title: 'Excluir gravação',
@@ -185,9 +216,13 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       destructive: true,
     );
 
-    if (confirmar != true || gravacao.id == null) {
+    if (confirmar != true || gravacaoId == null) {
       return;
     }
+
+    setState(() {
+      _excluindoGravacaoId = gravacaoId;
+    });
 
     try {
       await _recordingsController.deleteRecording(
@@ -211,6 +246,12 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Não foi possível excluir a gravação: $e')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _excluindoGravacaoId = null;
+        });
+      }
     }
   }
 
@@ -231,6 +272,10 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
     if (mounted) {
       await _carregarGravacoes();
+      if (!mounted) {
+        return;
+      }
+
       await startContinuousVoiceListeningIfActive();
     }
   }
@@ -260,6 +305,10 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
     if (mounted) {
       await _carregarGravacoes();
+      if (!mounted) {
+        return;
+      }
+
       await startContinuousVoiceListeningIfActive();
     }
   }
@@ -562,6 +611,9 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
                   ...gravacoes.map((gravacao) {
                     final reproduzindo =
                         recordingsState.playingRecordingId == gravacao.id;
+                    final processandoItem =
+                        _renomeandoGravacaoId == gravacao.id ||
+                        _excluindoGravacaoId == gravacao.id;
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -571,9 +623,13 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
                         ),
                         child: ListTile(
                           contentPadding: const EdgeInsets.all(16),
-                          onTap: () => _abrirDetalhesGravacao(gravacao),
+                          onTap: processandoItem
+                              ? null
+                              : () => _abrirDetalhesGravacao(gravacao),
                           leading: IconButton(
-                            onPressed: () => _alternarReproducao(gravacao),
+                            onPressed: processandoItem
+                                ? null
+                                : () => _alternarReproducao(gravacao),
                             icon: Icon(
                               reproduzindo
                                   ? Icons.stop_circle
@@ -609,33 +665,41 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
                               ],
                             ),
                           ),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'rename') {
-                                _renomearGravacao(gravacao);
-                              }
-                              if (value == 'delete') {
-                                _excluirGravacao(gravacao);
-                              }
-                              if (value == 'details') {
-                                _abrirDetalhesGravacao(gravacao);
-                              }
-                            },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(
-                                value: 'details',
-                                child: Text('Detalhes'),
-                              ),
-                              PopupMenuItem(
-                                value: 'rename',
-                                child: Text('Renomear'),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Excluir'),
-                              ),
-                            ],
-                          ),
+                          trailing: processandoItem
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value == 'rename') {
+                                      _renomearGravacao(gravacao);
+                                    }
+                                    if (value == 'delete') {
+                                      _excluirGravacao(gravacao);
+                                    }
+                                    if (value == 'details') {
+                                      _abrirDetalhesGravacao(gravacao);
+                                    }
+                                  },
+                                  itemBuilder: (context) => const [
+                                    PopupMenuItem(
+                                      value: 'details',
+                                      child: Text('Detalhes'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'rename',
+                                      child: Text('Renomear'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('Excluir'),
+                                    ),
+                                  ],
+                                ),
                         ),
                       ),
                     );
@@ -696,6 +760,7 @@ class _RenomearGravacaoDialog extends StatefulWidget {
 }
 
 class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
 
@@ -723,27 +788,36 @@ class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
     super.dispose();
   }
 
+  void _salvar() {
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    Navigator.pop(context, _controller.text.trim());
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Renomear gravação'),
-      content: TextField(
-        controller: _controller,
-        focusNode: _focusNode,
-        autofocus: false,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => Navigator.pop(context, _controller.text.trim()),
-        decoration: const InputDecoration(labelText: 'Novo nome'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          focusNode: _focusNode,
+          autofocus: false,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _salvar(),
+          decoration: const InputDecoration(labelText: 'Novo nome'),
+          validator: _validateRecordingName,
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, _controller.text.trim()),
-          child: const Text('Salvar'),
-        ),
+        ElevatedButton(onPressed: _salvar, child: const Text('Salvar')),
       ],
     );
   }

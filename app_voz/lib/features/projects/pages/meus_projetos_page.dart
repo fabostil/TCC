@@ -17,6 +17,23 @@ import '../../editor/pages/editor_page.dart';
 import '../controllers/projects_list_controller.dart';
 import 'projeto_detalhes_page.dart';
 
+const int _minProjectNameLength = 2;
+const int _maxProjectNameLength = 80;
+
+String? _validateProjectName(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return 'Informe o nome do projeto.';
+  }
+  if (trimmed.length < _minProjectNameLength) {
+    return 'O nome deve ter pelo menos 2 caracteres.';
+  }
+  if (trimmed.length > _maxProjectNameLength) {
+    return 'O nome deve ter no máximo 80 caracteres.';
+  }
+  return null;
+}
+
 class MeusProjetosPage extends StatefulWidget {
   final Usuario usuario;
   final bool abrirCriacaoAoEntrar;
@@ -42,6 +59,8 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
   bool _abriuCriacaoInicial = false;
   Projeto? _projetoPendenteExclusao;
   Projeto? _projetoContextualSelecionado;
+  int? _renomeandoProjetoId;
+  int? _excluindoProjetoId;
 
   ProjectsListState get _projectsState => _projectsController.state;
 
@@ -294,6 +313,10 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     }
 
     await suspendContextualVoiceListening();
+    if (!mounted) {
+      return VoiceCommandPageResult.handled(restartListening: false);
+    }
+
     await _abrirProjeto(novoProjeto);
     await startContinuousVoiceListeningIfActive();
     return VoiceCommandPageResult.handled(restartListening: false);
@@ -317,6 +340,10 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     }
 
     await suspendContextualVoiceListening();
+    if (!mounted) {
+      return VoiceCommandPageResult.handled(restartListening: false);
+    }
+
     await _abrirProjeto(projeto);
     await startContinuousVoiceListeningIfActive();
     return VoiceCommandPageResult.handled(restartListening: false);
@@ -442,16 +469,28 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
       }
     }
 
-    await _projectsController.deleteProject(project: projeto);
-
-    if (!mounted) {
-      return;
-    }
-
-    voiceSetState(() {
-      _projetoPendenteExclusao = null;
-      voiceStatusMessage = 'Projeto ${projeto.nome} excluido.';
+    setState(() {
+      _excluindoProjetoId = projeto.id;
     });
+
+    try {
+      await _projectsController.deleteProject(project: projeto);
+
+      if (!mounted) {
+        return;
+      }
+
+      voiceSetState(() {
+        _projetoPendenteExclusao = null;
+        voiceStatusMessage = 'Projeto ${projeto.nome} excluido.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _excluindoProjetoId = null;
+        });
+      }
+    }
   }
 
   Future<void> _salvarNovoNomeProjeto(Projeto projeto, String novoNome) async {
@@ -459,17 +498,30 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
       return;
     }
 
-    final projetoAtualizado = await _projectsController.renameProject(
-      project: projeto,
-      newName: novoNome,
-    );
-
-    if (!mounted) {
-      return;
-    }
-    voiceSetState(() {
-      voiceStatusMessage = 'Projeto renomeado para ${projetoAtualizado.nome}.';
+    setState(() {
+      _renomeandoProjetoId = projeto.id;
     });
+
+    try {
+      final projetoAtualizado = await _projectsController.renameProject(
+        project: projeto,
+        newName: novoNome,
+      );
+
+      if (!mounted) {
+        return;
+      }
+      voiceSetState(() {
+        voiceStatusMessage =
+            'Projeto renomeado para ${projetoAtualizado.nome}.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _renomeandoProjetoId = null;
+        });
+      }
+    }
   }
 
   Projeto? _buscarProjetoPorNome(String? nome) {
@@ -502,6 +554,10 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
 
     if (mounted) {
       await _carregarProjetos();
+      if (!mounted) {
+        return VoiceCommandPageResult.handled(restartListening: false);
+      }
+
       await startContinuousVoiceListeningIfActive();
     }
 
@@ -538,6 +594,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     if (projeto == null) {
       return const SizedBox.shrink();
     }
+    final excluindo = _excluindoProjetoId == projeto.id;
 
     return Card(
       color: Theme.of(context).colorScheme.errorContainer,
@@ -559,12 +616,22 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
               ),
             ),
             TextButton(
-              onPressed: () => _cancelarExclusaoProjetoPorVoz(),
+              onPressed: excluindo
+                  ? null
+                  : () => _cancelarExclusaoProjetoPorVoz(),
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () => _confirmarExclusaoProjetoPorVoz(),
-              child: const Text('Excluir'),
+              onPressed: excluindo
+                  ? null
+                  : () => _confirmarExclusaoProjetoPorVoz(),
+              child: excluindo
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Excluir'),
             ),
           ],
         ),
@@ -699,6 +766,9 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
 
                 final projetoIndex = index - (criacaoProjetoAtiva ? 2 : 1);
                 final projeto = projetos[projetoIndex];
+                final processandoProjeto =
+                    _renomeandoProjetoId == projeto.id ||
+                    _excluindoProjetoId == projeto.id;
 
                 return Card(
                   child: ListTile(
@@ -731,29 +801,48 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
                         ],
                       ),
                     ),
-                    trailing: PopupMenuButton<String>(
-                      tooltip: 'Abrir menu de acoes do projeto ${projeto.nome}',
-                      onOpened: () => _selecionarProjetoContextual(projeto),
-                      onSelected: (value) {
-                        _selecionarProjetoContextual(projeto);
-                        if (value == 'open') {
-                          _abrirProjeto(projeto);
-                        }
-                        if (value == 'rename') {
-                          _renomearProjetoManual(projeto);
-                        }
-                        if (value == 'delete') {
-                          _excluirProjetoManual(projeto);
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'open', child: Text('Abrir')),
-                        PopupMenuItem(value: 'rename', child: Text('Renomear')),
-                        PopupMenuDivider(),
-                        PopupMenuItem(value: 'delete', child: Text('Excluir')),
-                      ],
-                    ),
-                    onTap: () => _abrirProjeto(projeto),
+                    trailing: processandoProjeto
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : PopupMenuButton<String>(
+                            tooltip:
+                                'Abrir menu de acoes do projeto ${projeto.nome}',
+                            onOpened: () =>
+                                _selecionarProjetoContextual(projeto),
+                            onSelected: (value) {
+                              _selecionarProjetoContextual(projeto);
+                              if (value == 'open') {
+                                _abrirProjeto(projeto);
+                              }
+                              if (value == 'rename') {
+                                _renomearProjetoManual(projeto);
+                              }
+                              if (value == 'delete') {
+                                _excluirProjetoManual(projeto);
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: 'open',
+                                child: Text('Abrir'),
+                              ),
+                              PopupMenuItem(
+                                value: 'rename',
+                                child: Text('Renomear'),
+                              ),
+                              PopupMenuDivider(),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Excluir'),
+                              ),
+                            ],
+                          ),
+                    onTap: processandoProjeto
+                        ? null
+                        : () => _abrirProjeto(projeto),
                     onLongPress: () {
                       _selecionarProjetoContextual(projeto);
                       _renomearProjetoManual(projeto);
@@ -776,7 +865,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
   }
 }
 
-class _ProjetoCriacaoCard extends StatelessWidget {
+class _ProjetoCriacaoCard extends StatefulWidget {
   final TextEditingController nomeController;
   final TextEditingController descricaoController;
   final bool salvando;
@@ -792,54 +881,76 @@ class _ProjetoCriacaoCard extends StatelessWidget {
   });
 
   @override
+  State<_ProjetoCriacaoCard> createState() => _ProjetoCriacaoCardState();
+}
+
+class _ProjetoCriacaoCardState extends State<_ProjetoCriacaoCard> {
+  final _formKey = GlobalKey<FormState>();
+
+  void _criarProjeto() {
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    widget.onCriar();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Novo projeto', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: nomeController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(labelText: 'Nome do projeto'),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: descricaoController,
-              maxLines: 3,
-              textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
-                labelText: 'Descricao (opcional)',
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Novo projeto',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: salvando ? null : onCancelar,
-                    child: const Text('Cancelar'),
-                  ),
+              const SizedBox(height: AppSpacing.md),
+              TextFormField(
+                controller: widget.nomeController,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(labelText: 'Nome do projeto'),
+                validator: _validateProjectName,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextFormField(
+                controller: widget.descricaoController,
+                maxLines: 3,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  labelText: 'Descricao (opcional)',
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: salvando ? null : onCriar,
-                    child: salvando
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Criar projeto'),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: widget.salvando ? null : widget.onCancelar,
+                      child: const Text('Cancelar'),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: widget.salvando ? null : _criarProjeto,
+                      child: widget.salvando
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Criar projeto'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -856,6 +967,7 @@ class _RenomearProjetoDialog extends StatefulWidget {
 }
 
 class _RenomearProjetoDialogState extends State<_RenomearProjetoDialog> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _controller;
 
   @override
@@ -870,26 +982,35 @@ class _RenomearProjetoDialogState extends State<_RenomearProjetoDialog> {
     super.dispose();
   }
 
+  void _salvar() {
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    Navigator.pop(context, _controller.text.trim());
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Renomear projeto'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => Navigator.pop(context, _controller.text.trim()),
-        decoration: const InputDecoration(labelText: 'Novo nome'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _salvar(),
+          decoration: const InputDecoration(labelText: 'Novo nome'),
+          validator: _validateProjectName,
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, _controller.text.trim()),
-          child: const Text('Salvar'),
-        ),
+        ElevatedButton(onPressed: _salvar, child: const Text('Salvar')),
       ],
     );
   }

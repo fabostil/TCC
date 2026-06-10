@@ -16,6 +16,23 @@ import '../../voices/services/custom_command_service.dart';
 import '../../voices/services/voice_permission_service.dart';
 import '../controllers/settings_controller.dart';
 
+const int _minCommandPhraseLength = 3;
+const int _maxCommandPhraseLength = 120;
+
+String? _validateCommandPhrase(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return 'Informe a frase do comando.';
+  }
+  if (trimmed.length < _minCommandPhraseLength) {
+    return 'A frase deve ter pelo menos 3 caracteres.';
+  }
+  if (trimmed.length > _maxCommandPhraseLength) {
+    return 'A frase deve ter no máximo 120 caracteres.';
+  }
+  return null;
+}
+
 class ConfiguracoesPage extends StatefulWidget {
   final Usuario? usuario;
 
@@ -30,12 +47,17 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   final VoicePermissionService _voicePermissionService =
       const VoicePermissionService();
   final SettingsController _settingsController = SettingsController();
+  final _customCommandFormKey = GlobalKey<FormState>();
   final TextEditingController _frasePersonalizadaController =
       TextEditingController();
   VoicePermissionResult? _ultimoResultadoPermissao;
   String _tipoComandoPersonalizado =
       CustomCommandCatalog.actions.first.tipoComando;
   int? _tempoSilencioVisual;
+  bool _salvandoComandoPersonalizado = false;
+  bool _alterandoControleVoz = false;
+  int? _alternandoComandoPersonalizadoId;
+  int? _excluindoComandoPersonalizadoId;
 
   SettingsState get _settingsState => _settingsController.state;
 
@@ -103,16 +125,38 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   }
 
   Future<void> _salvarComandoPersonalizado() async {
+    if (_customCommandFormKey.currentState?.validate() != true) {
+      return;
+    }
+
+    setState(() {
+      _salvandoComandoPersonalizado = true;
+    });
+
     try {
       await _settingsController.saveCustomCommand(
         usuarioId: widget.usuario?.id,
         phrase: _frasePersonalizadaController.text,
         commandType: _tipoComandoPersonalizado,
       );
+      if (!mounted) {
+        return;
+      }
+
       _frasePersonalizadaController.clear();
       _atualizarStatus('Comando personalizado salvo.');
     } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
       _atualizarStatus(e.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _salvandoComandoPersonalizado = false;
+        });
+      }
     }
   }
 
@@ -120,21 +164,59 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     ComandoPersonalizado comando,
     bool ativo,
   ) async {
-    await _settingsController.toggleCustomCommand(
-      comando,
-      ativo,
-      usuarioId: widget.usuario?.id,
-    );
+    final id = comando.id;
+    if (id == null) {
+      return;
+    }
+
+    setState(() {
+      _alternandoComandoPersonalizadoId = id;
+    });
+
+    try {
+      await _settingsController.toggleCustomCommand(
+        comando,
+        ativo,
+        usuarioId: widget.usuario?.id,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _alternandoComandoPersonalizadoId = null;
+        });
+      }
+    }
   }
 
   Future<void> _excluirComandoPersonalizado(
     ComandoPersonalizado comando,
   ) async {
-    await _settingsController.deleteCustomCommand(
-      comando,
-      usuarioId: widget.usuario?.id,
-    );
-    _atualizarStatus('Comando personalizado excluido.');
+    final id = comando.id;
+    if (id == null) {
+      return;
+    }
+
+    setState(() {
+      _excluindoComandoPersonalizadoId = id;
+    });
+
+    try {
+      await _settingsController.deleteCustomCommand(
+        comando,
+        usuarioId: widget.usuario?.id,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      _atualizarStatus('Comando personalizado excluido.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _excluindoComandoPersonalizadoId = null;
+        });
+      }
+    }
   }
 
   Future<void> _salvarTemaEscuro(bool ativo) async {
@@ -152,43 +234,77 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       return;
     }
 
-    if (!ativo) {
-      await _salvar(
-        configuracao.copyWith(comandosVozAtivos: false, escutaContinua: false),
-      );
-      await suspendContextualVoiceListening(keepManualPause: true);
-      _atualizarStatus('Controle por voz desativado.');
-      return;
-    }
-
-    final permissao = await _voicePermissionService.requestMicrophone();
-    if (permissao != VoicePermissionResult.granted) {
-      await _salvar(
-        configuracao.copyWith(comandosVozAtivos: false, escutaContinua: false),
-      );
-      setState(() {
-        _ultimoResultadoPermissao = permissao;
-      });
-      _atualizarStatus(
-        permissao == VoicePermissionResult.permanentlyDenied
-            ? 'Microfone bloqueado nas configurações do Android.'
-            : 'Permissão de microfone negada.',
-      );
-      return;
-    }
-
     setState(() {
-      _ultimoResultadoPermissao = VoicePermissionResult.granted;
+      _alterandoControleVoz = true;
     });
-    await _salvar(
-      configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
-    );
-    syncVoiceConfigFlags(
-      configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
-    );
-    voiceParadaManual = false;
-    _atualizarStatus('Controle por voz ativado.');
-    scheduleVoiceContinuousRestart();
+
+    try {
+      if (!ativo) {
+        await _salvar(
+          configuracao.copyWith(
+            comandosVozAtivos: false,
+            escutaContinua: false,
+          ),
+        );
+        await suspendContextualVoiceListening(keepManualPause: true);
+        if (!mounted) {
+          return;
+        }
+
+        _atualizarStatus('Controle por voz desativado.');
+        return;
+      }
+
+      final permissao = await _voicePermissionService.requestMicrophone();
+      if (permissao != VoicePermissionResult.granted) {
+        await _salvar(
+          configuracao.copyWith(
+            comandosVozAtivos: false,
+            escutaContinua: false,
+          ),
+        );
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _ultimoResultadoPermissao = permissao;
+        });
+        _atualizarStatus(
+          permissao == VoicePermissionResult.permanentlyDenied
+              ? 'Microfone bloqueado nas configurações do Android.'
+              : 'Permissão de microfone negada.',
+        );
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _ultimoResultadoPermissao = VoicePermissionResult.granted;
+      });
+      await _salvar(
+        configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
+      );
+      if (!mounted) {
+        return;
+      }
+
+      syncVoiceConfigFlags(
+        configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
+      );
+      voiceParadaManual = false;
+      _atualizarStatus('Controle por voz ativado.');
+      scheduleVoiceContinuousRestart();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _alterandoControleVoz = false;
+        });
+      }
+    }
   }
 
   Future<VoiceCommandPageResult> _dispatchSettingsVoice(
@@ -212,6 +328,10 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
         await _salvar(
           configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
         );
+        if (!mounted) {
+          return VoiceCommandPageResult.handled(restartListening: false);
+        }
+
         syncVoiceConfigFlags(
           configuracao.copyWith(comandosVozAtivos: true, escutaContinua: true),
         );
@@ -219,31 +339,59 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.desativarEscutaContinua:
         await _salvar(configuracao.copyWith(escutaContinua: false));
+        if (!mounted) {
+          return VoiceCommandPageResult.handled(restartListening: false);
+        }
+
         syncVoiceConfigFlags(configuracao.copyWith(escutaContinua: false));
         _atualizarStatus('Escuta contínua desativada.');
         return VoiceCommandPageResult.handled(restartListening: false);
       case VoiceCommandType.ativarFeedbackSonoro:
         await _salvar(configuracao.copyWith(feedbackSonoro: true));
+        if (!mounted) {
+          return VoiceCommandPageResult.handled(restartListening: false);
+        }
+
         _atualizarStatus('Feedback sonoro ativado.');
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.desativarFeedbackSonoro:
         await _salvar(configuracao.copyWith(feedbackSonoro: false));
+        if (!mounted) {
+          return VoiceCommandPageResult.handled(restartListening: false);
+        }
+
         _atualizarStatus('Feedback sonoro desativado.');
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.ativarTemaEscuro:
         await _salvarTemaEscuro(true);
+        if (!mounted) {
+          return VoiceCommandPageResult.handled(restartListening: false);
+        }
+
         _atualizarStatus('Tema escuro ativado.');
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.desativarTemaEscuro:
         await _salvarTemaEscuro(false);
+        if (!mounted) {
+          return VoiceCommandPageResult.handled(restartListening: false);
+        }
+
         _atualizarStatus('Tema claro ativado.');
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.ativarParadaSilencio:
         await _salvar(configuracao.copyWith(paradaSilencio: true));
+        if (!mounted) {
+          return VoiceCommandPageResult.handled(restartListening: false);
+        }
+
         _atualizarStatus('Parada por silêncio ativada.');
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.desativarParadaSilencio:
         await _salvar(configuracao.copyWith(paradaSilencio: false));
+        if (!mounted) {
+          return VoiceCommandPageResult.handled(restartListening: false);
+        }
+
         _atualizarStatus('Parada por silêncio desativada.');
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.definirTempoSilencio:
@@ -258,6 +406,10 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
             tempoSilencioSegundos: segundos.clamp(3, 12).toInt(),
           ),
         );
+        if (!mounted) {
+          return VoiceCommandPageResult.handled(restartListening: false);
+        }
+
         _atualizarStatus('Tempo de silêncio definido para $segundos segundos.');
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.voltar:
@@ -369,7 +521,14 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                   subtitle: const Text(
                     'Permite controlar gravações, reprodução e navegação por comandos.',
                   ),
-                  onChanged: _alterarControleVoz,
+                  onChanged: _alterandoControleVoz ? null : _alterarControleVoz,
+                  secondary: _alterandoControleVoz
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : null,
                 ),
                 if (!configuracao.comandosVozAtivos) ...[
                   const SizedBox(height: AppSpacing.sm),
@@ -387,7 +546,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           OutlinedButton.icon(
-                            onPressed: () => _alterarControleVoz(true),
+                            onPressed: _alterandoControleVoz
+                                ? null
+                                : () => _alterarControleVoz(true),
                             icon: const Icon(Icons.refresh),
                             label: const Text('Tentar ativar novamente'),
                           ),
@@ -429,12 +590,17 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                TextField(
-                  controller: _frasePersonalizadaController,
-                  decoration: const InputDecoration(
-                    labelText: 'Frase personalizada',
-                    hintText: 'Ex.: modo palco',
-                    border: OutlineInputBorder(),
+                Form(
+                  key: _customCommandFormKey,
+                  child: TextFormField(
+                    controller: _frasePersonalizadaController,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Frase personalizada',
+                      hintText: 'Ex.: modo palco',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: _validateCommandPhrase,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -464,8 +630,16 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                 ),
                 const SizedBox(height: AppSpacing.md),
                 ElevatedButton.icon(
-                  onPressed: _salvarComandoPersonalizado,
-                  icon: const Icon(Icons.add),
+                  onPressed: _salvandoComandoPersonalizado
+                      ? null
+                      : _salvarComandoPersonalizado,
+                  icon: _salvandoComandoPersonalizado
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add),
                   label: const Text('Salvar comando'),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -479,6 +653,10 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                     final acao = CustomCommandCatalog.findByTipo(
                       comando.tipoComando,
                     );
+                    final alternando =
+                        _alternandoComandoPersonalizadoId == comando.id;
+                    final excluindo =
+                        _excluindoComandoPersonalizadoId == comando.id;
 
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -486,13 +664,25 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                       subtitle: Text(acao?.label ?? comando.tipoComando),
                       leading: Switch(
                         value: comando.ativo,
-                        onChanged: (value) =>
-                            _alternarComandoPersonalizado(comando, value),
+                        onChanged: alternando || excluindo
+                            ? null
+                            : (value) =>
+                                  _alternarComandoPersonalizado(comando, value),
                       ),
                       trailing: IconButton(
                         tooltip: 'Excluir comando',
-                        onPressed: () => _excluirComandoPersonalizado(comando),
-                        icon: const Icon(Icons.delete_outline),
+                        onPressed: alternando || excluindo
+                            ? null
+                            : () => _excluirComandoPersonalizado(comando),
+                        icon: excluindo
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.delete_outline),
                       ),
                     );
                   }),

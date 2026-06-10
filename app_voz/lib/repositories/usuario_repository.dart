@@ -1,9 +1,7 @@
-import 'dart:convert';
-
-import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/app_database.dart';
+import '../features/voices/services/password_hash_service.dart';
 import '../models/usuario.dart';
 
 class UsuarioRepository {
@@ -13,10 +11,12 @@ class UsuarioRepository {
 
   Future<Database> get _database async => AppDatabase.instance.database;
 
+  /// Existe somente para compatibilidade com hashes SHA-256 legados.
+  ///
+  /// Nao use este metodo para novos cadastros; eles devem usar PBKDF2 via
+  /// PasswordHashService.
   String gerarHashSenha(String senha) {
-    final bytes = utf8.encode(senha.trim());
-    final digest = sha256.convert(bytes);
-    return digest.toString();
+    return PasswordHashService.instance.generateLegacySha256Hash(senha);
   }
 
   String _normalizarEmail(String email) => email.trim().toLowerCase();
@@ -30,7 +30,7 @@ class UsuarioRepository {
 
     final nomeFormatado = nome.trim();
     final emailFormatado = _normalizarEmail(email);
-    final senhaHash = gerarHashSenha(senha);
+    final credential = PasswordHashService.instance.hashNewPassword(senha);
 
     final usuariosExistentes = await db.query(
       'usuario',
@@ -46,7 +46,11 @@ class UsuarioRepository {
     final usuario = Usuario(
       nome: nomeFormatado,
       email: emailFormatado,
-      senhaHash: senhaHash,
+      senhaHash: credential.senhaHash,
+      senhaSalt: credential.senhaSalt,
+      senhaAlgoritmo: credential.senhaAlgoritmo,
+      senhaIteracoes: credential.senhaIteracoes,
+      senhaVersao: credential.senhaVersao,
       authProvider: 'local',
       dataCadastro: DateTime.now().toIso8601String(),
     );
@@ -67,12 +71,11 @@ class UsuarioRepository {
     final db = await _database;
 
     final emailFormatado = _normalizarEmail(email);
-    final senhaHash = gerarHashSenha(senha);
 
     final resultado = await db.query(
       'usuario',
-      where: 'email = ? AND senha_hash = ?',
-      whereArgs: [emailFormatado, senhaHash],
+      where: 'email = ?',
+      whereArgs: [emailFormatado],
       limit: 1,
     );
 
@@ -80,7 +83,22 @@ class UsuarioRepository {
       return null;
     }
 
-    return Usuario.fromMap(resultado.first);
+    final usuario = Usuario.fromMap(resultado.first);
+    final senhaValida = PasswordHashService.instance.verifyPassword(
+      password: senha,
+      usuario: usuario,
+    );
+    if (!senhaValida) {
+      return null;
+    }
+
+    if (!PasswordHashService.instance.shouldRehash(usuario)) {
+      return usuario;
+    }
+
+    final credential = PasswordHashService.instance
+        .rehashLegacyPasswordAfterSuccessfulLogin(senha);
+    return _atualizarCredencial(db, usuario, credential);
   }
 
   Future<List<Usuario>> listarUsuarios() async {
@@ -167,10 +185,16 @@ class UsuarioRepository {
       return (await buscarPorGoogleId(googleIdFormatado))!;
     }
 
+    final credential = PasswordHashService.instance
+        .externalProviderCredential();
     final usuario = Usuario(
       nome: nomeFormatado,
       email: emailFormatado,
-      senhaHash: gerarHashSenha('google:$googleIdFormatado'),
+      senhaHash: credential.senhaHash,
+      senhaSalt: credential.senhaSalt,
+      senhaAlgoritmo: credential.senhaAlgoritmo,
+      senhaIteracoes: credential.senhaIteracoes,
+      senhaVersao: credential.senhaVersao,
       authProvider: 'google',
       googleId: googleIdFormatado,
       fotoUrl: fotoUrl,
@@ -189,5 +213,26 @@ class UsuarioRepository {
     }
 
     return criado;
+  }
+
+  Future<Usuario> _atualizarCredencial(
+    Database db,
+    Usuario usuario,
+    PasswordHashResult credential,
+  ) async {
+    await db.update(
+      'usuario',
+      {
+        'senha_hash': credential.senhaHash,
+        'senha_salt': credential.senhaSalt,
+        'senha_algoritmo': credential.senhaAlgoritmo,
+        'senha_iteracoes': credential.senhaIteracoes,
+        'senha_versao': credential.senhaVersao,
+      },
+      where: 'id = ?',
+      whereArgs: [usuario.id],
+    );
+
+    return (await buscarPorEmail(usuario.email))!;
   }
 }

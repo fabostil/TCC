@@ -2,15 +2,28 @@ import 'package:flutter/material.dart';
 
 import '../../../core/ui/app_logo.dart';
 import '../../../models/usuario.dart';
-import '../../../repositories/usuario_repository.dart';
 import '../../home/pages/home_page.dart';
+import '../services/auth_service.dart';
 import '../services/auth_validation_service.dart';
 import '../services/google_auth_service.dart';
 import '../widgets/google_sign_in_button.dart';
 import 'cadastro_page.dart';
 
+typedef LoginHomeBuilder = Widget Function(Usuario usuario);
+
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({
+    super.key,
+    this.authService,
+    this.homeBuilder,
+    this.cadastroBuilder,
+    this.logoBuilder,
+  });
+
+  final AuthService? authService;
+  final LoginHomeBuilder? homeBuilder;
+  final WidgetBuilder? cadastroBuilder;
+  final WidgetBuilder? logoBuilder;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -27,6 +40,8 @@ class _LoginPageState extends State<LoginPage> {
   bool _carregandoGoogle = false;
   bool _mostrarSenha = false;
 
+  AuthService get _authService => widget.authService ?? AuthService.instance;
+
   Future<void> _entrar() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -37,11 +52,10 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final Usuario? usuario = await UsuarioRepository.instance
-          .autenticarUsuario(
-            email: _emailController.text,
-            senha: _senhaController.text,
-          );
+      final Usuario? usuario = await _authService.autenticarUsuario(
+        email: _emailController.text,
+        senha: _senhaController.text,
+      );
 
       if (!mounted) {
         return;
@@ -60,7 +74,10 @@ class _LoginPageState extends State<LoginPage> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => HomePage(usuario: usuario)),
+        MaterialPageRoute(
+          builder: (_) =>
+              widget.homeBuilder?.call(usuario) ?? HomePage(usuario: usuario),
+        ),
       );
     } catch (e) {
       if (!mounted) {
@@ -83,7 +100,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final usuario = await GoogleAuthService.instance.entrarComGoogle();
+      final usuario = await _authService.entrarComGoogle();
 
       if (!mounted) {
         return;
@@ -99,7 +116,10 @@ class _LoginPageState extends State<LoginPage> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => HomePage(usuario: usuario)),
+        MaterialPageRoute(
+          builder: (_) =>
+              widget.homeBuilder?.call(usuario) ?? HomePage(usuario: usuario),
+        ),
       );
     } on GoogleAuthException catch (e) {
       if (!mounted) {
@@ -145,7 +165,7 @@ class _LoginPageState extends State<LoginPage> {
             key: _formKey,
             child: Column(
               children: [
-                const AppLogo(height: 112),
+                widget.logoBuilder?.call(context) ?? const AppLogo(height: 112),
 
                 const SizedBox(height: 16),
 
@@ -165,6 +185,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 32),
 
                 TextFormField(
+                  key: const Key('login_email_field'),
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
@@ -178,6 +199,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 16),
 
                 TextFormField(
+                  key: const Key('login_password_field'),
                   controller: _senhaController,
                   obscureText: !_mostrarSenha,
                   decoration: InputDecoration(
@@ -201,6 +223,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 24),
 
                 ElevatedButton(
+                  key: const Key('login_submit_button'),
                   onPressed: _carregando || _carregandoGoogle ? null : _entrar,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 56),
@@ -217,6 +240,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 12),
 
                 GoogleSignInButton(
+                  key: const Key('login_google_button'),
                   onPressed: _carregando ? null : _entrarComGoogle,
                   loading: _carregandoGoogle,
                 ),
@@ -230,7 +254,9 @@ class _LoginPageState extends State<LoginPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const CadastroPage(),
+                              builder: (_) =>
+                                  widget.cadastroBuilder?.call(context) ??
+                                  const CadastroPage(),
                             ),
                           );
                         },

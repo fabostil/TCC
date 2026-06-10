@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../voices/coordination/voice_diagnostics.dart';
 import '../../voices/coordination/voice_session_manager.dart';
 import '../../voices/coordination/voice_state_machine.dart';
 import '../../voices/realtime/infrastructure/persistence/pcm_wav_file_writer.dart';
@@ -156,13 +157,24 @@ class StreamFirstAudioRecordingService implements AudioRecordingCapture {
       );
       _currentPath = wavPath;
       return wavPath;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      _sessionManager.diagnostics.record(
+        VoiceDiagnosticEventType.error,
+        ownerId: _ownerId,
+        reason: 'stream_first_recording_start_failed',
+        message: 'Stream-first recorder failed to start recording.',
+        metadata: {
+          'error': error.toString(),
+          'stackTrace': stackTrace.toString(),
+          'path': wavPath,
+        },
+      );
       await _cleanupAfterStartFailure();
       _sessionManager.exitRecordingMode(
         ownerId: _ownerId,
         reason: 'stream_first_record_start_failed',
       );
-      rethrow;
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
@@ -280,6 +292,17 @@ class StreamFirstAudioRecordingService implements AudioRecordingCapture {
   }
 
   void _handleStreamError(Object error, StackTrace stackTrace) {
+    _sessionManager.diagnostics.record(
+      VoiceDiagnosticEventType.error,
+      ownerId: _ownerId,
+      reason: 'stream_first_recording_stream_failed',
+      message: 'Stream-first recorder received a stream error.',
+      metadata: {
+        'error': error.toString(),
+        'stackTrace': stackTrace.toString(),
+        'path': _currentPath,
+      },
+    );
     if (!_rawAudioChunkController.isClosed) {
       _rawAudioChunkController.addError(error, stackTrace);
     }
@@ -304,8 +327,18 @@ class StreamFirstAudioRecordingService implements AudioRecordingCapture {
     }
     try {
       await completer.future.timeout(const Duration(milliseconds: 500));
-    } catch (_) {
-      // The plugin may stop without closing the stream on every platform.
+    } catch (error, stackTrace) {
+      _sessionManager.diagnostics.record(
+        VoiceDiagnosticEventType.error,
+        ownerId: _ownerId,
+        reason: 'stream_first_recording_wait_done_failed',
+        message: 'Stream-first recorder stream completion wait failed.',
+        metadata: {
+          'error': error.toString(),
+          'stackTrace': stackTrace.toString(),
+          'path': _currentPath,
+        },
+      );
     }
   }
 

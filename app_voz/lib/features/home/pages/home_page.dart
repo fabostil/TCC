@@ -16,14 +16,31 @@ import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/pages/login_page.dart';
+import '../../voices/services/auth_session_service.dart';
 import '../../voices/services/command_service.dart';
-import '../../voices/services/google_auth_service.dart';
 import '../../voices/services/voice_permission_service.dart';
+
+typedef HomeLoginBuilder = Widget Function();
 
 class HomePage extends StatefulWidget {
   final Usuario usuario;
 
-  const HomePage({super.key, required this.usuario});
+  const HomePage({
+    super.key,
+    required this.usuario,
+    this.authSessionService,
+    this.voicePermissionService,
+    this.buscarConfiguracao,
+    this.concluirPrimeiraExecucao,
+    this.loginBuilder,
+  });
+
+  final AuthSessionService? authSessionService;
+  final VoicePermissionService? voicePermissionService;
+  final Future<ConfiguracaoApp> Function()? buscarConfiguracao;
+  final Future<void> Function({required bool comandosVozAtivos})?
+  concluirPrimeiraExecucao;
+  final HomeLoginBuilder? loginBuilder;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -31,14 +48,33 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage>
     with ContextualVoiceListeningMixin<HomePage> {
-  final VoicePermissionService _voicePermissionService =
-      const VoicePermissionService();
-
   ConfiguracaoApp? _configuracao;
   bool _verificandoPrimeiraExecucao = true;
   bool _escutaInicialSolicitada = false;
   DateTime? _ultimoComandoExecutadoEm;
   String? _ultimoComandoNormalizado;
+
+  VoicePermissionService get _voicePermissionService =>
+      widget.voicePermissionService ?? const VoicePermissionService();
+
+  AuthSessionService get _authSessionService =>
+      widget.authSessionService ?? AuthSessionService.instance;
+
+  Future<ConfiguracaoApp> _buscarConfiguracao() {
+    return widget.buscarConfiguracao?.call() ??
+        ConfiguracaoAppRepository.instance.buscarConfiguracao();
+  }
+
+  Future<void> _concluirPrimeiraExecucao({required bool comandosVozAtivos}) {
+    final concluirPrimeiraExecucao = widget.concluirPrimeiraExecucao;
+    if (concluirPrimeiraExecucao != null) {
+      return concluirPrimeiraExecucao(comandosVozAtivos: comandosVozAtivos);
+    }
+
+    return ConfiguracaoAppRepository.instance.concluirPrimeiraExecucao(
+      comandosVozAtivos: comandosVozAtivos,
+    );
+  }
 
   @override
   String get voiceOwnerId => VoicePageOwners.home;
@@ -90,8 +126,7 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _carregarConfiguracaoInicial() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
+    final configuracao = await _buscarConfiguracao();
 
     if (!mounted) {
       return;
@@ -118,12 +153,9 @@ class _HomePageState extends State<HomePage>
     final permissao = await _voicePermissionService.requestMicrophone();
     final comandosAtivos = permissao == VoicePermissionResult.granted;
 
-    await ConfiguracaoAppRepository.instance.concluirPrimeiraExecucao(
-      comandosVozAtivos: comandosAtivos,
-    );
+    await _concluirPrimeiraExecucao(comandosVozAtivos: comandosAtivos);
 
-    final atualizada = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
+    final atualizada = await _buscarConfiguracao();
 
     if (!mounted) {
       return;
@@ -201,7 +233,7 @@ class _HomePageState extends State<HomePage>
     await toggleContextualVoiceListening();
   }
 
-  Future<void> _sair(BuildContext context) async {
+  Future<void> _sairDaConta() async {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -220,28 +252,32 @@ class _HomePageState extends State<HomePage>
       ),
     );
 
-    if (confirmar != true || !context.mounted) {
+    if (confirmar != true || !mounted) {
       return;
     }
 
     try {
-      await GoogleAuthService.instance.sair();
-    } catch (_) {
-      if (context.mounted) {
-        AppFeedback.showMessage(
-          context,
-          'Sessao local encerrada. Nao foi possivel sair do Google.',
-        );
+      await _authSessionService.logout();
+    } on AuthSessionLogoutException {
+      if (!mounted) {
+        return;
       }
+      AppFeedback.showMessage(
+        context,
+        'Nao foi possivel sair da conta. Tente novamente.',
+      );
+      return;
     }
 
-    if (!context.mounted) {
+    if (!mounted) {
       return;
     }
 
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const LoginPage()),
+      MaterialPageRoute(
+        builder: (_) => widget.loginBuilder?.call() ?? const LoginPage(),
+      ),
       (route) => false,
     );
   }
@@ -345,10 +381,7 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<VoiceCommandPageResult> _handleSair(CommandResult _) async {
-    await suspendContextualVoiceListening(keepManualPause: true);
-    if (mounted) {
-      await _sair(context);
-    }
+    await _sairDaConta();
     return VoiceCommandPageResult.handled(restartListening: false);
   }
 
@@ -435,8 +468,7 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _retomarEscutaAposNavegacao() async {
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
+    final configuracao = await _buscarConfiguracao();
 
     if (!mounted) {
       return;
@@ -467,13 +499,15 @@ class _HomePageState extends State<HomePage>
         title: const Text('Touchless'),
         actions: [
           IconButton(
+            key: const Key('home_settings_button'),
             tooltip: 'Configuracoes',
             onPressed: _abrirConfiguracoes,
             icon: const Icon(Icons.settings_rounded),
           ),
           IconButton(
+            key: const Key('home_logout_button'),
             tooltip: 'Sair',
-            onPressed: () => _sair(context),
+            onPressed: _sairDaConta,
             icon: const Icon(Icons.logout_rounded),
           ),
         ],
