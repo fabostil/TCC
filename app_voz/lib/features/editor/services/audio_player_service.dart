@@ -19,6 +19,8 @@ abstract class AudioPlayerClient {
 
   Future<void> play();
 
+  Future<void> seek(Duration position);
+
   Future<void> pause();
 
   Future<void> stop();
@@ -51,6 +53,9 @@ class JustAudioPlayerClient implements AudioPlayerClient {
 
   @override
   Future<void> play() => _player.play();
+
+  @override
+  Future<void> seek(Duration position) => _player.seek(position);
 
   @override
   Future<void> pause() => _player.pause();
@@ -127,14 +132,9 @@ class AudioPlayerService {
              sessionManager ?? VoiceSessionManager.instance,
            ),
        _ownerId = ownerId {
-    _playerStateSubscription = _player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed) {
-        _sessionClient.endPlayback(
-          ownerId: _ownerId,
-          reason: 'playback_completed',
-        );
-      }
-    });
+    _playerStateSubscription = _player.playerStateStream.listen(
+      _handlePlayerState,
+    );
   }
 
   AudioPlayerService.test({
@@ -144,14 +144,9 @@ class AudioPlayerService {
   }) : _player = player,
        _sessionClient = sessionClient,
        _ownerId = ownerId {
-    _playerStateSubscription = _player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed) {
-        _sessionClient.endPlayback(
-          ownerId: _ownerId,
-          reason: 'playback_completed',
-        );
-      }
-    });
+    _playerStateSubscription = _player.playerStateStream.listen(
+      _handlePlayerState,
+    );
   }
 
   final AudioPlayerClient _player;
@@ -160,6 +155,8 @@ class AudioPlayerService {
   StreamSubscription<PlayerState>? _playerStateSubscription;
 
   String? _currentPath;
+  bool _restartCurrentPathFromBeginning = false;
+  Future<void>? _completionResetFuture;
 
   bool get isPlaying => _player.playing;
   String? get currentPath => _currentPath;
@@ -178,6 +175,10 @@ class AudioPlayerService {
       throw Exception('Arquivo de audio nao encontrado.');
     }
 
+    if (_currentPath == path && _player.playing) {
+      return;
+    }
+
     if (!await _sessionClient.beginPlayback(
       ownerId: _ownerId,
       reason: 'audio_player_play',
@@ -187,15 +188,20 @@ class AudioPlayerService {
       );
     }
 
-    if (_currentPath == path && _player.playing) {
-      return;
-    }
-
     try {
+      final completionResetFuture = _completionResetFuture;
+      if (completionResetFuture != null) {
+        await completionResetFuture;
+      }
+
       if (_currentPath != path) {
         await _player.stop();
         await _player.setFilePath(path);
         _currentPath = path;
+        _restartCurrentPathFromBeginning = false;
+      } else if (_restartCurrentPathFromBeginning) {
+        await _player.seek(Duration.zero);
+        _restartCurrentPathFromBeginning = false;
       }
 
       await _player.play();
@@ -220,6 +226,7 @@ class AudioPlayerService {
 
   Future<void> stop() async {
     await _player.stop();
+    _restartCurrentPathFromBeginning = true;
     _sessionClient.endPlayback(ownerId: _ownerId, reason: 'stop');
   }
 
@@ -227,5 +234,26 @@ class AudioPlayerService {
     await _playerStateSubscription?.cancel();
     _sessionClient.endPlayback(ownerId: _ownerId, reason: 'dispose');
     await _player.dispose();
+  }
+
+  void _handlePlayerState(PlayerState state) {
+    if (state.processingState != ProcessingState.completed) {
+      return;
+    }
+
+    _restartCurrentPathFromBeginning = true;
+    _sessionClient.endPlayback(ownerId: _ownerId, reason: 'playback_completed');
+    _completionResetFuture = _resetCompletedPlayback();
+  }
+
+  Future<void> _resetCompletedPlayback() async {
+    try {
+      await _player.seek(Duration.zero);
+      _restartCurrentPathFromBeginning = false;
+    } catch (_) {
+      _restartCurrentPathFromBeginning = true;
+    } finally {
+      _completionResetFuture = null;
+    }
   }
 }

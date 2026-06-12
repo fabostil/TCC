@@ -58,7 +58,41 @@ void main() {
         await service.play(audioFile.path);
 
         expect(player.calls, isEmpty);
+        expect(session.calls, isEmpty);
+      },
+    );
+
+    test(
+      'conclusao natural reseta estado e posiciona arquivo no inicio',
+      () async {
+        await service.play(audioFile.path);
+        player.calls.clear();
+        session.calls.clear();
+
+        player.emitCompleted();
+        await pumpEventQueue();
+
+        expect(player.playing, isFalse);
+        expect(player.calls, ['seek:0']);
+        expect(session.calls, ['end:playback_completed']);
+      },
+    );
+
+    test(
+      'mesmo arquivo pode tocar novamente depois da conclusao natural',
+      () async {
+        await service.play(audioFile.path);
+        player.emitCompleted();
+        await pumpEventQueue();
+        player.calls.clear();
+        session.calls.clear();
+
+        await service.play(audioFile.path);
+
+        expect(player.calls, ['play']);
         expect(session.calls, ['begin:audio_player_play']);
+        expect(player.playing, isTrue);
+        expect(service.currentPath, audioFile.path);
       },
     );
 
@@ -124,6 +158,7 @@ void main() {
           'failure:audio_player_start_failed',
           'end:play_failed',
         ]);
+        expect(player.playing, isFalse);
       },
     );
 
@@ -138,6 +173,7 @@ void main() {
         'failure:audio_player_start_failed',
         'end:play_failed',
       ]);
+      expect(player.playing, isFalse);
     });
 
     test(
@@ -167,6 +203,22 @@ void main() {
       expect(player.calls, ['stop']);
       expect(session.calls, ['end:stop']);
     });
+
+    test(
+      'stop libera estado e permite tocar o mesmo arquivo novamente',
+      () async {
+        await service.play(audioFile.path);
+        player.calls.clear();
+        session.calls.clear();
+
+        await service.stop();
+        await service.play(audioFile.path);
+
+        expect(player.calls, ['stop', 'seek:0', 'play']);
+        expect(session.calls, ['end:stop', 'begin:audio_player_play']);
+        expect(player.playing, isTrue);
+      },
+    );
 
     test('stop propaga erro do player sem mascarar', () async {
       final error = StateError('stop failed');
@@ -226,6 +278,7 @@ class _FakeAudioPlayerClient implements AudioPlayerClient {
   bool playing = false;
   Object? setFilePathError;
   Object? playError;
+  Object? seekError;
   Object? stopError;
   int disposeCalls = 0;
 
@@ -258,6 +311,15 @@ class _FakeAudioPlayerClient implements AudioPlayerClient {
   }
 
   @override
+  Future<void> seek(Duration position) async {
+    calls.add('seek:${position.inMilliseconds}');
+    final error = seekError;
+    if (error != null) {
+      throw error;
+    }
+  }
+
+  @override
   Future<void> pause() async {
     calls.add('pause');
     playing = false;
@@ -279,6 +341,7 @@ class _FakeAudioPlayerClient implements AudioPlayerClient {
   }
 
   void emitCompleted() {
+    playing = false;
     _playerStateController.add(PlayerState(false, ProcessingState.completed));
   }
 

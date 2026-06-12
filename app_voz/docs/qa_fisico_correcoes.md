@@ -224,3 +224,75 @@ Comando para o testador:
 cd android
 .\gradlew signingReport
 ```
+
+## F.2 — Player de gravação
+
+### Problema observado
+
+No teste físico em Android, uma gravação reproduzia corretamente na primeira tentativa, mas depois do término natural do áudio novas tentativas de play na mesma gravação não tocavam. Em alguns fluxos, a interface também podia permanecer indicando reprodução mesmo após o áudio já ter terminado.
+
+### Diagnóstico
+
+A causa confirmada no código estava em `AudioPlayerService`: o listener de `playerStateStream` tratava `ProcessingState.completed` apenas liberando a sessão de áudio no `VoiceSessionManager`. O serviço não reposicionava a fonte atual no início nem marcava que o mesmo caminho precisava reiniciar do começo. Assim, ao tocar o mesmo arquivo depois do fim natural, o player podia continuar no fim da mídia e a nova chamada de `play()` não reiniciava a reprodução.
+
+Também foi confirmado que as telas e controllers já escutavam `state.playing == false` para limpar o estado visual de reprodução. Por isso a correção principal ficou no serviço de player, sem redesenhar telas.
+
+### Correção realizada
+
+* `AudioPlayerClient` recebeu suporte a `seek(Duration)`.
+* `JustAudioPlayerClient` passou a delegar `seek` para o `just_audio`.
+* `AudioPlayerService` passou a:
+  * detectar `ProcessingState.completed`;
+  * liberar a sessão de áudio com `playback_completed`;
+  * reposicionar a mídia atual para `Duration.zero`;
+  * marcar o caminho atual para reinício caso o reset assíncrono falhe;
+  * permitir novo play da mesma gravação após término natural;
+  * manter o comportamento de ignorar com segurança play duplicado enquanto a mesma gravação já está tocando;
+  * marcar reprodução parada por `stop()` para reiniciar do começo no próximo play.
+
+### Testes automatizados
+
+Testes alterados em `test/features/editor/services/audio_player_service_test.dart`:
+
+* play de arquivo válido inicia reprodução e atualiza `currentPath`;
+* play da mesma gravação enquanto já está tocando não prepara player duplicado;
+* conclusão natural reseta estado e chama `seek(Duration.zero)`;
+* o mesmo arquivo pode tocar novamente depois da conclusão natural;
+* `stop()` libera estado e permite tocar o mesmo arquivo novamente;
+* erro em `setFilePath` libera sessão e não deixa player como playing;
+* erro em `play` libera sessão e não deixa player como playing;
+* `dispose` cancela assinatura e descarta recursos.
+
+Validações executadas:
+
+```text
+dart analyze
+No issues found!
+
+flutter test --reporter compact
+00:19 +407: All tests passed!
+
+flutter build apk --debug
+Built build\app\outputs\flutter-apk\app-debug.apk
+```
+
+### Teste manual recomendado
+
+1. Rodar app no Android físico.
+2. Fazer login.
+3. Criar ou abrir um projeto.
+4. Entrar no editor.
+5. Gravar um áudio curto.
+6. Salvar/encerrar gravação.
+7. Abrir a gravação.
+8. Tocar play uma vez.
+9. Esperar o áudio terminar naturalmente.
+10. Tocar play de novo na mesma gravação.
+11. Confirmar que reproduz novamente.
+12. Repetir pelo menos 3 vezes.
+13. Testar stop/pause, se a tela oferecer.
+14. Sair da tela, voltar e reproduzir novamente.
+
+### Critério de aprovação manual
+
+A etapa só passa manualmente se a mesma gravação puder ser reproduzida repetidas vezes sem reiniciar o app.
