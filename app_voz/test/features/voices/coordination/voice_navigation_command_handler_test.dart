@@ -79,6 +79,76 @@ void main() {
       ]);
     });
 
+    test('distingue voltar simples de comandos diretos para Home', () async {
+      final calls = <String>[];
+      final handler = VoiceNavigationCommandHandler(
+        currentDestination: VoiceNavigationDestination.other,
+        goHome: _record(calls, 'home'),
+        goBack: _record(calls, 'back'),
+      );
+
+      await handler.handle(commandService.interpret('voltar'));
+      await handler.handle(commandService.interpret('voltar uma tela'));
+      await handler.handle(commandService.interpret('tela inicial'));
+      await handler.handle(commandService.interpret('inicio'));
+      await handler.handle(commandService.interpret('home'));
+      await handler.handle(
+        commandService.interpret('voltar para tela inicial'),
+      );
+      await handler.handle(commandService.interpret('voltar para o inicio'));
+      await handler.handle(commandService.interpret('ir para o inicio'));
+      await handler.handle(commandService.interpret('abre tela inicial'));
+      await handler.handle(commandService.interpret('abrir tela inicial'));
+
+      expect(calls, [
+        'back',
+        'back',
+        'home',
+        'home',
+        'home',
+        'home',
+        'home',
+        'home',
+        'home',
+        'home',
+      ]);
+    });
+
+    test('em pilha profunda comando Home aciona goHome direto', () async {
+      final calls = <String>[];
+      final handler = VoiceNavigationCommandHandler(
+        currentDestination: VoiceNavigationDestination.other,
+        goHome: (_) async {
+          calls.add('pop_until_home');
+          return VoiceCommandPageResult.handled(restartListening: false);
+        },
+        goBack: _record(calls, 'back'),
+      );
+
+      await handler.handle(
+        commandService.interpret('voltar para tela inicial'),
+      );
+
+      expect(calls, ['pop_until_home']);
+    });
+
+    test('na Home comando Home nao duplica rota', () async {
+      final calls = <String>[];
+      final handler = VoiceNavigationCommandHandler(
+        currentDestination: VoiceNavigationDestination.home,
+        goHome: _record(calls, 'home'),
+        goBack: _record(calls, 'back'),
+      );
+
+      final result = await handler.handle(
+        commandService.interpret('tela inicial'),
+      );
+
+      expect(calls, isEmpty);
+      expect(result?.statusMessage, 'Tela inicial ja esta aberta.');
+      expect(result?.restartListening, isTrue);
+    });
+
     test('nao duplica rota quando destino atual ja esta aberto', () async {
       final calls = <String>[];
       final handler = VoiceNavigationCommandHandler(

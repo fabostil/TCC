@@ -100,16 +100,7 @@ class VoiceNavigationCommandHandler {
   }
 
   VoiceNavigationAction? _homeOrBackAction(CommandResult result) {
-    final normalized = result.normalizedText;
-    final wantsHome =
-        normalized == 'inicio' ||
-        normalized == 'home' ||
-        normalized == 'tela inicial' ||
-        normalized.contains('tela inicial') ||
-        normalized.contains('para home') ||
-        normalized.contains('ir para home');
-
-    if (!wantsHome) {
+    if (!isHomeNavigationCommand(result)) {
       return goBack;
     }
 
@@ -120,5 +111,18 @@ class VoiceNavigationCommandHandler {
     }
 
     return goHome;
+  }
+
+  static bool isHomeNavigationCommand(CommandResult result) {
+    final normalized = result.normalizedText;
+
+    return normalized == 'inicio' ||
+        normalized == 'home' ||
+        normalized == 'tela inicial' ||
+        normalized.contains('tela inicial') ||
+        normalized.contains('para home') ||
+        normalized.contains('ir para home') ||
+        normalized.contains('para inicio') ||
+        normalized.contains('para o inicio');
   }
 }

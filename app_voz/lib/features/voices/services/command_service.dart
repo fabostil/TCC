@@ -1007,6 +1007,7 @@ class CommandService {
       'voltar para home',
       'ir para home',
       'home',
+      'abre tela inicial',
       'abre a tela inicial',
       'abrir tela inicial',
       'tela inicial',

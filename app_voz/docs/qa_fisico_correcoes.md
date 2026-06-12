@@ -860,3 +860,58 @@ Testes criados/alterados:
 ### Criterio de aprovacao manual
 
 A etapa so passa se o Editor nao perder audio ao sair, nao permitir navegacao insegura durante gravacao e continuar com escuta funcional apos parar gravacao/reproducao.
+
+## F.10 - Comando "voltar para tela inicial"
+
+### Problema observado
+
+No QA fisico, comandos como "voltar para tela inicial" e "voltar para o inicio" podiam se comportar como um simples voltar, fazendo apenas um `pop` da rota atual. Em pilhas profundas, isso nao leva diretamente para a Home autenticada.
+
+### Diagnostico
+
+O `CommandService` mapeava tanto "voltar" simples quanto comandos de Home para `VoiceCommandType.voltar`. A separacao real ficava em `VoiceNavigationCommandHandler`, que olhava o texto normalizado para decidir entre `goBack` e `goHome`.
+
+Foi confirmado que o handler ja tratava `inicio`, `home`, `tela inicial`, textos com `tela inicial`, `para home` e `ir para home` como Home. A lacuna estava em frases como `voltar para o inicio`, `voltar para inicio` e `ir para o inicio`, que eram reconhecidas como `voltar`, mas nao eram classificadas como destino Home. Tambem faltava o alias local `abre tela inicial` no parser.
+
+### Correcao realizada
+
+* `CommandService` passou a reconhecer `abre tela inicial`.
+* `VoiceNavigationCommandHandler` passou a centralizar a classificacao em `isHomeNavigationCommand`.
+* `voltar` e `voltar uma tela` continuam usando `goBack`.
+* `tela inicial`, `inicio`, `home`, `voltar para tela inicial`, `voltar para o inicio`, `ir para o inicio`, `abre tela inicial` e `abrir tela inicial` usam `goHome`.
+* Quando a tela atual ja e Home, o handler retorna `Tela inicial ja esta aberta.` sem chamar `goHome`, evitando duplicar Home.
+* Nas telas autenticadas existentes, `goHome` continua usando o fluxo ja estabelecido de `Navigator.popUntil(... route.isFirst)`, preservando a protecao da F.3 contra retorno ao Login depois da autenticacao.
+* No Editor com gravacao ativa, a regra da F.9 permanece: comandos do tipo `voltar`, incluindo comandos de Home, passam pela confirmacao segura em vez de sair silenciosamente.
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/features/voices/services/command_service_test.dart`
+  * cobre `tela inicial`, `home`, `inicio`, `voltar para tela inicial`, `voltar para o inicio`, `ir para o inicio`, `abre tela inicial` e `abrir tela inicial`.
+* `test/features/voices/coordination/voice_navigation_command_handler_test.dart`
+  * diferencia `voltar`/`voltar uma tela` de comandos diretos para Home;
+  * valida que pilha profunda chama `goHome`, nao `goBack`;
+  * valida que Home atual nao duplica rota.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Fazer login.
+3. Na Home, dizer "tela inicial" e confirmar que nao duplica tela.
+4. Ir para Meus Projetos e dizer "tela inicial".
+5. Confirmar retorno direto para Home.
+6. Ir para Projeto -> Detalhes -> Editor sem gravar.
+7. Dizer "voltar para tela inicial".
+8. Confirmar retorno direto para Home.
+9. Ir para Configuracoes e dizer "home".
+10. Confirmar retorno para Home.
+11. Ir para Editor, iniciar gravacao.
+12. Dizer "tela inicial".
+13. Confirmar que nao sai de forma insegura nem perde audio.
+14. Dizer "voltar" em uma tela comum e confirmar que volta uma tela, nao necessariamente Home.
+15. Confirmar que em nenhum caso retorna para Login sem logout.
+
+### Criterio de aprovacao manual
+
+A etapa so passa se "tela inicial"/"home"/"voltar para tela inicial" levarem a Home autenticada diretamente, enquanto "voltar" simples continua como retorno comum e nenhum fluxo cai no Login.

@@ -206,6 +206,10 @@ void main() {
       );
       expect(service.interpret('voltar').type, VoiceCommandType.voltar);
       expect(service.interpret('volta').type, VoiceCommandType.voltar);
+      expect(service.interpret('home').type, VoiceCommandType.voltar);
+      expect(service.interpret('in\u00edcio').type, VoiceCommandType.voltar);
+      expect(service.interpret('inicio').type, VoiceCommandType.voltar);
+      expect(service.interpret('tela inicial').type, VoiceCommandType.voltar);
       expect(
         service.interpret('voltar para tela inicial').type,
         VoiceCommandType.voltar,
@@ -214,7 +218,18 @@ void main() {
         service.interpret('ir para o in\u00edcio').type,
         VoiceCommandType.voltar,
       );
-      expect(service.interpret('in\u00edcio').type, VoiceCommandType.voltar);
+      expect(
+        service.interpret('voltar para o in\u00edcio').type,
+        VoiceCommandType.voltar,
+      );
+      expect(
+        service.interpret('abre tela inicial').type,
+        VoiceCommandType.voltar,
+      );
+      expect(
+        service.interpret('abrir tela inicial').type,
+        VoiceCommandType.voltar,
+      );
       expect(service.interpret('sair').type, VoiceCommandType.sair);
     });
 
