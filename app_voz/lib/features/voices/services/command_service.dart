@@ -44,6 +44,10 @@ enum VoiceCommandType {
   definirTempoSilencio,
   confirmarAcao,
   cancelarAcao,
+  scrollBaixo,
+  scrollCima,
+  scrollTopo,
+  scrollFim,
   voltar,
   sair,
   desconhecido,
@@ -994,6 +998,71 @@ class CommandService {
         VoiceCommandType.cancelarAcao,
         tipoComando: 'cancelar_acao',
         acaoExecutada: 'Cancelar acao',
+      );
+    }
+
+    if (_matchesAny(normalizedText, const [
+      'rolar para baixo',
+      'descer',
+      'desce',
+      'mais para baixo',
+      'baixo',
+      'proximos',
+      'ver mais',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.scrollBaixo,
+        tipoComando: 'scroll_baixo',
+        acaoExecutada: 'Rolar para baixo',
+      );
+    }
+
+    if (_matchesAny(normalizedText, const [
+      'rolar para cima',
+      'subir',
+      'sobe',
+      'mais para cima',
+      'cima',
+      'anteriores',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.scrollCima,
+        tipoComando: 'scroll_cima',
+        acaoExecutada: 'Rolar para cima',
+      );
+    }
+
+    if (_matchesAny(normalizedText, const [
+      'ir para o topo',
+      'voltar para o topo',
+      'topo',
+      'comeco da lista',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.scrollTopo,
+        tipoComando: 'scroll_topo',
+        acaoExecutada: 'Ir para o topo',
+      );
+    }
+
+    if (_matchesAny(normalizedText, const [
+      'ir para o fim',
+      'fim da lista',
+      'final da lista',
+      'ultimos',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.scrollFim,
+        tipoComando: 'scroll_fim',
+        acaoExecutada: 'Ir para o fim',
       );
     }
 

@@ -16,6 +16,7 @@ import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
+import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/custom_command_service.dart';
 import '../../voices/services/voice_permission_service.dart';
@@ -55,6 +56,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   final _customCommandFormKey = GlobalKey<FormState>();
   final TextEditingController _frasePersonalizadaController =
       TextEditingController();
+  final ScrollController _voiceScrollController = ScrollController();
   VoicePermissionResult? _ultimoResultadoPermissao;
   String _tipoComandoPersonalizado =
       CustomCommandCatalog.actions.first.tipoComando;
@@ -430,6 +432,16 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
 
         _atualizarStatus('Tempo de silêncio definido para $segundos segundos.');
         return VoiceCommandPageResult.handled();
+      case VoiceCommandType.scrollBaixo:
+      case VoiceCommandType.scrollCima:
+      case VoiceCommandType.scrollTopo:
+      case VoiceCommandType.scrollFim:
+        return await VoiceScrollHandler(
+              controller: _voiceScrollController,
+            ).handle(resultado) ??
+            VoiceCommandPageResult.unavailable(
+              recognized: resultado.recognized,
+            );
       case VoiceCommandType.voltar:
         await suspendContextualVoiceListening();
         if (mounted) {
@@ -590,6 +602,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   void dispose() {
     disposeContextualVoiceListening();
     _frasePersonalizadaController.dispose();
+    _voiceScrollController.dispose();
     _settingsController.removeListener(_onSettingsStateChanged);
     _settingsController.dispose();
     super.dispose();
@@ -614,6 +627,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       body: settingsState.loading || configuracao == null
           ? const AppLoadingView(message: 'Carregando configurações...')
           : ListView(
+              controller: _voiceScrollController,
               padding: const EdgeInsets.all(AppSpacing.xl),
               children: [
                 Text(

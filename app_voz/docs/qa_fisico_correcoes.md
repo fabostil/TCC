@@ -915,3 +915,72 @@ Testes criados/alterados:
 ### Criterio de aprovacao manual
 
 A etapa so passa se "tela inicial"/"home"/"voltar para tela inicial" levarem a Home autenticada diretamente, enquanto "voltar" simples continua como retorno comum e nenhum fluxo cai no Login.
+
+## F.11 - Scroll por voz
+
+### Problema observado
+
+Listas longas ainda dependiam de toque para rolar. Isso prejudicava o uso hands-free em telas como projetos, gravacoes, historico, dashboard e configuracoes.
+
+### Diagnostico
+
+O `CommandService` nao possuia intencoes de scroll. As telas principais ja recebiam comandos contextuais pelo `ContextualVoiceListeningMixin`, mas seus `ListView` nao tinham `ScrollController` compartilhado com um handler de voz. Tambem foi confirmado que comandos globais continuam passando antes do dispatcher contextual, preservando navegacao como "voltar" e "tela inicial".
+
+### Correcao realizada
+
+* Adicionados comandos locais de scroll:
+  * baixo: "rolar para baixo", "descer", "desce", "mais para baixo", "baixo", "proximos", "ver mais";
+  * cima: "rolar para cima", "subir", "sobe", "mais para cima", "cima", "anteriores";
+  * topo: "ir para o topo", "voltar para o topo", "topo", "comeco da lista";
+  * fim: "ir para o fim", "fim da lista", "final da lista", "ultimos".
+* Criado `VoiceScrollHandler` para centralizar a rolagem por voz com `ScrollController`.
+* O handler verifica `hasClients`, limita o destino entre topo e fim e usa animacao curta.
+* Telas integradas:
+  * Meus Projetos;
+  * Detalhes do Projeto;
+  * Minhas Gravacoes;
+  * Detalhes da Gravacao;
+  * Historico;
+  * Dashboard;
+  * Configuracoes.
+* Quando nao ha lista rolavel, o app responde com mensagem amigavel.
+* "voltar" continua sendo navegacao comum e "tela inicial" continua indo para Home autenticada, sem virar topo da lista.
+* O Editor nao recebeu scroll interno nesta etapa; quando recebe comando de scroll, informa que nao ha lista para rolar, preservando o fluxo especial de gravacao/reproducao da F.9.
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/features/voices/services/command_service_test.dart`
+  * reconhece comandos de scroll para baixo, cima, topo e fim;
+  * valida que "voltar" continua sendo voltar;
+  * valida que "tela inicial" continua sendo Home/navegacao, nao topo.
+* `test/features/voices/coordination/voice_scroll_handler_test.dart`
+  * sem `ScrollController` anexado nao quebra;
+  * scroll para baixo aumenta o offset;
+  * scroll para cima reduz o offset;
+  * topo vai para `0`;
+  * fim vai para `maxScrollExtent`;
+  * destinos ficam dentro dos limites.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Fazer login.
+3. Criar varios projetos ou usar lista existente.
+4. Em Meus Projetos, dizer "descer".
+5. Confirmar que a lista rola para baixo.
+6. Dizer "subir".
+7. Confirmar que rola para cima.
+8. Dizer "ir para o fim".
+9. Confirmar que vai ao final.
+10. Dizer "ir para o topo".
+11. Confirmar que volta ao comeco.
+12. Repetir em Minhas Gravacoes.
+13. Repetir em Historico, se houver lista.
+14. Confirmar que "voltar" continua voltando tela, nao rolando.
+15. Confirmar que "tela inicial" continua indo para Home, nao para topo da lista.
+
+### Criterio de aprovacao manual
+
+A etapa so passa se listas principais puderem ser roladas por voz sem quebrar comandos globais de navegacao.

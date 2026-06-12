@@ -757,6 +757,14 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         case VoiceCommandType.buscarGravacoes:
         case VoiceCommandType.buscarProjetos:
         case VoiceCommandType.limparBusca:
+        case VoiceCommandType.scrollBaixo:
+        case VoiceCommandType.scrollCima:
+        case VoiceCommandType.scrollTopo:
+        case VoiceCommandType.scrollFim:
+          setState(() {
+            statusProjeto = 'Nao ha lista para rolar nesta tela.';
+          });
+          return;
         case VoiceCommandType.abrirEditor:
           setState(() {
             statusProjeto = 'Editor ja esta aberto.';

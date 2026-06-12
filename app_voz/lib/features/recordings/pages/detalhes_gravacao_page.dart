@@ -20,6 +20,7 @@ import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
+import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
 import '../services/recording_management_service.dart';
 import '../widgets/recording_status_chip.dart';
@@ -61,6 +62,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   final RecordingManagementService _recordingService =
       RecordingManagementService();
   final AudioPlayerService _playerService = AudioPlayerService();
+  final ScrollController _voiceScrollController = ScrollController();
 
   RecordingDetails? _details;
   List<HistoricoAcao> _historico = [];
@@ -123,6 +125,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     disposeContextualVoiceListening();
     _playerStateSubscription?.cancel();
     _playerService.dispose();
+    _voiceScrollController.dispose();
     super.dispose();
   }
 
@@ -431,6 +434,16 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         );
       case VoiceCommandType.cancelarAcao:
         return VoiceCommandPageResult.handled(message: 'Acao cancelada.');
+      case VoiceCommandType.scrollBaixo:
+      case VoiceCommandType.scrollCima:
+      case VoiceCommandType.scrollTopo:
+      case VoiceCommandType.scrollFim:
+        return await VoiceScrollHandler(
+              controller: _voiceScrollController,
+            ).handle(resultado) ??
+            VoiceCommandPageResult.unavailable(
+              recognized: resultado.recognized,
+            );
       case VoiceCommandType.voltar:
         await suspendContextualVoiceListening();
         if (mounted) {
@@ -677,6 +690,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
 
             if (_erro != null) {
               return ListView(
+                controller: _voiceScrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
@@ -696,6 +710,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
 
             if (details == null) {
               return ListView(
+                controller: _voiceScrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
@@ -711,6 +726,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
             }
 
             return ListView(
+              controller: _voiceScrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [

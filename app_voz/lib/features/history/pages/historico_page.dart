@@ -17,6 +17,7 @@ import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
+import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
 
 class HistoricoPage extends StatefulWidget {
@@ -31,6 +32,7 @@ class HistoricoPage extends StatefulWidget {
 class _HistoricoPageState extends State<HistoricoPage>
     with ContextualVoiceListeningMixin<HistoricoPage> {
   final List<HistoricoAcao> _eventos = [];
+  final ScrollController _voiceScrollController = ScrollController();
 
   bool _carregando = true;
   String? _erro;
@@ -69,6 +71,10 @@ class _HistoricoPageState extends State<HistoricoPage>
         VoiceCommandType.voltar: _handleVoltar,
         VoiceCommandType.abrirDashboard: _handleAbrirDashboard,
         VoiceCommandType.abrirHistorico: _handleJaAberto,
+        VoiceCommandType.scrollBaixo: _handleScrollPorVoz,
+        VoiceCommandType.scrollCima: _handleScrollPorVoz,
+        VoiceCommandType.scrollTopo: _handleScrollPorVoz,
+        VoiceCommandType.scrollFim: _handleScrollPorVoz,
       },
     );
     _carregarHistorico();
@@ -97,6 +103,15 @@ class _HistoricoPageState extends State<HistoricoPage>
 
   Future<VoiceCommandPageResult> _handleJaAberto(CommandResult _) async {
     return VoiceCommandPageResult.handled(message: 'Historico ja esta aberto.');
+  }
+
+  Future<VoiceCommandPageResult> _handleScrollPorVoz(
+    CommandResult resultado,
+  ) async {
+    return await VoiceScrollHandler(
+          controller: _voiceScrollController,
+        ).handle(resultado) ??
+        VoiceCommandPageResult.unavailable(recognized: resultado.recognized);
   }
 
   Future<VoiceCommandPageResult> _handleIrParaHome(CommandResult _) async {
@@ -161,6 +176,7 @@ class _HistoricoPageState extends State<HistoricoPage>
   @override
   void dispose() {
     disposeContextualVoiceListening();
+    _voiceScrollController.dispose();
     super.dispose();
   }
 
@@ -419,6 +435,7 @@ class _HistoricoPageState extends State<HistoricoPage>
 
             if (_erro != null) {
               return ListView(
+                controller: _voiceScrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
@@ -438,6 +455,7 @@ class _HistoricoPageState extends State<HistoricoPage>
 
             if (_eventos.isEmpty) {
               return ListView(
+                controller: _voiceScrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
                   SizedBox(height: 120),
@@ -452,6 +470,7 @@ class _HistoricoPageState extends State<HistoricoPage>
             }
 
             return ListView.separated(
+              controller: _voiceScrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(AppSpacing.lg),
               itemCount: eventosFiltrados.length + 1,

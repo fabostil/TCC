@@ -233,6 +233,30 @@ void main() {
       expect(service.interpret('sair').type, VoiceCommandType.sair);
     });
 
+    test('reconhece comandos de scroll sem conflitar com navegacao', () {
+      expect(
+        service.interpret('rolar para baixo').type,
+        VoiceCommandType.scrollBaixo,
+      );
+      expect(service.interpret('descer').type, VoiceCommandType.scrollBaixo);
+      expect(service.interpret('ver mais').type, VoiceCommandType.scrollBaixo);
+      expect(
+        service.interpret('rolar para cima').type,
+        VoiceCommandType.scrollCima,
+      );
+      expect(service.interpret('subir').type, VoiceCommandType.scrollCima);
+      expect(
+        service.interpret('ir para o topo').type,
+        VoiceCommandType.scrollTopo,
+      );
+      expect(
+        service.interpret('fim da lista').type,
+        VoiceCommandType.scrollFim,
+      );
+      expect(service.interpret('voltar').type, VoiceCommandType.voltar);
+      expect(service.interpret('tela inicial').type, VoiceCommandType.voltar);
+    });
+
     test('reconhece comandos contextuais com parametros', () {
       final nomeProjeto = service.interpret('nome do projeto beat novo');
       expect(nomeProjeto.type, VoiceCommandType.definirNomeProjeto);

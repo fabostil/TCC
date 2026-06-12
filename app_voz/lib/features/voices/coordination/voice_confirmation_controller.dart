@@ -79,6 +79,10 @@ class VoiceConfirmationController {
       case VoiceCommandType.buscarGravacoes:
       case VoiceCommandType.buscarProjetos:
       case VoiceCommandType.limparBusca:
+      case VoiceCommandType.scrollBaixo:
+      case VoiceCommandType.scrollCima:
+      case VoiceCommandType.scrollTopo:
+      case VoiceCommandType.scrollFim:
       case VoiceCommandType.criarMarcador:
       case VoiceCommandType.limparTexto:
       case VoiceCommandType.definirNomeProjeto:

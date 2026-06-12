@@ -17,6 +17,7 @@ import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
+import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
 import '../../editor/pages/editor_page.dart';
 import '../controllers/projects_list_controller.dart';
@@ -60,6 +61,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
   final TextEditingController _descricaoProjetoController =
       TextEditingController();
   final TextEditingController _buscaController = TextEditingController();
+  final ScrollController _voiceScrollController = ScrollController();
   Timer? _buscaDebounce;
   bool _abriuCriacaoInicial = false;
   Projeto? _projetoPendenteExclusao;
@@ -222,6 +224,16 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
         return _confirmarExclusaoProjetoPorVoz();
       case VoiceCommandType.cancelarAcao:
         return _cancelarExclusaoProjetoPorVoz();
+      case VoiceCommandType.scrollBaixo:
+      case VoiceCommandType.scrollCima:
+      case VoiceCommandType.scrollTopo:
+      case VoiceCommandType.scrollFim:
+        return await VoiceScrollHandler(
+              controller: _voiceScrollController,
+            ).handle(resultado) ??
+            VoiceCommandPageResult.unavailable(
+              recognized: resultado.recognized,
+            );
       case VoiceCommandType.voltar:
         await suspendContextualVoiceListening();
         if (mounted) {
@@ -720,6 +732,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     _buscaController.dispose();
     _nomeProjetoController.dispose();
     _descricaoProjetoController.dispose();
+    _voiceScrollController.dispose();
     _projectsController.removeListener(_onProjectsStateChanged);
     _projectsController.dispose();
     super.dispose();
@@ -761,6 +774,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
 
             if (projectsState.error != null) {
               return ListView(
+                controller: _voiceScrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
@@ -780,6 +794,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
 
             if (projetos.isEmpty) {
               return ListView(
+                controller: _voiceScrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
@@ -811,6 +826,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
             }
 
             return ListView.separated(
+              controller: _voiceScrollController,
               padding: const EdgeInsets.all(AppSpacing.lg),
               itemCount: projetos.length + (criacaoProjetoAtiva ? 1 : 0) + 1,
               separatorBuilder: (context, index) =>

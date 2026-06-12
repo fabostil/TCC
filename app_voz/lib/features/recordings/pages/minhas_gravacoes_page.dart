@@ -18,6 +18,7 @@ import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
+import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
 import '../controllers/recordings_list_controller.dart';
 import '../widgets/recording_status_chip.dart';
@@ -54,6 +55,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   final RecordingsListController _recordingsController =
       RecordingsListController();
   final TextEditingController _buscaController = TextEditingController();
+  final ScrollController _voiceScrollController = ScrollController();
 
   StreamSubscription? _playerStateSubscription;
   Timer? _buscaDebounce;
@@ -352,6 +354,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     disposeContextualVoiceListening();
     _buscaDebounce?.cancel();
     _buscaController.dispose();
+    _voiceScrollController.dispose();
     _playerStateSubscription?.cancel();
     _recordingsController.removeListener(_onRecordingsStateChanged);
     _recordingsController.dispose();
@@ -389,6 +392,16 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
           voiceStatusMessage = 'Exclusao cancelada.';
         });
         return VoiceCommandPageResult.handled(message: 'Exclusao cancelada.');
+      case VoiceCommandType.scrollBaixo:
+      case VoiceCommandType.scrollCima:
+      case VoiceCommandType.scrollTopo:
+      case VoiceCommandType.scrollFim:
+        return await VoiceScrollHandler(
+              controller: _voiceScrollController,
+            ).handle(resultado) ??
+            VoiceCommandPageResult.unavailable(
+              recognized: resultado.recognized,
+            );
       case VoiceCommandType.voltar:
         await suspendContextualVoiceListening();
         if (mounted) {
@@ -708,6 +721,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
             if (recordingsState.error != null) {
               return ListView(
+                controller: _voiceScrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
@@ -727,6 +741,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
             if (gravacoes.isEmpty) {
               return ListView(
+                controller: _voiceScrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
@@ -760,6 +775,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
             }
 
             return ListView.separated(
+              controller: _voiceScrollController,
               padding: const EdgeInsets.all(AppSpacing.lg),
               itemCount:
                   gravacoes.length +

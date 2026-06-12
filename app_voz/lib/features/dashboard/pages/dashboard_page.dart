@@ -18,6 +18,7 @@ import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
+import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
 import '../controllers/dashboard_controller.dart';
 import '../services/dashboard_service.dart';
@@ -34,6 +35,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage>
     with ContextualVoiceListeningMixin<DashboardPage> {
   final DashboardController _dashboardController = DashboardController();
+  final ScrollController _voiceScrollController = ScrollController();
 
   DashboardState get _dashboardState => _dashboardController.state;
 
@@ -70,6 +72,10 @@ class _DashboardPageState extends State<DashboardPage>
       handlers: {
         VoiceCommandType.voltar: _handleVoltar,
         VoiceCommandType.abrirDashboard: _handleJaAberto,
+        VoiceCommandType.scrollBaixo: _handleScrollPorVoz,
+        VoiceCommandType.scrollCima: _handleScrollPorVoz,
+        VoiceCommandType.scrollTopo: _handleScrollPorVoz,
+        VoiceCommandType.scrollFim: _handleScrollPorVoz,
       },
     );
     _carregarDashboard();
@@ -86,6 +92,15 @@ class _DashboardPageState extends State<DashboardPage>
 
   Future<VoiceCommandPageResult> _handleJaAberto(CommandResult _) async {
     return VoiceCommandPageResult.handled(message: 'Dashboard ja esta aberto.');
+  }
+
+  Future<VoiceCommandPageResult> _handleScrollPorVoz(
+    CommandResult resultado,
+  ) async {
+    return await VoiceScrollHandler(
+          controller: _voiceScrollController,
+        ).handle(resultado) ??
+        VoiceCommandPageResult.unavailable(recognized: resultado.recognized);
   }
 
   Future<VoiceCommandPageResult> _handleIrParaHome(CommandResult _) async {
@@ -158,6 +173,7 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void dispose() {
     disposeContextualVoiceListening();
+    _voiceScrollController.dispose();
     _dashboardController.removeListener(_onDashboardStateChanged);
     _dashboardController.dispose();
     super.dispose();
@@ -279,6 +295,7 @@ class _DashboardPageState extends State<DashboardPage>
 
             if (dashboardState.error != null) {
               return ListView(
+                controller: _voiceScrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
@@ -300,6 +317,7 @@ class _DashboardPageState extends State<DashboardPage>
 
             if (dashboard == null || dashboard.estaVazio) {
               return ListView(
+                controller: _voiceScrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
                   SizedBox(height: 120),
@@ -314,6 +332,7 @@ class _DashboardPageState extends State<DashboardPage>
             }
 
             return ListView(
+              controller: _voiceScrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(AppSpacing.xl),
               children: [
