@@ -201,6 +201,87 @@ void main() {
       },
     );
 
+    test('playback concluido reseta estado de reproducao', () async {
+      final recordingService = _FakeAudioRecordingCapture(
+        startPath: '/tmp/take.m4a',
+        stopPath: '/tmp/take.m4a',
+      );
+      final playerService = _FakeAudioPlayerService();
+      final coordinator = RecordingRealtimeCoordinator(
+        recordingService: recordingService,
+        playerService: playerService,
+        automaticSilenceStop: false,
+      );
+
+      await coordinator.play(
+        path: '/tmp/take.m4a',
+        name: 'Take',
+        emptyPathMessage: 'vazio',
+        recordingActiveMessage: 'gravando',
+        onHistory: () {},
+      );
+
+      expect(coordinator.state.playing, isTrue);
+
+      playerService.emitCompleted();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(coordinator.state.playing, isFalse);
+      expect(coordinator.state.timelineProgress, 0.0);
+      expect(coordinator.state.statusMessage, 'Reproducao finalizada.');
+
+      coordinator.dispose();
+      await playerService.dispose();
+    });
+
+    test('nao reproduz audio durante gravacao ativa', () async {
+      final recordingService = _FakeAudioRecordingCapture(
+        startPath: '/tmp/take.m4a',
+        stopPath: '/tmp/take.m4a',
+      );
+      final playerService = _FakeAudioPlayerService();
+      final coordinator = RecordingRealtimeCoordinator(
+        recordingService: recordingService,
+        playerService: playerService,
+        automaticSilenceStop: false,
+      );
+      var historyCalls = 0;
+
+      await coordinator.startRecording(
+        finalizeRecording:
+            ({required path, required startedAt, required automatic}) async {
+              return Gravacao(
+                id: 1,
+                usuarioId: 1,
+                nome: 'Take',
+                caminhoArquivo: path,
+                dataCriacao: startedAt.toIso8601String(),
+              );
+            },
+        onHistory: (_, _, {recordingId, projectId}) {},
+      );
+
+      await coordinator.play(
+        path: '/tmp/take.m4a',
+        name: 'Take',
+        emptyPathMessage: 'vazio',
+        recordingActiveMessage: 'Pare a gravacao antes de reproduzir audio.',
+        onHistory: () => historyCalls += 1,
+      );
+
+      expect(coordinator.state.recording, isTrue);
+      expect(coordinator.state.playing, isFalse);
+      expect(playerService.playing, isFalse);
+      expect(historyCalls, 0);
+      expect(
+        coordinator.state.statusMessage,
+        'Pare a gravacao antes de reproduzir audio.',
+      );
+
+      coordinator.dispose();
+      await playerService.dispose();
+    });
+
     test(
       'nao inicia captura quando permissao foi revogada antes de gravar',
       () async {
@@ -512,6 +593,11 @@ class _FakeAudioPlayerService extends AudioPlayerService {
 
   void emitDuration(Duration? duration) {
     _durations.add(duration);
+  }
+
+  void emitCompleted() {
+    playing = false;
+    _playerStates.add(PlayerState(false, ProcessingState.completed));
   }
 
   @override

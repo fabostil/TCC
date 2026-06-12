@@ -790,3 +790,73 @@ Testes criados/alterados:
 ### Criterio de aprovacao manual
 
 A etapa so passa se modais principais aceitarem confirmacao/cancelamento por voz com seguranca e a escuta continuar funcionando apos o modal fechar.
+
+## F.9 - Editor Musical: voz, gravacao, reproducao e saida segura
+
+### Problema observado
+
+No QA fisico, o Editor Musical apresentou inconsistencias entre comandos de voz, gravacao, reproducao e retorno. O risco principal era sair ou navegar durante uma gravacao ativa sem uma regra clara de preservacao do audio, alem de deixar a escuta de voz incoerente apos gravar ou reproduzir.
+
+### Diagnostico
+
+O `EditorPage` nao usa `ContextualVoiceListeningMixin`; ele possui fluxo proprio porque coordena `speech_to_text`, `record` e player no mesmo ponto. O codigo ja pausava a escuta antes de iniciar a gravacao para evitar disputa real de microfone no Android, e o `RecordingRealtimeCoordinator` mantinha a gravacao como dono do audio ate o stop.
+
+Tambem foi confirmado que a navegacao global do Editor passava por `VoiceNavigationCommandHandler`, mas durante gravacao ativa apenas bloqueava navegacao com mensagem generica. O AppBar/back ja usava `PopScope`, mas o modal tinha texto antigo e nao deixava tao explicito que a acao segura era encerrar/salvar antes de sair. Na reproducao, o player ja preservava a correcao da F.2, mas o Editor nao marcava uma retomada explicita da escuta ao final do playback.
+
+### Correcao realizada
+
+* Criada `EditorVoiceFlowPolicy` para centralizar a regra testavel do Editor:
+  * comandos globais sao permitidos sem gravacao ativa;
+  * navegacao global e bloqueada durante gravacao ativa;
+  * `voltar` e `sair` durante gravacao exigem confirmacao de encerramento.
+* O comando `voltar` durante gravacao agora abre a confirmacao segura em vez de apenas devolver uma mensagem.
+* O comando `sair` durante gravacao usa a mesma regra de confirmacao.
+* O modal do Editor foi ajustado para:
+  * titulo `Gravacao em andamento`;
+  * mensagem explicita sobre encerrar a gravacao e sair;
+  * botoes `Continuar gravando` e `Encerrar e sair`.
+* A acao confirmada encerra/salva a gravacao antes de sair do Editor.
+* Cancelar a confirmacao mantem o usuario no Editor e tenta retomar a escuta continua quando aplicavel.
+* A reproducao dentro do Editor cancela a escuta antes do playback e marca retomada unica ao terminar ou parar.
+* O `RecordingRealtimeCoordinator` continua impedindo reproducao enquanto ha gravacao ativa.
+
+Limitacao mantida: no modo legado Android, `speech_to_text` e `record` disputam o microfone. Por isso, durante gravacao ativa, a escuta por voz fica pausada e o usuario deve usar os controles da tela para pausar/encerrar. O app nao promete comando por voz durante gravacao nesse modo.
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/features/editor/pages/editor_voice_flow_policy_test.dart`
+  * comandos globais sao permitidos quando nao ha gravacao ativa;
+  * navegacao global e bloqueada durante gravacao ativa;
+  * `voltar` e `sair` durante gravacao exigem confirmacao;
+  * mensagem de indisponibilidade de voz durante gravacao fica documentada.
+* `test/features/editor/controllers/recording_realtime_coordinator_test.dart`
+  * playback concluido reseta estado de reproducao;
+  * playback nao inicia durante gravacao ativa.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Fazer login.
+3. Criar ou abrir projeto.
+4. Abrir Editor.
+5. Sem gravar, dizer "Configuracoes" e confirmar que navega.
+6. Voltar ao Editor.
+7. Dizer "gravar" ou "comecar a gravar".
+8. Confirmar que gravacao inicia.
+9. Durante gravacao, tentar "tela inicial" ou "configuracoes".
+10. Confirmar que o app nao sai de forma insegura.
+11. Tentar voltar pela AppBar ou botao Android.
+12. Confirmar que aparece confirmacao segura.
+13. Cancelar e confirmar que continua no Editor.
+14. Encerrar/salvar gravacao.
+15. Confirmar que escuta volta.
+16. Reproduzir gravacao.
+17. Esperar terminar.
+18. Confirmar que pode usar voz novamente.
+19. Reproduzir novamente e confirmar que F.2 continua funcionando.
+
+### Criterio de aprovacao manual
+
+A etapa so passa se o Editor nao perder audio ao sair, nao permitir navegacao insegura durante gravacao e continuar com escuta funcional apos parar gravacao/reproducao.

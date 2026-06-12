@@ -81,8 +81,12 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   bool _executandoComandoVoz = false;
   bool _interpretandoComando = false;
   bool _saidaEditorEmAndamento = false;
+  bool _retomarEscutaAposPlayback = false;
+  bool _recuperacaoPlaybackAgendada = false;
+  bool _playbackAtivoNaUltimaAtualizacao = false;
   EditorInteractionMode _interactionMode = EditorInteractionMode.normal;
   VoiceSessionState _voiceSessionState = const VoiceSessionState.idle();
+  final EditorVoiceFlowPolicy _voiceFlowPolicy = const EditorVoiceFlowPolicy();
 
   String textoReconhecido = 'Pressione o microfone e fale um comando.';
   String statusProjeto = 'Projeto pronto para gravar.';
@@ -225,9 +229,17 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       return;
     }
 
+    final playbackFinalizado =
+        _playbackAtivoNaUltimaAtualizacao && !recordingState.playing;
+    _playbackAtivoNaUltimaAtualizacao = recordingState.playing;
+
     setState(() {
       statusProjeto = recordingState.statusMessage;
     });
+
+    if (playbackFinalizado) {
+      unawaited(_retomarEscutaContinuaAposPlayback());
+    }
   }
 
   Future<void> _carregarConfiguracoes() async {
@@ -565,9 +577,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sair do editor?'),
+        title: const Text('Gravacao em andamento'),
         content: const Text(
-          'Existe uma gravacao em andamento. Para sair com seguranca, o app precisa salvar a gravacao antes.',
+          'Existe uma gravacao em andamento. Deseja encerrar a gravacao e sair do editor?',
         ),
         actions: [
           TextButton(
@@ -577,13 +589,16 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(context, true),
             icon: const Icon(Icons.save_outlined),
-            label: const Text('Salvar e sair'),
+            label: const Text('Encerrar e sair'),
           ),
         ],
       ),
     );
 
     if (confirmar != true || !mounted) {
+      if (mounted) {
+        _reiniciarEscutaContinuaSeNecessario();
+      }
       return false;
     }
 
@@ -697,6 +712,14 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
 
         if (navigationResult.restartListening) {
           _reiniciarEscutaContinuaSeNecessario();
+        }
+        return;
+      }
+
+      if (gravando && resultado.type == VoiceCommandType.sair) {
+        final podeSair = await _confirmarSaidaEditor();
+        if (podeSair && mounted) {
+          Navigator.maybePop(context);
         }
         return;
       }
@@ -838,16 +861,28 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     return gravacaoSalva;
   }
 
-  Future<VoiceCommandPageResult> _handleIrParaHome(CommandResult _) async {
+  Future<VoiceCommandPageResult> _handleIrParaHome(CommandResult result) async {
     return _navegarGlobal(
+      result: result,
       onNavigate: () {
         Navigator.popUntil(context, (route) => route.isFirst);
       },
     );
   }
 
-  Future<VoiceCommandPageResult> _handleVoltarGlobal(CommandResult _) async {
+  Future<VoiceCommandPageResult> _handleVoltarGlobal(
+    CommandResult result,
+  ) async {
+    if (gravando) {
+      final podeSair = await _confirmarSaidaEditor();
+      if (podeSair && mounted) {
+        Navigator.maybePop(context);
+      }
+      return VoiceCommandPageResult.handled(restartListening: false);
+    }
+
     return _navegarGlobal(
+      result: result,
       onNavigate: () {
         Navigator.maybePop(context);
       },
@@ -855,9 +890,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Future<VoiceCommandPageResult> _handleAbrirProjetosGlobal(
-    CommandResult _,
+    CommandResult result,
   ) async {
     return _navegarGlobal(
+      result: result,
       route: MaterialPageRoute(
         builder: (_) => MeusProjetosPage(usuario: widget.usuario),
       ),
@@ -865,9 +901,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Future<VoiceCommandPageResult> _handleAbrirNovoProjetoGlobal(
-    CommandResult _,
+    CommandResult result,
   ) async {
     return _navegarGlobal(
+      result: result,
       route: MaterialPageRoute(
         builder: (_) => MeusProjetosPage(
           usuario: widget.usuario,
@@ -878,9 +915,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Future<VoiceCommandPageResult> _handleAbrirGravacoesGlobal(
-    CommandResult _,
+    CommandResult result,
   ) async {
     return _navegarGlobal(
+      result: result,
       route: MaterialPageRoute(
         builder: (_) => MinhasGravacoesPage(usuario: widget.usuario),
       ),
@@ -888,9 +926,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Future<VoiceCommandPageResult> _handleAbrirDashboardGlobal(
-    CommandResult _,
+    CommandResult result,
   ) async {
     return _navegarGlobal(
+      result: result,
       route: MaterialPageRoute(
         builder: (_) => DashboardPage(usuario: widget.usuario),
       ),
@@ -898,9 +937,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Future<VoiceCommandPageResult> _handleAbrirHistoricoGlobal(
-    CommandResult _,
+    CommandResult result,
   ) async {
     return _navegarGlobal(
+      result: result,
       route: MaterialPageRoute(
         builder: (_) => HistoricoPage(usuario: widget.usuario),
       ),
@@ -908,9 +948,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Future<VoiceCommandPageResult> _handleAbrirConfiguracoesGlobal(
-    CommandResult _,
+    CommandResult result,
   ) async {
     return _navegarGlobal(
+      result: result,
       route: MaterialPageRoute(
         builder: (_) => ConfiguracoesPage(usuario: widget.usuario),
       ),
@@ -918,12 +959,18 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   Future<VoiceCommandPageResult> _navegarGlobal<T>({
+    CommandResult? result,
     Route<T>? route,
     VoidCallback? onNavigate,
   }) async {
-    if (gravando) {
+    final decision = _voiceFlowPolicy.navigationDecision(
+      recording: gravando,
+      commandType: result?.type,
+    );
+
+    if (decision == EditorVoiceNavigationDecision.block) {
       return VoiceCommandPageResult.handled(
-        message: 'Encerre a gravacao antes de navegar.',
+        message: _voiceFlowPolicy.recordingNavigationBlockedMessage,
       );
     }
 
@@ -1132,6 +1179,28 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     required String comandoOriginal,
     required String acaoHistorico,
   }) async {
+    _retomarEscutaAposPlayback =
+        escutaContinuaAtiva && !_paradaManualEscuta && !gravando;
+
+    if (ouvindo || _voiceSessionManager.isSpeechListening) {
+      await _voiceSessionManager.cancelListening(
+        ownerId: _voiceOwnerId,
+        reason: 'editor_playback',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _setVoiceSession(
+          VoiceSessionPhase.idle,
+          message: 'Escuta pausada durante a reproducao.',
+          listening: false,
+        );
+      });
+    }
+
     await _recordingCoordinator.play(
       path: faixa.caminhoArquivo,
       name: faixa.nome,
@@ -1151,6 +1220,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         );
       },
     );
+
+    if (!recordingState.playing) {
+      unawaited(_retomarEscutaContinuaAposPlayback());
+    }
   }
 
   Future<void> pararReproducao(String comando) async {
@@ -1165,6 +1238,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         acao: 'Parou reproducao',
         tipo: 'reproducao_parada',
       );
+      unawaited(_retomarEscutaContinuaAposPlayback());
     } catch (e) {
       if (!mounted) {
         return;
@@ -1173,6 +1247,24 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       setState(() {
         statusProjeto = 'Erro ao parar reproducao: $e';
       });
+    }
+  }
+
+  Future<void> _retomarEscutaContinuaAposPlayback() async {
+    if (!_retomarEscutaAposPlayback || _recuperacaoPlaybackAgendada) {
+      return;
+    }
+
+    _recuperacaoPlaybackAgendada = true;
+    try {
+      if (!mounted || gravando || carregandoAudio || reproduzindo) {
+        return;
+      }
+
+      _retomarEscutaAposPlayback = false;
+      _reiniciarEscutaContinuaSeNecessario();
+    } finally {
+      _recuperacaoPlaybackAgendada = false;
     }
   }
 
@@ -2312,6 +2404,34 @@ class _VoiceFsmHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+enum EditorVoiceNavigationDecision { allow, block, confirmExit }
+
+@visibleForTesting
+class EditorVoiceFlowPolicy {
+  const EditorVoiceFlowPolicy();
+
+  String get recordingVoiceUnavailableMessage =>
+      'Gravacao em andamento. Use os controles da tela para pausar ou encerrar.';
+
+  String get recordingNavigationBlockedMessage =>
+      'Ha uma gravacao em andamento. Encerre ou cancele antes de sair.';
+
+  EditorVoiceNavigationDecision navigationDecision({
+    required bool recording,
+    VoiceCommandType? commandType,
+  }) {
+    if (!recording) {
+      return EditorVoiceNavigationDecision.allow;
+    }
+
+    return switch (commandType) {
+      VoiceCommandType.voltar ||
+      VoiceCommandType.sair => EditorVoiceNavigationDecision.confirmExit,
+      _ => EditorVoiceNavigationDecision.block,
+    };
   }
 }
 
