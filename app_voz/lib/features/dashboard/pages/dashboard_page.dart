@@ -8,10 +8,6 @@ import '../../../core/ui/app_spacing.dart';
 import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/dashboard_action_metric.dart';
 import '../../../models/gravacao.dart';
-<<<<<<< HEAD
-import '../../../models/usuario.dart';
-import '../../../repositories/gravacao_repository.dart';
-=======
 import '../../../models/historico_acao.dart';
 import '../../../models/usuario.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
@@ -20,7 +16,6 @@ import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
 import '../controllers/dashboard_controller.dart';
 import '../services/dashboard_service.dart';
->>>>>>> feature/true-voice-first
 
 class DashboardPage extends StatefulWidget {
   final Usuario usuario;
@@ -35,9 +30,6 @@ class _DashboardPageState extends State<DashboardPage>
     with ContextualVoiceListeningMixin<DashboardPage> {
   final DashboardController _dashboardController = DashboardController();
 
-<<<<<<< HEAD
-  List<Gravacao> _gravacoes = [];
-=======
   DashboardState get _dashboardState => _dashboardController.state;
 
   @override
@@ -51,7 +43,6 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   late final VoiceCommandDispatcher voiceCommandDispatcher;
->>>>>>> feature/true-voice-first
 
   @override
   void initState() {
@@ -79,50 +70,6 @@ class _DashboardPageState extends State<DashboardPage>
     return VoiceCommandPageResult.handled(message: 'Dashboard ja esta aberto.');
   }
 
-<<<<<<< HEAD
-    try {
-      final gravacoes = await GravacaoRepository.instance
-          .listarGravacoesPorUsuario(usuarioId);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _gravacoes = gravacoes;
-        _carregando = false;
-      });
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _carregando = false;
-        _erro = 'Não foi possível carregar o dashboard: $e';
-      });
-    }
-  }
-
-  int get _duracaoTotalSegundos =>
-      _gravacoes.fold(0, (total, item) => total + item.duracaoSegundos);
-
-  int get _paradasPorSilencio => _gravacoes
-      .where((item) => item.motivoParada == 'silêncio prolongado')
-      .length;
-
-  double get _maiorPicoGeral {
-    if (_gravacoes.isEmpty) {
-      return -160.0;
-    }
-
-    return _gravacoes
-        .map((item) => item.maiorPico)
-        .reduce((a, b) => a > b ? a : b);
-  }
-
-  Gravacao? get _ultimaGravacao => _gravacoes.isEmpty ? null : _gravacoes.first;
-=======
   @override
   void dispose() {
     disposeContextualVoiceListening();
@@ -140,7 +87,6 @@ class _DashboardPageState extends State<DashboardPage>
   Future<void> _carregarDashboard() {
     return _dashboardController.load(widget.usuario.id);
   }
->>>>>>> feature/true-voice-first
 
   String _formatarDuracao(int segundos) {
     final horas = segundos ~/ 3600;
@@ -224,9 +170,6 @@ class _DashboardPageState extends State<DashboardPage>
     final theme = Theme.of(context);
 
     return Scaffold(
-<<<<<<< HEAD
-      appBar: AppBar(title: const Text('Dashboard')),
-=======
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
@@ -237,7 +180,6 @@ class _DashboardPageState extends State<DashboardPage>
           ),
         ],
       ),
->>>>>>> feature/true-voice-first
       body: RefreshIndicator(
         onRefresh: _carregarDashboard,
         child: Builder(
@@ -269,13 +211,9 @@ class _DashboardPageState extends State<DashboardPage>
               );
             }
 
-<<<<<<< HEAD
-            if (_gravacoes.isEmpty) {
-=======
             final dashboard = dashboardState.data;
 
             if (dashboard == null || dashboard.estaVazio) {
->>>>>>> feature/true-voice-first
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
@@ -284,11 +222,7 @@ class _DashboardPageState extends State<DashboardPage>
                     icon: Icons.insights_outlined,
                     title: 'Sem dados suficientes ainda',
                     subtitle:
-<<<<<<< HEAD
-                        'Grave alguns áudios para começar a visualizar indicadores aqui.',
-=======
                         'Crie projetos, grave audios ou use comandos de voz para visualizar indicadores aqui.',
->>>>>>> feature/true-voice-first
                   ),
                 ],
               );
@@ -302,22 +236,6 @@ class _DashboardPageState extends State<DashboardPage>
                 const SizedBox(height: AppSpacing.md),
                 _MetricGrid(
                   children: [
-<<<<<<< HEAD
-                    Expanded(
-                      child: _MetricCard(
-                        icon: Icons.library_music_outlined,
-                        title: 'Gravações',
-                        value: _gravacoes.length.toString(),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: _MetricCard(
-                        icon: Icons.volume_up_outlined,
-                        title: 'Maior pico',
-                        value: '${_maiorPicoGeral.toStringAsFixed(1)} dB',
-                      ),
-=======
                     _MetricCard(
                       icon: Icons.folder_outlined,
                       title: 'Projetos',
@@ -337,7 +255,6 @@ class _DashboardPageState extends State<DashboardPage>
                       icon: Icons.record_voice_over_outlined,
                       title: 'Comandos',
                       value: dashboard.totalComandos.toString(),
->>>>>>> feature/true-voice-first
                     ),
                   ],
                 ),
@@ -360,59 +277,6 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                   ],
                 ),
-<<<<<<< HEAD
-                const SizedBox(height: AppSpacing.sm),
-                _MetricCard(
-                  icon: Icons.hearing_disabled_outlined,
-                  title: 'Paradas por silêncio',
-                  value: _paradasPorSilencio.toString(),
-                  wide: true,
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                Text('Última gravação', style: theme.textTheme.titleLarge),
-                const SizedBox(height: AppSpacing.md),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor:
-                                  theme.colorScheme.primary.withOpacity(0.12),
-                              child: Icon(
-                                Icons.mic_rounded,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: Text(
-                                _ultimaGravacao!.nome,
-                                style: theme.textTheme.titleMedium,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        Text(
-                          'Gravada em: ${_formatarData(_ultimaGravacao!.dataCriacao)}',
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Duração: ${_formatarDuracao(_ultimaGravacao!.duracaoSegundos)}',
-                        ),
-                        if (_ultimaGravacao!.motivoParada != null) ...[
-                          const SizedBox(height: 4),
-                          Text('Parada: ${_ultimaGravacao!.motivoParada}'),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-=======
                 const SizedBox(height: AppSpacing.xl),
                 _UltimaGravacaoCard(
                   gravacao: dashboard.ultimaGravacao,
@@ -436,7 +300,6 @@ class _DashboardPageState extends State<DashboardPage>
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 _InsightsCard(insights: dashboard.insights),
->>>>>>> feature/true-voice-first
               ],
             );
           },
@@ -606,29 +469,6 @@ class _AcoesPorTipoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-<<<<<<< HEAD
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
-              child: Icon(icon, color: theme.colorScheme.primary),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 4),
-                  Text(value, style: theme.textTheme.titleLarge),
-                ],
-              ),
-            ),
-          ],
-=======
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -652,7 +492,6 @@ class _AcoesPorTipoCard extends StatelessWidget {
                         .toList(),
                   ),
           ),
->>>>>>> feature/true-voice-first
         ),
       ],
     );

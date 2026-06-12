@@ -51,39 +51,6 @@ class GravacaoRepository {
     return resultado.map(Gravacao.fromMap).toList();
   }
 
-<<<<<<< HEAD
-=======
-  Future<List<Gravacao>> listarGravacoesPorProjeto(
-    int projetoId, {
-    String? termoBusca,
-    String? status,
-  }) async {
-    final db = await _database;
-    final where = <String>['projeto_id = ?', 'status != ?'];
-    final whereArgs = <Object?>[projetoId, GravacaoStatus.excluida];
-
-    if (SqlSearch.hasTerm(termoBusca)) {
-      where.add('(nome LIKE ? ESCAPE ? OR formato_audio LIKE ? ESCAPE ?)');
-      final pattern = SqlSearch.containsPattern(termoBusca!);
-      whereArgs.addAll([pattern, r'\', pattern, r'\']);
-    }
-
-    if (status != null) {
-      where.add('status = ?');
-      whereArgs.add(status);
-    }
-
-    final resultado = await db.query(
-      GravacaoTable.tableName,
-      where: where.join(' AND '),
-      whereArgs: whereArgs,
-      orderBy: 'data_criacao DESC',
-    );
-
-    return resultado.map(Gravacao.fromMap).toList();
-  }
-
->>>>>>> feature/true-voice-first
   Future<Gravacao?> buscarGravacaoPorId(int id) async {
     final db = await _database;
 

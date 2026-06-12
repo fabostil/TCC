@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 import 'dart:io';
-=======
-import 'dart:async';
->>>>>>> feature/true-voice-first
 
 import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
@@ -15,34 +11,7 @@ import '../../../core/ui/app_spacing.dart';
 import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/usuario.dart';
-<<<<<<< HEAD
 import '../../../repositories/gravacao_repository.dart';
-=======
-import '../../voices/coordination/contextual_voice_listening_mixin.dart';
-import '../../voices/coordination/voice_command_dispatcher.dart';
-import '../../voices/coordination/voice_page_owners.dart';
-import '../../voices/services/command_service.dart';
-import '../controllers/recordings_list_controller.dart';
-import '../widgets/recording_status_chip.dart';
-import 'detalhes_gravacao_page.dart';
-
-const int _minRecordingNameLength = 2;
-const int _maxRecordingNameLength = 80;
-
-String? _validateRecordingName(String? value) {
-  final trimmed = value?.trim() ?? '';
-  if (trimmed.isEmpty) {
-    return 'Informe o nome da gravação.';
-  }
-  if (trimmed.length < _minRecordingNameLength) {
-    return 'O nome deve ter pelo menos 2 caracteres.';
-  }
-  if (trimmed.length > _maxRecordingNameLength) {
-    return 'O nome deve ter no máximo 80 caracteres.';
-  }
-  return null;
-}
->>>>>>> feature/true-voice-first
 
 class MinhasGravacoesPage extends StatefulWidget {
   final Usuario usuario;
@@ -53,7 +22,6 @@ class MinhasGravacoesPage extends StatefulWidget {
   State<MinhasGravacoesPage> createState() => _MinhasGravacoesPageState();
 }
 
-<<<<<<< HEAD
 class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
   final List<Gravacao> _gravacoes = [];
   final FlutterSoundPlayer _player = FlutterSoundPlayer();
@@ -62,38 +30,10 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage> {
   bool _playerAberto = false;
   String? _erro;
   int? _gravacaoReproduzindoId;
-=======
-class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
-    with ContextualVoiceListeningMixin<MinhasGravacoesPage> {
-  final RecordingsListController _recordingsController =
-      RecordingsListController();
-  final TextEditingController _buscaController = TextEditingController();
-
-  StreamSubscription? _playerStateSubscription;
-  Timer? _buscaDebounce;
-  int? _renomeandoGravacaoId;
-  int? _excluindoGravacaoId;
-  bool _confirmandoExclusaoPendente = false;
-
-  RecordingsListState get _recordingsState => _recordingsController.state;
-
-  @override
-  String get voiceOwnerId => VoicePageOwners.minhasGravacoes;
-
-  @override
-  int? get voiceUsuarioId => widget.usuario.id;
-
-  @override
-  String get voiceListeningPrompt => 'Ouvindo comando de gravacao...';
-
-  @override
-  late final VoiceCommandDispatcher voiceCommandDispatcher;
->>>>>>> feature/true-voice-first
 
   @override
   void initState() {
     super.initState();
-<<<<<<< HEAD
     _inicializar();
   }
 
@@ -106,25 +46,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     }
 
     await _carregarGravacoes();
-=======
-    voiceCommandDispatcher = VoiceCommandDispatcher(
-      onFallback: _dispatchContextualVoice,
-    );
-    _recordingsController.addListener(_onRecordingsStateChanged);
-    _playerStateSubscription = _recordingsController.playerStateStream.listen((
-      state,
-    ) {
-      if (!mounted) {
-        return;
-      }
-
-      if (!state.playing) {
-        _recordingsController.markPlaybackStopped();
-      }
-    });
-    _carregarGravacoes();
-    scheduleVoiceListeningOnFirstFrame();
->>>>>>> feature/true-voice-first
   }
 
   void _onRecordingsStateChanged() {
@@ -134,26 +55,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   }
 
   Future<void> _carregarGravacoes() {
-    return _recordingsController.load(
-      usuarioId: widget.usuario.id,
-      searchTerm: _buscaController.text,
-    );
-  }
-
-  void _onBuscaAlterada(String termo) {
-    _buscaDebounce?.cancel();
-    _buscaDebounce = Timer(const Duration(milliseconds: 350), () {
-      if (mounted) {
-        _carregarGravacoes();
-      }
-    });
-  }
-
-  void _limparBusca() {
-    if (_buscaController.text.isEmpty) {
-      return;
-    }
-
     _buscaDebounce?.cancel();
     _buscaController.clear();
     _carregarGravacoes();
@@ -201,7 +102,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     }
 
     try {
-<<<<<<< HEAD
       if (!_playerAberto) {
         throw Exception('Player ainda não está pronto.');
       }
@@ -246,12 +146,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       setState(() {
         _gravacaoReproduzindoId = gravacao.id;
       });
-=======
-      await _recordingsController.togglePlayback(
-        gravacao,
-        usuarioId: widget.usuario.id,
-      );
->>>>>>> feature/true-voice-first
     } catch (e) {
       if (!mounted) {
         return;
@@ -274,7 +168,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       return;
     }
 
-<<<<<<< HEAD
     final gravacaoAtualizada = Gravacao(
       id: gravacao.id,
       usuarioId: gravacao.usuarioId,
@@ -285,11 +178,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       motivoParada: gravacao.motivoParada,
       maiorPico: gravacao.maiorPico,
     );
-=======
-    setState(() {
-      _renomeandoGravacaoId = gravacaoId;
-    });
->>>>>>> feature/true-voice-first
 
     try {
       await _recordingsController.renameRecording(
@@ -364,7 +252,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     });
 
     try {
-<<<<<<< HEAD
       if (_gravacaoReproduzindoId == gravacao.id) {
         await _player.stopPlayer();
       }
@@ -375,18 +262,11 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       if (await arquivo.exists()) {
         await arquivo.delete();
       }
-=======
-      await _recordingsController.deleteRecording(
-        gravacao: gravacao,
-        usuarioId: widget.usuario.id,
-      );
->>>>>>> feature/true-voice-first
 
       if (!mounted) {
         return;
       }
 
-<<<<<<< HEAD
       setState(() {
         _gravacoes.removeWhere((item) => item.id == gravacao.id);
         if (_gravacaoReproduzindoId == gravacao.id) {
@@ -394,8 +274,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         }
       });
 
-=======
->>>>>>> feature/true-voice-first
       AppFeedback.showMessage(context, 'Gravação excluída com sucesso.');
     } catch (e) {
       if (!mounted) {
@@ -449,16 +327,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
   @override
   void dispose() {
-<<<<<<< HEAD
     _player.closePlayer();
-=======
-    disposeContextualVoiceListening();
-    _buscaDebounce?.cancel();
-    _buscaController.dispose();
-    _playerStateSubscription?.cancel();
-    _recordingsController.removeListener(_onRecordingsStateChanged);
-    _recordingsController.dispose();
->>>>>>> feature/true-voice-first
     super.dispose();
   }
 
@@ -727,19 +596,10 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         onRefresh: _carregarGravacoes,
         child: Builder(
           builder: (context) {
-<<<<<<< HEAD
             if (_carregando) {
-              return const AppLoadingView(message: 'Carregando suas gravações...');
-=======
-            final recordingsState = _recordingsState;
-            final gravacoes = recordingsState.recordings;
-            final gravacaoPendenteExclusao = recordingsState.pendingDeletion;
-
-            if (recordingsState.loading) {
               return const AppLoadingView(
                 message: 'Carregando suas gravações...',
               );
->>>>>>> feature/true-voice-first
             }
 
             if (recordingsState.error != null) {
@@ -867,14 +727,17 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                         children: [
                           Text('Data: ${_formatarData(gravacao.dataCriacao)}'),
                           const SizedBox(height: 4),
-<<<<<<< HEAD
-                          Text('Duração: ${_formatarDuracao(gravacao.duracaoSegundos)}'),
+                          Text(
+                            'Duração: ${_formatarDuracao(gravacao.duracaoSegundos)}',
+                          ),
                           if (gravacao.motivoParada != null) ...[
                             const SizedBox(height: 4),
                             Text('Parada: ${gravacao.motivoParada}'),
                           ],
                           const SizedBox(height: 4),
-                          Text('Maior pico: ${gravacao.maiorPico.toStringAsFixed(1)} dB'),
+                          Text(
+                            'Maior pico: ${gravacao.maiorPico.toStringAsFixed(1)} dB',
+                          ),
                         ],
                       ),
                     ),
@@ -892,52 +755,6 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                         PopupMenuItem(value: 'delete', child: Text('Excluir')),
                       ],
                     ),
-=======
-                          Text(
-                            'Duração: ${_formatarDuracao(gravacao.duracaoSegundos)}',
-                          ),
-                          const SizedBox(height: 8),
-                          RecordingStatusChip(
-                            status: gravacao.status,
-                            compact: true,
-                          ),
-                        ],
-                      ),
-                    ),
-                    trailing: processandoItem
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'rename') {
-                                _renomearGravacao(gravacao);
-                              }
-                              if (value == 'delete') {
-                                _excluirGravacao(gravacao);
-                              }
-                              if (value == 'details') {
-                                _abrirDetalhesGravacao(gravacao);
-                              }
-                            },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(
-                                value: 'details',
-                                child: Text('Detalhes'),
-                              ),
-                              PopupMenuItem(
-                                value: 'rename',
-                                child: Text('Renomear'),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Excluir'),
-                              ),
-                            ],
-                          ),
->>>>>>> feature/true-voice-first
                   ),
                 );
               },

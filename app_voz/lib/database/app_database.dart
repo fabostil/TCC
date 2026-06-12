@@ -6,11 +6,6 @@ import 'tables/comando_voz_table.dart';
 import 'tables/comando_personalizado_table.dart';
 import 'tables/configuracao_app_table.dart';
 import 'tables/gravacao_table.dart';
-<<<<<<< HEAD
-=======
-import 'tables/historico_acao_table.dart';
-import 'tables/projeto_table.dart';
->>>>>>> feature/true-voice-first
 
 class AppDatabase {
   AppDatabase._internal();
@@ -69,11 +64,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-<<<<<<< HEAD
       version: 3,
-=======
-      version: 9,
->>>>>>> feature/true-voice-first
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -144,7 +135,9 @@ class AppDatabase {
         final nomesColunas = colunas.map((item) => item['name']).toSet();
 
         if (!nomesColunas.contains('motivo_parada')) {
-          await db.execute('ALTER TABLE gravacao ADD COLUMN motivo_parada TEXT');
+          await db.execute(
+            'ALTER TABLE gravacao ADD COLUMN motivo_parada TEXT',
+          );
         }
 
         if (!nomesColunas.contains('maior_pico')) {
@@ -155,7 +148,9 @@ class AppDatabase {
       }
 
       for (final index in GravacaoTable.indexes) {
-        await db.execute(index.replaceFirst('CREATE INDEX', 'CREATE INDEX IF NOT EXISTS'));
+        await db.execute(
+          index.replaceFirst('CREATE INDEX', 'CREATE INDEX IF NOT EXISTS'),
+        );
       }
     }
 
