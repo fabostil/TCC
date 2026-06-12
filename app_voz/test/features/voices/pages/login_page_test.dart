@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_voz/features/voices/pages/login_page.dart';
 import 'package:app_voz/features/voices/services/auth_service.dart';
+import 'package:app_voz/features/voices/services/google_auth_service.dart';
 import 'package:app_voz/models/google_identity.dart';
 import 'package:app_voz/models/usuario.dart';
 import 'package:flutter/material.dart';
@@ -99,6 +100,38 @@ void main() {
       expect(auth.googleCalls, 1);
     });
 
+    testWidgets('exibe mensagem amigavel quando Google falha', (tester) async {
+      final auth = _LoginAuthFake(
+        googleError: const GoogleAuthException(googleLoginConfigurationMessage),
+      );
+
+      await _pumpLogin(tester, auth: auth.service);
+      await tester.tap(find.byKey(const Key('login_google_button')));
+      await tester.pump();
+
+      expect(find.text(googleLoginConfigurationMessage), findsOneWidget);
+      expect(find.text('Home destino'), findsNothing);
+      expect(auth.googleCalls, 1);
+    });
+
+    testWidgets('exibe mensagem amigavel quando conta local falha', (
+      tester,
+    ) async {
+      final auth = _LoginAuthFake(
+        googleError: const AuthGoogleLoginException(
+          authGoogleAccountPreparationMessage,
+        ),
+      );
+
+      await _pumpLogin(tester, auth: auth.service);
+      await tester.tap(find.byKey(const Key('login_google_button')));
+      await tester.pump();
+
+      expect(find.text(authGoogleAccountPreparationMessage), findsOneWidget);
+      expect(find.text('Home destino'), findsNothing);
+      expect(auth.googleCalls, 1);
+    });
+
     testWidgets('desabilita botao local e mostra loading durante login', (
       tester,
     ) async {
@@ -148,6 +181,26 @@ void main() {
 
       expect(find.text('Home destino'), findsOneWidget);
     });
+
+    testWidgets('botao Google ignora toque duplicado durante tentativa', (
+      tester,
+    ) async {
+      final completer = Completer<GoogleIdentity?>();
+      final auth = _LoginAuthFake(googleCompleter: completer);
+
+      await _pumpLogin(tester, auth: auth.service);
+      await tester.tap(find.byKey(const Key('login_google_button')));
+      await tester.tap(find.byKey(const Key('login_google_button')));
+      await tester.pump();
+
+      expect(auth.googleCalls, 1);
+
+      completer.complete(_googleIdentity);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Home destino'), findsOneWidget);
+    });
   });
 }
 
@@ -183,6 +236,7 @@ class _LoginAuthFake {
     this.localResult,
     this.googleResult,
     this.googleCanceled = false,
+    this.googleError,
     Completer<Usuario?>? localCompleter,
     Completer<GoogleIdentity?>? googleCompleter,
   }) : _localCompleter = localCompleter,
@@ -191,6 +245,7 @@ class _LoginAuthFake {
   final Usuario? localResult;
   final Usuario? googleResult;
   final bool googleCanceled;
+  final Object? googleError;
   final Completer<Usuario?>? _localCompleter;
   final Completer<GoogleIdentity?>? _googleCompleter;
 
@@ -208,6 +263,10 @@ class _LoginAuthFake {
     },
     googleIdentityProvider: () {
       googleCalls++;
+      final error = googleError;
+      if (error != null) {
+        return Future.error(error);
+      }
       final completer = _googleCompleter;
       if (completer != null) {
         return completer.future;

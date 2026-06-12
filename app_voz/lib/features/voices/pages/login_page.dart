@@ -95,6 +95,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _entrarComGoogle() async {
+    if (_carregando || _carregandoGoogle) {
+      return;
+    }
+
     setState(() {
       _carregandoGoogle = true;
     });
@@ -133,7 +137,7 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(e.message)));
-    } catch (e) {
+    } on AuthGoogleLoginException catch (e) {
       if (!mounted) {
         return;
       }
@@ -144,7 +148,23 @@ class _LoginPageState extends State<LoginPage> {
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao entrar com Google: $e')));
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível preparar sua conta. Tente novamente.',
+          ),
+        ),
+      );
     }
   }
 
@@ -241,7 +261,9 @@ class _LoginPageState extends State<LoginPage> {
 
                 GoogleSignInButton(
                   key: const Key('login_google_button'),
-                  onPressed: _carregando ? null : _entrarComGoogle,
+                  onPressed: _carregando || _carregandoGoogle
+                      ? null
+                      : _entrarComGoogle,
                   loading: _carregandoGoogle,
                 ),
 

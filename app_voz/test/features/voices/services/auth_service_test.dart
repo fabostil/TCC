@@ -1,4 +1,5 @@
 import 'package:app_voz/features/voices/services/auth_service.dart';
+import 'package:app_voz/features/voices/services/google_auth_service.dart';
 import 'package:app_voz/models/google_identity.dart';
 import 'package:app_voz/models/usuario.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -97,7 +98,7 @@ void main() {
     });
 
     test('erro do googleIdentityProvider e propagado', () async {
-      final erro = StateError('identity failed');
+      const erro = GoogleAuthException(googleLoginConfigurationMessage);
       final service = AuthService(
         googleIdentityProvider: () async => throw erro,
       );
@@ -105,7 +106,7 @@ void main() {
       expect(service.entrarComGoogle(), throwsA(same(erro)));
     });
 
-    test('erro do googleUserResolver e propagado', () async {
+    test('erro do googleUserResolver vira falha controlada de conta', () async {
       final erro = StateError('resolver failed');
       final service = AuthService(
         googleIdentityProvider: () async => const GoogleIdentity(
@@ -125,7 +126,16 @@ void main() {
             },
       );
 
-      expect(service.entrarComGoogle(), throwsA(same(erro)));
+      expect(
+        service.entrarComGoogle(),
+        throwsA(
+          isA<AuthGoogleLoginException>().having(
+            (error) => error.message,
+            'message',
+            authGoogleAccountPreparationMessage,
+          ),
+        ),
+      );
     });
   });
 }

@@ -1,15 +1,24 @@
 import 'package:google_sign_in/google_sign_in.dart' as google_sign_in;
+import 'package:flutter/services.dart';
 
 import '../../../models/google_identity.dart';
 
 class GoogleAuthException implements Exception {
-  const GoogleAuthException(this.message);
+  const GoogleAuthException(this.message, {this.isConfigurationError = false});
 
   final String message;
+  final bool isConfigurationError;
 
   @override
   String toString() => message;
 }
+
+const String googleLoginGenericMessage =
+    'Não foi possível concluir o login com Google neste dispositivo.';
+
+const String googleLoginConfigurationMessage =
+    'Não foi possível concluir o login com Google neste dispositivo. '
+    'Verifique a configuração do app.';
 
 abstract class GoogleSignInClient {
   Future<void> initialize({String? serverClientId});
@@ -134,10 +143,10 @@ class GoogleAuthService {
 
       final idToken = account.authentication.idToken;
 
-      if (idToken == null || idToken.isEmpty) {
-        throw const GoogleAuthException(
-          'A conta Google nao retornou token de verificacao.',
-        );
+      if (_isBlank(idToken) ||
+          _isBlank(account.id) ||
+          _isBlank(account.email)) {
+        throw const GoogleAuthException(googleLoginGenericMessage);
       }
 
       return GoogleIdentity(
@@ -145,8 +154,10 @@ class GoogleAuthService {
         email: account.email,
         googleId: account.id,
         fotoUrl: account.photoUrl,
-        idToken: idToken,
+        idToken: idToken!.trim(),
       );
+    } on GoogleAuthException {
+      rethrow;
     } on google_sign_in.GoogleSignInException catch (e) {
       if (e.code == google_sign_in.GoogleSignInExceptionCode.canceled) {
         return null;
@@ -161,13 +172,23 @@ class GoogleAuthService {
                   .GoogleSignInExceptionCode
                   .providerConfigurationError) {
         throw const GoogleAuthException(
-          'Configure o OAuth Android do Google para este aplicativo.',
+          googleLoginConfigurationMessage,
+          isConfigurationError: true,
         );
       }
 
-      throw GoogleAuthException(
-        e.description ?? 'Nao foi possivel entrar com Google.',
-      );
+      throw const GoogleAuthException(googleLoginGenericMessage);
+    } on PlatformException catch (e) {
+      if (_isConfigurationPlatformError(e)) {
+        throw const GoogleAuthException(
+          googleLoginConfigurationMessage,
+          isConfigurationError: true,
+        );
+      }
+
+      throw const GoogleAuthException(googleLoginGenericMessage);
+    } catch (_) {
+      throw const GoogleAuthException(googleLoginGenericMessage);
     }
   }
 
@@ -175,4 +196,17 @@ class GoogleAuthService {
     await _initialize();
     await _client.signOut();
   }
+}
+
+bool _isBlank(String? value) => value == null || value.trim().isEmpty;
+
+bool _isConfigurationPlatformError(PlatformException error) {
+  final code = error.code.toLowerCase();
+  final message = error.message?.toLowerCase() ?? '';
+  return code.contains('developer_error') ||
+      code.contains('sign_in_failed') ||
+      code.contains('api_exception') ||
+      message.contains('developer_error') ||
+      message.contains('sign_in_failed') ||
+      message.contains('api_exception');
 }

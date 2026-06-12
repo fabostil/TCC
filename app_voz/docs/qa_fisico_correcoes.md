@@ -138,3 +138,89 @@ M  .gitignore
 ?? docs/qa_fisico_correcoes.md
 ?? documentacao/
 ```
+
+## F.1 — Google Login
+
+### Problema observado
+
+No teste físico em Android, o botão "Entrar com Google" nas telas de Login e Cadastro abria a seleção de contas Google, mas o app não concluía o login após a escolha da conta.
+
+### Diagnóstico
+
+O fluxo já separava `GoogleAuthService` para identidade externa e `AuthService` para resolver o usuário local, mas ainda havia pontos frágeis:
+
+* erros técnicos do plugin ou de token podiam chegar à UI de forma pouco amigável;
+* falhas ao preparar o usuário local podiam ser exibidas como exceção genérica;
+* o botão Google era colocado em loading, mas a página ainda passava `onPressed` ativo durante `_carregandoGoogle`, deixando risco de tentativa duplicada;
+* token nulo, token vazio e dados essenciais vazios não eram tratados com a mesma mensagem segura.
+
+Não foi possível provar apenas pelo código que o bug físico era causado por SHA-1 ausente, mas essa continua sendo hipótese técnica relevante quando a seleção de conta abre e a falha ocorre logo após escolher a conta.
+
+### Correção realizada
+
+* `GoogleAuthService` passou a converter token/dados insuficientes em erro controlado com mensagem amigável.
+* `GoogleAuthService` passou a converter `PlatformException` de configuração/sign-in em mensagem segura, sem expor detalhes técnicos ou credenciais.
+* `AuthService` passou a converter erro ao criar/buscar usuário local em `AuthGoogleLoginException`.
+* `LoginPage` e `CadastroPage` passaram a bloquear reentrada no fluxo Google enquanto a tentativa está em andamento.
+* `LoginPage` e `CadastroPage` passaram a exibir mensagens amigáveis para falha Google e falha de preparação de conta.
+* O cancelamento continua retornando ao estado normal, sem navegação e sem mensagem assustadora.
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/features/voices/services/google_auth_service_test.dart`
+  * cancelamento retorna `null`;
+  * identidade válida retorna `GoogleIdentity`;
+  * token nulo, vazio ou em branco gera erro controlado;
+  * e-mail vazio gera erro controlado;
+  * `PlatformException` de configuração gera mensagem amigável;
+  * erro ao obter autenticação/tokens vira erro controlado;
+  * `signOut` continua funcionando.
+* `test/features/voices/services/auth_service_test.dart`
+  * identidade válida resolve usuário local;
+  * cancelamento não cria usuário;
+  * erro do provedor Google é propagado de forma controlada;
+  * erro no resolvedor local vira falha amigável de preparação de conta.
+* `test/features/voices/pages/login_page_test.dart`
+  * sucesso com Google navega para Home;
+  * erro de Google Login mostra mensagem amigável;
+  * cancelamento não navega;
+  * tentativa duplicada no botão Google é ignorada durante loading.
+* `test/features/voices/pages/cadastro_page_test.dart`
+  * sucesso com Google navega para Home;
+  * erro de Google Login mostra mensagem amigável;
+  * cancelamento não navega;
+  * tentativa duplicada no botão Google é ignorada durante loading.
+
+Validações executadas:
+
+```text
+dart analyze
+No issues found!
+
+flutter test --reporter compact
+00:19 +404: All tests passed!
+```
+
+### Teste manual recomendado
+
+1. Instalar/rodar app no Android.
+2. Abrir tela de Login.
+3. Tocar em "Entrar com Google".
+4. Cancelar seleção de conta e verificar se app não trava.
+5. Tocar novamente em "Entrar com Google".
+6. Selecionar conta.
+7. Verificar se entra na Home ou se mostra mensagem amigável.
+8. Repetir na tela de Cadastro.
+
+### Observação sobre SHA-1
+
+Se o login com Google continuar abrindo a seleção de conta, mas falhar após escolher a conta em outro computador/dispositivo, é necessário conferir se o SHA-1 debug do ambiente de build do testador está cadastrado no Firebase/Google Cloud. O testador deve enviar apenas os valores SHA1 e SHA-256 gerados pelo comando signingReport. Nunca enviar keystore, senha, arquivo .jks, API key, google-services.json ou tokens.
+
+Comando para o testador:
+
+```powershell
+cd android
+.\gradlew signingReport
+```

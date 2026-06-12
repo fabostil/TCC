@@ -106,6 +106,10 @@ class _CadastroPageState extends State<CadastroPage> {
   }
 
   Future<void> _cadastrarComGoogle() async {
+    if (_carregando || _carregandoGoogle) {
+      return;
+    }
+
     setState(() {
       _carregandoGoogle = true;
     });
@@ -144,6 +148,18 @@ class _CadastroPageState extends State<CadastroPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(e.message)));
+    } on AuthGoogleLoginException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       if (!mounted) {
         return;
@@ -154,7 +170,11 @@ class _CadastroPageState extends State<CadastroPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao cadastrar com Google: $e')),
+        const SnackBar(
+          content: Text(
+            'Não foi possível preparar sua conta. Tente novamente.',
+          ),
+        ),
       );
     }
   }
@@ -200,7 +220,9 @@ class _CadastroPageState extends State<CadastroPage> {
 
                 GoogleSignInButton(
                   key: const Key('cadastro_google_button'),
-                  onPressed: _carregando ? null : _cadastrarComGoogle,
+                  onPressed: _carregando || _carregandoGoogle
+                      ? null
+                      : _cadastrarComGoogle,
                   loading: _carregandoGoogle,
                 ),
 

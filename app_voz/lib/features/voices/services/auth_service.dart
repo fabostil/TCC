@@ -3,6 +3,18 @@ import '../../../models/usuario.dart';
 import '../../../repositories/usuario_repository.dart';
 import 'google_auth_service.dart';
 
+class AuthGoogleLoginException implements Exception {
+  const AuthGoogleLoginException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+const String authGoogleAccountPreparationMessage =
+    'Não foi possível preparar sua conta. Tente novamente.';
+
 /// Orquestra autenticacao local e conversao de identidade externa em usuario.
 ///
 /// O GoogleAuthService autentica apenas no provedor Google; este servico
@@ -67,12 +79,18 @@ class AuthService {
 
     final resolver =
         _googleUserResolver ?? UsuarioRepository.instance.autenticarComGoogle;
-    return resolver(
-      nome: identity.nome,
-      email: identity.email,
-      googleId: identity.googleId,
-      fotoUrl: identity.fotoUrl,
-    );
+    try {
+      return await resolver(
+        nome: identity.nome,
+        email: identity.email,
+        googleId: identity.googleId,
+        fotoUrl: identity.fotoUrl,
+      );
+    } on GoogleAuthException {
+      rethrow;
+    } catch (_) {
+      throw const AuthGoogleLoginException(authGoogleAccountPreparationMessage);
+    }
   }
 
   Future<Usuario?> autenticarUsuario({

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_voz/features/voices/pages/cadastro_page.dart';
 import 'package:app_voz/features/voices/services/auth_service.dart';
+import 'package:app_voz/features/voices/services/google_auth_service.dart';
 import 'package:app_voz/models/google_identity.dart';
 import 'package:app_voz/models/usuario.dart';
 import 'package:flutter/material.dart';
@@ -145,6 +146,38 @@ void main() {
       expect(auth.googleCalls, 1);
     });
 
+    testWidgets('exibe mensagem amigavel quando Google falha', (tester) async {
+      final auth = _CadastroAuthFake(
+        googleError: const GoogleAuthException(googleLoginConfigurationMessage),
+      );
+
+      await _pumpCadastro(tester, auth: auth.service);
+      await tester.tap(find.byKey(const Key('cadastro_google_button')));
+      await tester.pump();
+
+      expect(find.text(googleLoginConfigurationMessage), findsOneWidget);
+      expect(find.text('Home destino'), findsNothing);
+      expect(auth.googleCalls, 1);
+    });
+
+    testWidgets('exibe mensagem amigavel quando conta local falha', (
+      tester,
+    ) async {
+      final auth = _CadastroAuthFake(
+        googleError: const AuthGoogleLoginException(
+          authGoogleAccountPreparationMessage,
+        ),
+      );
+
+      await _pumpCadastro(tester, auth: auth.service);
+      await tester.tap(find.byKey(const Key('cadastro_google_button')));
+      await tester.pump();
+
+      expect(find.text(authGoogleAccountPreparationMessage), findsOneWidget);
+      expect(find.text('Home destino'), findsNothing);
+      expect(auth.googleCalls, 1);
+    });
+
     testWidgets('desabilita botao local e mostra loading durante cadastro', (
       tester,
     ) async {
@@ -187,6 +220,26 @@ void main() {
       );
       expect(button.onPressed, isNull);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      completer.complete(_googleIdentity);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Home destino'), findsOneWidget);
+    });
+
+    testWidgets('botao Google ignora toque duplicado durante tentativa', (
+      tester,
+    ) async {
+      final completer = Completer<GoogleIdentity?>();
+      final auth = _CadastroAuthFake(googleCompleter: completer);
+
+      await _pumpCadastro(tester, auth: auth.service);
+      await tester.tap(find.byKey(const Key('cadastro_google_button')));
+      await tester.tap(find.byKey(const Key('cadastro_google_button')));
+      await tester.pump();
+
+      expect(auth.googleCalls, 1);
 
       completer.complete(_googleIdentity);
       await tester.pump();
@@ -239,6 +292,7 @@ class _CadastroAuthFake {
     this.registerResult = true,
     this.googleResult,
     this.googleCanceled = false,
+    this.googleError,
     Completer<bool>? registerCompleter,
     Completer<GoogleIdentity?>? googleCompleter,
   }) : _registerCompleter = registerCompleter,
@@ -247,6 +301,7 @@ class _CadastroAuthFake {
   final bool registerResult;
   final Usuario? googleResult;
   final bool googleCanceled;
+  final Object? googleError;
   final Completer<bool>? _registerCompleter;
   final Completer<GoogleIdentity?>? _googleCompleter;
 
@@ -264,6 +319,10 @@ class _CadastroAuthFake {
     },
     googleIdentityProvider: () {
       googleCalls++;
+      final error = googleError;
+      if (error != null) {
+        return Future.error(error);
+      }
       final completer = _googleCompleter;
       if (completer != null) {
         return completer.future;

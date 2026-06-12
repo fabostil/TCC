@@ -1,4 +1,5 @@
 import 'package:app_voz/features/voices/services/google_auth_service.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -76,7 +77,7 @@ void main() {
           isA<GoogleAuthException>().having(
             (error) => error.message,
             'message',
-            'A conta Google nao retornou token de verificacao.',
+            googleLoginGenericMessage,
           ),
         ),
       );
@@ -98,15 +99,69 @@ void main() {
       },
     );
 
-    test('entrarComGoogle propaga erro de autenticacao inicial', () {
-      final error = StateError('authenticate failed');
-      final client = _FakeGoogleSignInClient(authenticateError: error);
+    test('entrarComGoogle lanca erro controlado quando idToken e espaco', () {
+      final client = _FakeGoogleSignInClient(
+        authenticateResult: _FakeGoogleSignInUser(
+          id: 'google-123',
+          email: 'alex@example.com',
+          idToken: '   ',
+        ),
+      );
       final service = GoogleAuthService.test(client: client);
 
-      expect(service.entrarComGoogle(), throwsA(same(error)));
+      expect(
+        service.entrarComGoogle(),
+        throwsA(
+          isA<GoogleAuthException>().having(
+            (error) => error.message,
+            'message',
+            googleLoginGenericMessage,
+          ),
+        ),
+      );
     });
 
-    test('entrarComGoogle propaga erro ao obter tokens', () {
+    test('entrarComGoogle lanca erro controlado quando email esta vazio', () {
+      final client = _FakeGoogleSignInClient(
+        authenticateResult: _FakeGoogleSignInUser(
+          id: 'google-123',
+          email: ' ',
+          idToken: 'fake-id-token',
+        ),
+      );
+      final service = GoogleAuthService.test(client: client);
+
+      expect(service.entrarComGoogle(), throwsA(isA<GoogleAuthException>()));
+    });
+
+    test('entrarComGoogle converte PlatformException de configuracao', () {
+      final client = _FakeGoogleSignInClient(
+        authenticateError: PlatformException(
+          code: 'sign_in_failed',
+          message: 'ApiException: 10',
+        ),
+      );
+      final service = GoogleAuthService.test(client: client);
+
+      expect(
+        service.entrarComGoogle(),
+        throwsA(
+          isA<GoogleAuthException>()
+              .having(
+                (error) => error.message,
+                'message',
+                googleLoginConfigurationMessage,
+              )
+              .having(
+                (error) => error.isConfigurationError,
+                'isConfigurationError',
+                isTrue,
+              ),
+        ),
+      );
+    });
+
+    test('entrarComGoogle converte erro ao obter tokens', () {
       final error = StateError('authentication failed');
       final client = _FakeGoogleSignInClient(
         authenticateResult: _FakeGoogleSignInUser(
@@ -118,7 +173,16 @@ void main() {
       );
       final service = GoogleAuthService.test(client: client);
 
-      expect(service.entrarComGoogle(), throwsA(same(error)));
+      expect(
+        service.entrarComGoogle(),
+        throwsA(
+          isA<GoogleAuthException>().having(
+            (error) => error.message,
+            'message',
+            googleLoginGenericMessage,
+          ),
+        ),
+      );
     });
 
     test(
