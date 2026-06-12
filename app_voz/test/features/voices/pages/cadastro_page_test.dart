@@ -146,6 +146,28 @@ void main() {
       expect(auth.googleCalls, 1);
     });
 
+    testWidgets('Google Login com sucesso remove Cadastro da pilha', (
+      tester,
+    ) async {
+      final auth = _CadastroAuthFake(googleResult: _usuario);
+
+      await _pumpCadastroBehindPreviousRoute(tester, auth: auth.service);
+      await tester.tap(find.byKey(const Key('open_cadastro_button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('cadastro_google_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home destino'), findsOneWidget);
+      expect(find.text('Rota anterior'), findsNothing);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home destino'), findsOneWidget);
+      expect(find.byType(CadastroPage), findsNothing);
+      expect(find.text('Rota anterior'), findsNothing);
+    });
+
     testWidgets('exibe mensagem amigavel quando Google falha', (tester) async {
       final auth = _CadastroAuthFake(
         googleError: const GoogleAuthException(googleLoginConfigurationMessage),
@@ -267,6 +289,33 @@ Future<void> _pumpCadastro(
   );
 }
 
+Future<void> _pumpCadastroBehindPreviousRoute(
+  WidgetTester tester, {
+  required AuthService auth,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: _PreviousRoute(
+        onOpenCadastro: (context) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CadastroPage(
+                authService: auth,
+                homeBuilder: (_) => const _DestinationPage('Home destino'),
+                logoBuilder: (_) => const SizedBox(
+                  key: Key('test_logo'),
+                  width: 96,
+                  height: 96,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}
+
 Future<void> _preencherCadastro(WidgetTester tester) async {
   await tester.enterText(
     find.byKey(const Key('cadastro_nome_field')),
@@ -347,6 +396,31 @@ class _DestinationPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(body: Center(child: Text(label)));
+  }
+}
+
+class _PreviousRoute extends StatelessWidget {
+  const _PreviousRoute({required this.onOpenCadastro});
+
+  final void Function(BuildContext context) onOpenCadastro;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Rota anterior'),
+            ElevatedButton(
+              key: const Key('open_cadastro_button'),
+              onPressed: () => onOpenCadastro(context),
+              child: const Text('Abrir cadastro'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

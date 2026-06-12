@@ -56,6 +56,28 @@ void main() {
       expect(find.byKey(const Key('login_destination')), findsOneWidget);
     });
 
+    testWidgets('logout confirmado remove Home da pilha de navegacao', (
+      tester,
+    ) async {
+      final authSession = _authSessionService();
+
+      await _pumpHome(tester, authSession: authSession);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('home_logout_button')));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Sair'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('login_destination')), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('login_destination')), findsOneWidget);
+      expect(find.byType(HomePage), findsNothing);
+    });
+
     testWidgets('erro no logout mostra mensagem e permanece na home', (
       tester,
     ) async {

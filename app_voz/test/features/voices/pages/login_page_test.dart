@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app_voz/features/voices/pages/cadastro_page.dart';
 import 'package:app_voz/features/voices/pages/login_page.dart';
 import 'package:app_voz/features/voices/services/auth_service.dart';
 import 'package:app_voz/features/voices/services/google_auth_service.dart';
@@ -70,6 +71,29 @@ void main() {
       expect(auth.googleCalls, 0);
     });
 
+    testWidgets('login local com sucesso remove rotas anteriores da pilha', (
+      tester,
+    ) async {
+      final auth = _LoginAuthFake(localResult: _usuario);
+
+      await _pumpLoginBehindPreviousRoute(tester, auth: auth.service);
+      await tester.tap(find.byKey(const Key('open_login_button')));
+      await tester.pumpAndSettle();
+      await _preencherLogin(tester);
+      await tester.tap(find.byKey(const Key('login_submit_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home destino'), findsOneWidget);
+      expect(find.text('Rota anterior'), findsNothing);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home destino'), findsOneWidget);
+      expect(find.byType(LoginPage), findsNothing);
+      expect(find.text('Rota anterior'), findsNothing);
+    });
+
     testWidgets('mantem usuario no login quando Google e cancelado', (
       tester,
     ) async {
@@ -99,6 +123,46 @@ void main() {
       expect(auth.localCalls, 0);
       expect(auth.googleCalls, 1);
     });
+
+    testWidgets('Google Login com sucesso remove Login da pilha', (
+      tester,
+    ) async {
+      final auth = _LoginAuthFake(googleResult: _usuario);
+
+      await _pumpLogin(tester, auth: auth.service);
+      await tester.tap(find.byKey(const Key('login_google_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home destino'), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home destino'), findsOneWidget);
+      expect(find.byType(LoginPage), findsNothing);
+    });
+
+    testWidgets(
+      'Google Login pelo cadastro aberto a partir do login limpa Login e Cadastro',
+      (tester) async {
+        final auth = _LoginAuthFake(googleResult: _usuario);
+
+        await _pumpLoginWithCadastro(tester, auth: auth.service);
+        await tester.tap(find.text('Criar nova conta'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('cadastro_google_button')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Home destino'), findsOneWidget);
+
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Home destino'), findsOneWidget);
+        expect(find.byType(LoginPage), findsNothing);
+        expect(find.text('Criar conta'), findsNothing);
+      },
+    );
 
     testWidgets('exibe mensagem amigavel quando Google falha', (tester) async {
       final auth = _LoginAuthFake(
@@ -220,6 +284,55 @@ Future<void> _pumpLogin(
   );
 }
 
+Future<void> _pumpLoginBehindPreviousRoute(
+  WidgetTester tester, {
+  required AuthService auth,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: _PreviousRoute(
+        onOpenLogin: (context) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => LoginPage(
+                authService: auth,
+                homeBuilder: (_) => const _DestinationPage('Home destino'),
+                logoBuilder: (_) => const SizedBox(
+                  key: Key('test_logo'),
+                  width: 112,
+                  height: 112,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}
+
+Future<void> _pumpLoginWithCadastro(
+  WidgetTester tester, {
+  required AuthService auth,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: LoginPage(
+        authService: auth,
+        homeBuilder: (_) => const _DestinationPage('Home destino'),
+        cadastroBuilder: (_) => CadastroPage(
+          authService: auth,
+          homeBuilder: (_) => const _DestinationPage('Home destino'),
+          logoBuilder: (_) =>
+              const SizedBox(key: Key('test_logo'), width: 96, height: 96),
+        ),
+        logoBuilder: (_) =>
+            const SizedBox(key: Key('test_logo'), width: 112, height: 112),
+      ),
+    ),
+  );
+}
+
 Future<void> _preencherLogin(WidgetTester tester) async {
   await tester.enterText(
     find.byKey(const Key('login_email_field')),
@@ -291,6 +404,31 @@ class _DestinationPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(body: Center(child: Text(label)));
+  }
+}
+
+class _PreviousRoute extends StatelessWidget {
+  const _PreviousRoute({required this.onOpenLogin});
+
+  final void Function(BuildContext context) onOpenLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Rota anterior'),
+            ElevatedButton(
+              key: const Key('open_login_button'),
+              onPressed: () => onOpenLogin(context),
+              child: const Text('Abrir login'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

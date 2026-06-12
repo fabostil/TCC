@@ -296,3 +296,82 @@ Built build\app\outputs\flutter-apk\app-debug.apk
 ### Critério de aprovação manual
 
 A etapa só passa manualmente se a mesma gravação puder ser reproduzida repetidas vezes sem reiniciar o app.
+
+## F.3 — Navegação autenticada
+
+### Problema observado
+
+Durante o teste físico Android, voltar pela seta, pelo botão voltar do Android ou por ações de retorno podia levar o usuário de volta para Login/Cadastro mesmo após autenticação bem-sucedida.
+
+### Diagnóstico
+
+A causa confirmada estava na navegação de sucesso autenticado:
+
+* `LoginPage` usava `Navigator.pushReplacement` após login local e Google Login.
+* `CadastroPage` usava `Navigator.pushReplacement` após Google Login.
+* Quando o Cadastro era aberto a partir do Login com `Navigator.push`, o Google Login do Cadastro substituía apenas a rota de Cadastro por Home, deixando a rota de Login atrás na pilha.
+* O logout da `HomePage` já usava `Navigator.pushAndRemoveUntil` para limpar a área autenticada e voltar ao Login.
+
+Não foram encontrados fluxos internos autenticados apontando diretamente para Login fora do logout explícito.
+
+### Correção realizada
+
+* `LoginPage` passou a usar navegação autenticada com `Navigator.of(context).pushAndRemoveUntil(..., (route) => false)` após sucesso no login local.
+* `LoginPage` passou a usar o mesmo fluxo após sucesso no Google Login.
+* `CadastroPage` passou a usar o mesmo fluxo após sucesso no Google Login.
+* O cadastro local foi preservado: ele continua levando o usuário para Login, porque essa é a regra atual do protótipo para cadastro por e-mail.
+* O logout foi preservado, mantendo limpeza de pilha e retorno ao Login.
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/features/voices/pages/login_page_test.dart`
+  * login local com sucesso navega para Home;
+  * login local com sucesso remove rotas anteriores da pilha;
+  * Google Login com sucesso navega para Home;
+  * Google Login com sucesso não revela Login ao simular voltar do Android;
+  * fluxo Login → Cadastro → Google Login limpa Login e Cadastro da pilha;
+  * cancelamento/erro de Google Login continuam sem navegar.
+* `test/features/voices/pages/cadastro_page_test.dart`
+  * Google Login com sucesso navega para Home;
+  * Google Login com sucesso remove Cadastro e rotas anteriores da pilha;
+  * cancelamento/erro continuam sem navegar;
+  * cadastro local continua navegando para Login.
+* `test/features/home/pages/home_page_test.dart`
+  * logout confirmado leva para Login;
+  * após logout, voltar não retorna para Home autenticada.
+
+Validações executadas:
+
+```text
+dart analyze
+No issues found!
+
+flutter test --reporter compact
+00:19 +412: All tests passed!
+
+flutter build apk --debug
+Built build\app\outputs\flutter-apk\app-debug.apk
+```
+
+### Teste manual recomendado
+
+1. Rodar o app no Android físico.
+2. Fazer login local.
+3. Na Home, apertar o botão voltar do Android.
+4. Confirmar que não volta para Login indevidamente.
+5. Entrar novamente se necessário.
+6. Abrir Meus Projetos.
+7. Abrir um projeto.
+8. Abrir Editor.
+9. Usar seta de voltar/AppBar e botão voltar do Android.
+10. Confirmar que retorna para telas internas esperadas, não para Login.
+11. Repetir com Google Login, se configurado.
+12. Fazer logout.
+13. Confirmar que logout leva para Login.
+14. Após logout, apertar voltar e confirmar que não retorna para Home autenticada.
+
+### Critério de aprovação manual
+
+A etapa só passa manualmente se Login/Cadastro não aparecerem ao usar voltar depois de autenticação, exceto após logout explícito.

@@ -129,13 +129,7 @@ class _CadastroPageState extends State<CadastroPage> {
         return;
       }
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              widget.homeBuilder?.call(usuario) ?? HomePage(usuario: usuario),
-        ),
-      );
+      _abrirHomeAutenticada(usuario);
     } on GoogleAuthException catch (e) {
       if (!mounted) {
         return;
@@ -186,6 +180,16 @@ class _CadastroPageState extends State<CadastroPage> {
     _senhaController.dispose();
     _confirmarSenhaController.dispose();
     super.dispose();
+  }
+
+  void _abrirHomeAutenticada(Usuario usuario) {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) =>
+            widget.homeBuilder?.call(usuario) ?? HomePage(usuario: usuario),
+      ),
+      (route) => false,
+    );
   }
 
   @override
