@@ -99,20 +99,7 @@ class SpeechService {
       await Future.delayed(const Duration(milliseconds: 300));
     }
 
-<<<<<<< HEAD
-    await _speech.listen(
-      localeId: _localeId,
-      // Alterado para dictation para permitir escuta contínua durante a produção musical
-      listenMode: stt.ListenMode.dictation,
-      listenFor: const Duration(seconds: 30),
-      pauseFor: const Duration(seconds: 10),
-      partialResults: true,
-      cancelOnError: false,
-      onResult: (result) {
-        final text = result.recognizedWords.trim();
-=======
     _resetResultState();
->>>>>>> feature/true-voice-first
 
     try {
       await _speech.listen(
