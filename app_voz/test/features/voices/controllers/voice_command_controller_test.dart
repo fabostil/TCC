@@ -1,7 +1,10 @@
 import 'package:app_voz/features/voices/controllers/voice_command_controller.dart';
 import 'package:app_voz/features/voices/services/ai_command_service.dart';
 import 'package:app_voz/features/voices/services/command_service.dart';
+import 'package:app_voz/features/voices/services/custom_command_service.dart';
 import 'package:app_voz/features/voices/services/voice_feedback_service.dart';
+import 'package:app_voz/models/comando_personalizado.dart';
+import 'package:app_voz/repositories/comando_personalizado_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -112,6 +115,53 @@ void main() {
         expect(unknownVoiceCommandMessage, contains('Não entendi o comando'));
       },
     );
+    test('usa comando personalizado sem chave da IA', () async {
+      var aiCalled = false;
+      final repository = FakeComandoRepository()
+        ..commands = [
+          _customCommand(frase: 'modo palco', tipoComando: 'abrir_dashboard'),
+        ];
+      final controller = VoiceCommandController(
+        aiCommandService: AiCommandService(
+          apiKey: '',
+          httpPost: (uri, headers, body, timeout) async {
+            aiCalled = true;
+            return _geminiResponse('{"action":"nav_history"}');
+          },
+        ),
+        customCommandService: CustomCommandService(repository: repository),
+        feedbackService: const NoopVoiceFeedbackService(),
+      );
+
+      final result = await controller.interpret('Modo palco!', usuarioId: 7);
+
+      expect(result.commandResult.recognized, isTrue);
+      expect(result.commandResult.type, VoiceCommandType.abrirDashboard);
+      expect(result.commandResult.tipoComando, 'personalizado_abrir_dashboard');
+      expect(result.usedAi, isFalse);
+      expect(aiCalled, isFalse);
+    });
+
+    test(
+      'comando global tem prioridade sobre personalizado conflitante',
+      () async {
+        final repository = FakeComandoRepository()
+          ..commands = [
+            _customCommand(frase: 'voltar', tipoComando: 'abrir_dashboard'),
+          ];
+        final controller = VoiceCommandController(
+          aiCommandService: AiCommandService(apiKey: ''),
+          customCommandService: CustomCommandService(repository: repository),
+          feedbackService: const NoopVoiceFeedbackService(),
+        );
+
+        final result = await controller.interpret('voltar', usuarioId: 7);
+
+        expect(result.commandResult.type, VoiceCommandType.voltar);
+        expect(result.commandResult.tipoComando, 'voltar');
+        expect(result.usedAi, isFalse);
+      },
+    );
   });
 }
 
@@ -127,4 +177,43 @@ Map<String, dynamic> _geminiResponse(String text) {
       },
     ],
   };
+}
+
+ComandoPersonalizado _customCommand({
+  required String frase,
+  required String tipoComando,
+}) {
+  return ComandoPersonalizado(
+    id: 1,
+    usuarioId: 7,
+    frase: frase,
+    tipoComando: tipoComando,
+    ativo: true,
+    dataCriacao: '2026-06-12T10:00:00.000',
+  );
+}
+
+class FakeComandoRepository implements ComandoPersonalizadoRepository {
+  List<ComandoPersonalizado> commands = [];
+
+  @override
+  Future<int> salvar(ComandoPersonalizado comando) async => 1;
+
+  @override
+  Future<List<ComandoPersonalizado>> listarPorUsuario(int usuarioId) async {
+    return commands;
+  }
+
+  @override
+  Future<List<ComandoPersonalizado>> listarAtivosPorUsuario(
+    int usuarioId,
+  ) async {
+    return commands.where((command) => command.ativo).toList();
+  }
+
+  @override
+  Future<void> alternarAtivo({required int id, required bool ativo}) async {}
+
+  @override
+  Future<void> excluir(int id) async {}
 }

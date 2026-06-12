@@ -90,16 +90,34 @@ class SettingsController extends ChangeNotifier {
     required String commandType,
   }) async {
     final cleanPhrase = phrase.trim();
+    final normalizedPhrase = CustomCommandRules.normalizePhrase(cleanPhrase);
     if (usuarioId == null) {
       throw StateError('Entre novamente para criar comandos personalizados.');
     }
-    if (cleanPhrase.length < 3) {
+    if (normalizedPhrase.isEmpty) {
+      throw ArgumentError('Informe uma frase valida para o comando.');
+    }
+    if (normalizedPhrase.length < CustomCommandRules.minPhraseLength) {
       throw ArgumentError('Informe uma frase com pelo menos 3 caracteres.');
+    }
+    if (CustomCommandRules.isReservedPhrase(cleanPhrase)) {
+      throw ArgumentError(CustomCommandRules.reservedPhraseMessage);
     }
 
     final action = CustomCommandCatalog.findByTipo(commandType);
     if (action == null) {
       throw ArgumentError('Selecione uma acao valida.');
+    }
+
+    final existingCommands = await _comandoRepository.listarPorUsuario(
+      usuarioId,
+    );
+    final duplicate = existingCommands.any(
+      (command) =>
+          CustomCommandRules.normalizePhrase(command.frase) == normalizedPhrase,
+    );
+    if (duplicate) {
+      throw ArgumentError('Ja existe um comando personalizado com essa frase.');
     }
 
     await _comandoRepository.salvar(

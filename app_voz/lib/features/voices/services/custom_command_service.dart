@@ -84,6 +84,28 @@ class CustomCommandCatalog {
   }
 }
 
+class CustomCommandRules {
+  const CustomCommandRules._();
+
+  static const int minPhraseLength = 3;
+  static const String reservedPhraseMessage =
+      'Esse comando ja e usado pelo app. Escolha outra frase.';
+
+  static String normalizePhrase(
+    String phrase, {
+    CommandService commandService = const CommandService(),
+  }) {
+    return commandService.normalize(phrase);
+  }
+
+  static bool isReservedPhrase(
+    String phrase, {
+    CommandService commandService = const CommandService(),
+  }) {
+    return commandService.interpret(phrase).recognized;
+  }
+}
+
 class CustomCommandService {
   CustomCommandService({
     ComandoPersonalizadoRepository? repository,

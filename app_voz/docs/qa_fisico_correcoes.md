@@ -984,3 +984,99 @@ Testes criados/alterados:
 ### Criterio de aprovacao manual
 
 A etapa so passa se listas principais puderem ser roladas por voz sem quebrar comandos globais de navegacao.
+
+## F.12 - Comandos personalizados
+
+### Problema observado
+
+A funcionalidade de comandos personalizados ja existia no app, mas precisava ser validada de ponta a ponta para confirmar se salvar, listar, reconhecer por voz e proteger comandos reservados funcionavam sem depender do Gemini.
+
+### Diagnostico
+
+Foi confirmado no codigo que a tabela `comando_personalizado` ja existe no SQLite com `id`, `usuario_id`, `frase`, `tipo_comando`, `ativo` e `data_criacao`, alem de `UNIQUE(usuario_id, frase)`.
+
+O repository ja salvava, listava por usuario, listava ativos, alternava ativo/inativo e excluia comandos. A tela de Configuracoes ja tinha formulario, lista, switch de ativo e botao de exclusao.
+
+O `VoiceCommandController` ja usava a ordem correta: `CommandService` local, depois `CustomCommandService`, e somente depois `AiCommandService` quando configurado. Assim, comandos personalizados funcionavam sem `GEMINI_API_KEY` e comandos globais continuavam com prioridade.
+
+As lacunas confirmadas estavam nas validacoes antes do salvamento:
+
+* frase reservada como `voltar` ou `tela inicial` podia ser cadastrada, embora nao sobrescrevesse a execucao global por causa da prioridade do controller;
+* frase duplicada era protegida apenas por igualdade literal no banco, sem considerar normalizacao como acentos, pontuacao e espacos duplicados;
+* frase composta apenas por pontuacao podia passar pela validacao inicial de tamanho;
+* faltavam testes diretos do `CustomCommandService` e da integracao com `VoiceCommandController`.
+
+Nao foi identificada necessidade de alterar schema ou migration.
+
+### Correcao realizada
+
+* Criado `CustomCommandRules` em `custom_command_service.dart` para centralizar normalizacao e deteccao de frase reservada usando a mesma regra do `CommandService`.
+* `SettingsController.saveCustomCommand` passou a validar:
+  * usuario autenticado;
+  * frase normalizada nao vazia;
+  * minimo de 3 caracteres normalizados;
+  * tipo de acao valido no catalogo;
+  * frase reservada do app;
+  * duplicata normalizada para o mesmo usuario.
+* A validacao do formulario em `ConfiguracoesPage` passou a rejeitar frase que vira vazia apos normalizacao.
+* O schema do banco foi preservado.
+* A exclusao continua direta pelo botao existente; nao foi adicionada confirmacao nova nesta etapa para manter o escopo restrito.
+* A execucao real continua limitada as acoes ja existentes no `CustomCommandCatalog`, mapeadas para frases canonicas do `CommandService`.
+
+### Regra de prioridade
+
+Ordem confirmada e testada:
+
+1. `CommandService` local.
+2. `CustomCommandService`, apenas se houver `usuarioId`.
+3. `AiCommandService`, apenas se configurado.
+4. Comando desconhecido com mensagem amigavel.
+
+Comando personalizado nao sobrescreve comandos criticos como voltar, sair, confirmar, cancelar, tela inicial, exclusao ou gravacao, porque frases reconhecidas pelo `CommandService` sao bloqueadas no cadastro e tambem continuam sendo interpretadas antes dos comandos personalizados.
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/features/voices/services/custom_command_service_test.dart`
+  * normalizacao com acento, pontuacao e espacos duplicados;
+  * frase apenas com pontuacao vira vazia;
+  * frase reservada e identificada;
+  * comando salvo e reconhecido com frase equivalente;
+  * comando desativado nao e reconhecido;
+  * tipo inexistente vira desconhecido controlado.
+* `test/features/voices/controllers/voice_command_controller_test.dart`
+  * comando personalizado funciona sem chave da IA;
+  * comando global tem prioridade sobre personalizado conflitante.
+* `test/features/settings/controllers/settings_controller_test.dart`
+  * frase vazia apos normalizacao e rejeitada;
+  * frase reservada e rejeitada;
+  * duplicata normalizada e rejeitada.
+* `test/repositories/settings_custom_command_repository_test.dart`
+  * cobertura existente de salvar, listar, filtrar ativos, alternar ativo e excluir foi mantida.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Fazer login.
+3. Abrir Configuracoes.
+4. Criar comando personalizado valido, por exemplo `modo palco`, apontando para uma acao do catalogo.
+5. Fechar e abrir novamente Configuracoes.
+6. Confirmar que o comando aparece salvo.
+7. Falar `modo palco`.
+8. Confirmar que a acao associada acontece.
+9. Tentar criar comando com frase vazia.
+10. Confirmar mensagem amigavel.
+11. Tentar criar comando reservado, como `voltar` ou `tela inicial`.
+12. Confirmar que o app bloqueia.
+13. Criar comando duplicado com variacao de espacos ou pontuacao, como `modo   palco!`.
+14. Confirmar que o app bloqueia duplicata.
+15. Desativar o comando pelo switch.
+16. Confirmar que ele nao e mais reconhecido.
+17. Remover o comando.
+18. Confirmar que ele nao aparece mais na lista.
+19. Confirmar que comandos globais como `voltar`, `tela inicial`, `confirmar`, `cancelar`, `gravar` e `sair` continuam funcionando.
+
+### Criterio de aprovacao manual
+
+A etapa so passa se comandos personalizados estiverem coerentes com a funcionalidade real do app: salvar, listar, reconhecer/executar quando aplicavel e proteger comandos reservados sem quebrar comandos globais, comandos locais ou fallback sem Gemini.

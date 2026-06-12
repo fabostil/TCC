@@ -56,11 +56,11 @@ void main() {
 
       await controller.saveCustomCommand(
         usuarioId: 7,
-        phrase: 'abrir painel',
+        phrase: 'modo palco',
         commandType: CustomCommandCatalog.actions.first.tipoComando,
       );
 
-      expect(comandoRepository.savedCommands.single.frase, 'abrir painel');
+      expect(comandoRepository.savedCommands.single.frase, 'modo palco');
       expect(controller.state.customCommands, hasLength(1));
     });
 
@@ -70,10 +70,62 @@ void main() {
       expect(
         () => controller.saveCustomCommand(
           usuarioId: null,
-          phrase: 'abrir painel',
+          phrase: 'modo palco',
           commandType: CustomCommandCatalog.actions.first.tipoComando,
         ),
         throwsStateError,
+      );
+    });
+
+    test('rejeita frase vazia apos normalizacao', () async {
+      await controller.load(usuarioId: 7);
+
+      expect(
+        () => controller.saveCustomCommand(
+          usuarioId: 7,
+          phrase: '!!!',
+          commandType: CustomCommandCatalog.actions.first.tipoComando,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('rejeita frase reservada do app', () async {
+      await controller.load(usuarioId: 7);
+
+      expect(
+        () => controller.saveCustomCommand(
+          usuarioId: 7,
+          phrase: 'voltar',
+          commandType: CustomCommandCatalog.actions.first.tipoComando,
+        ),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.message,
+            'message',
+            CustomCommandRules.reservedPhraseMessage,
+          ),
+        ),
+      );
+    });
+
+    test('rejeita frase duplicada por normalizacao', () async {
+      comandoRepository.commands = [_customCommand(id: 1)];
+      await controller.load(usuarioId: 7);
+
+      expect(
+        () => controller.saveCustomCommand(
+          usuarioId: 7,
+          phrase: '  modo   palco! ',
+          commandType: CustomCommandCatalog.actions.last.tipoComando,
+        ),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.message,
+            'message',
+            'Ja existe um comando personalizado com essa frase.',
+          ),
+        ),
       );
     });
   });
@@ -83,7 +135,7 @@ ComandoPersonalizado _customCommand({required int id}) {
   return ComandoPersonalizado(
     id: id,
     usuarioId: 7,
-    frase: 'abrir painel',
+    frase: 'modo palco',
     tipoComando: CustomCommandCatalog.actions.first.tipoComando,
     ativo: true,
     dataCriacao: '2026-05-19T10:00:00.000',

@@ -27,10 +27,14 @@ const int _maxCommandPhraseLength = 120;
 
 String? _validateCommandPhrase(String? value) {
   final trimmed = value?.trim() ?? '';
+  final normalized = CustomCommandRules.normalizePhrase(trimmed);
   if (trimmed.isEmpty) {
     return 'Informe a frase do comando.';
   }
-  if (trimmed.length < _minCommandPhraseLength) {
+  if (normalized.isEmpty) {
+    return 'Informe uma frase valida para o comando.';
+  }
+  if (normalized.length < _minCommandPhraseLength) {
     return 'A frase deve ter pelo menos 3 caracteres.';
   }
   if (trimmed.length > _maxCommandPhraseLength) {
