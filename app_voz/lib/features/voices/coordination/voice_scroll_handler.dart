@@ -20,14 +20,14 @@ class VoiceScrollHandler {
 
     if (!_controller.hasClients) {
       return VoiceCommandPageResult.handled(
-        message: 'Nao ha lista para rolar nesta tela.',
+        message: 'Não há lista para rolar nesta tela.',
       );
     }
 
     final position = _controller.position;
     if (position.maxScrollExtent <= position.minScrollExtent) {
       return VoiceCommandPageResult.handled(
-        message: 'Nao ha lista para rolar nesta tela.',
+        message: 'Não há lista para rolar nesta tela.',
       );
     }
 
@@ -50,8 +50,8 @@ class VoiceScrollHandler {
         message:
             direction == VoiceScrollDirection.up ||
                 direction == VoiceScrollDirection.top
-            ? 'Voce ja esta no topo.'
-            : 'Voce ja esta no fim da lista.',
+            ? 'Você já está no topo.'
+            : 'Você já está no fim da lista.',
       );
     }
 

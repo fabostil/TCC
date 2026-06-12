@@ -161,7 +161,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(tts.calls, hasLength(1));
-      expect(tts.calls.single.text, 'Iniciando reproducao');
+      expect(tts.calls.single.text, 'Iniciando reprodução');
     });
 
     test(

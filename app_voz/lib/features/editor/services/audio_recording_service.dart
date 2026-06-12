@@ -235,7 +235,7 @@ class AudioRecordingService implements AudioRecordingCapture {
         ownerId: _ownerId,
         reason: 'record_permission_denied',
       );
-      throw Exception('Permissao de microfone negada.');
+      throw Exception('Permissão de microfone negada.');
     }
 
     final directory = await _documentsDirectoryProvider();

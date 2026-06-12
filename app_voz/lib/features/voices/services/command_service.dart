@@ -109,7 +109,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.iniciarGravacao,
         tipoComando: 'iniciar_gravacao',
-        acaoExecutada: 'Iniciar gravacao',
+        acaoExecutada: 'Iniciar gravação',
       );
     }
 
@@ -126,7 +126,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.pausarGravacao,
         tipoComando: 'pausar_gravacao',
-        acaoExecutada: 'Pausar gravacao',
+        acaoExecutada: 'Pausar gravação',
       );
     }
 
@@ -143,7 +143,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.retomarGravacao,
         tipoComando: 'retomar_gravacao',
-        acaoExecutada: 'Retomar gravacao',
+        acaoExecutada: 'Retomar gravação',
       );
     }
 
@@ -161,7 +161,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.encerrarGravacao,
         tipoComando: 'encerrar_gravacao',
-        acaoExecutada: 'Encerrar gravacao',
+        acaoExecutada: 'Encerrar gravação',
       );
     }
 
@@ -175,7 +175,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.pararReproducao,
         tipoComando: 'parar_reproducao',
-        acaoExecutada: 'Parar reproducao',
+        acaoExecutada: 'Parar reprodução',
       );
     }
 
@@ -204,7 +204,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.reproduzirGravacao,
         tipoComando: 'reproduzir_gravacao',
-        acaoExecutada: 'Reproduzir gravacao',
+        acaoExecutada: 'Reproduzir gravação',
         parametro: gravacao,
       );
     }
@@ -557,7 +557,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.renomearGravacao,
         tipoComando: 'renomear_gravacao',
-        acaoExecutada: 'Renomear gravacao',
+        acaoExecutada: 'Renomear gravação',
         parametro: renomearGravacao.$1,
         parametroSecundario: renomearGravacao.$2,
       );
@@ -584,7 +584,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.abrirDetalhesGravacao,
         tipoComando: 'abrir_detalhes_gravacao',
-        acaoExecutada: 'Abrir detalhes da gravacao',
+        acaoExecutada: 'Abrir detalhes da gravação',
         parametro: detalhesGravacao,
       );
     }
@@ -608,7 +608,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.abrirDetalhesGravacao,
         tipoComando: 'abrir_detalhes_gravacao',
-        acaoExecutada: 'Abrir detalhes da gravacao',
+        acaoExecutada: 'Abrir detalhes da gravação',
       );
     }
 
@@ -628,7 +628,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.excluirGravacao,
         tipoComando: 'excluir_gravacao',
-        acaoExecutada: 'Excluir gravacao',
+        acaoExecutada: 'Excluir gravação',
         parametro: gravacaoParaExcluir,
       );
     }
@@ -643,7 +643,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.excluirGravacao,
         tipoComando: 'excluir_gravacao',
-        acaoExecutada: 'Excluir gravacao',
+        acaoExecutada: 'Excluir gravação',
       );
     }
 
@@ -665,7 +665,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.reproduzirGravacao,
         tipoComando: 'reproduzir_gravacao',
-        acaoExecutada: 'Reproduzir gravacao',
+        acaoExecutada: 'Reproduzir gravação',
         parametro: gravacaoParaReproduzir,
       );
     }
@@ -677,7 +677,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.definirTempoSilencio,
         tipoComando: 'definir_tempo_silencio',
-        acaoExecutada: 'Definir tempo de silencio',
+        acaoExecutada: 'Definir tempo de silêncio',
         parametro: tempoSilencio.toString(),
       );
     }
@@ -721,7 +721,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.desativarEscutaContinua,
         tipoComando: 'desativar_escuta_continua',
-        acaoExecutada: 'Desativar escuta continua',
+        acaoExecutada: 'Desativar escuta contínua',
       );
     }
 
@@ -734,7 +734,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.ativarEscutaContinua,
         tipoComando: 'ativar_escuta_continua',
-        acaoExecutada: 'Ativar escuta continua',
+        acaoExecutada: 'Ativar escuta contínua',
       );
     }
 
@@ -809,7 +809,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.desativarParadaSilencio,
         tipoComando: 'desativar_parada_silencio',
-        acaoExecutada: 'Desativar parada por silencio',
+        acaoExecutada: 'Desativar parada por silêncio',
       );
     }
 
@@ -823,7 +823,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.ativarParadaSilencio,
         tipoComando: 'ativar_parada_silencio',
-        acaoExecutada: 'Ativar parada por silencio',
+        acaoExecutada: 'Ativar parada por silêncio',
       );
     }
 
@@ -924,7 +924,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.abrirConfiguracoes,
         tipoComando: 'abrir_configuracoes',
-        acaoExecutada: 'Abrir configuracoes',
+        acaoExecutada: 'Abrir configurações',
       );
     }
 
@@ -960,7 +960,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.abrirHistorico,
         tipoComando: 'abrir_historico',
-        acaoExecutada: 'Abrir historico',
+        acaoExecutada: 'Abrir histórico',
       );
     }
 
@@ -979,7 +979,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.confirmarAcao,
         tipoComando: 'confirmar_acao',
-        acaoExecutada: 'Confirmar acao',
+        acaoExecutada: 'Confirmar ação',
       );
     }
 
@@ -997,7 +997,7 @@ class CommandService {
         normalizedText,
         VoiceCommandType.cancelarAcao,
         tipoComando: 'cancelar_acao',
-        acaoExecutada: 'Cancelar acao',
+        acaoExecutada: 'Cancelar ação',
       );
     }
 

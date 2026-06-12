@@ -161,7 +161,7 @@ void main() {
       );
 
       expect(calls, isEmpty);
-      expect(result?.statusMessage, 'Configuracoes ja esta aberto.');
+      expect(result?.statusMessage, 'Tela de configurações já está aberta.');
     });
 
     test('permite preservar criar projeto como comando contextual', () async {

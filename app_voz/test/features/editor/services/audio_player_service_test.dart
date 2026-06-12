@@ -138,7 +138,7 @@ void main() {
           isA<Exception>().having(
             (error) => error.toString(),
             'message',
-            contains('Audio indisponivel'),
+            contains('Áudio indisponível'),
           ),
         ),
       );

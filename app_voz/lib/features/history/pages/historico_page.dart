@@ -52,7 +52,7 @@ class _HistoricoPageState extends State<HistoricoPage>
   int? get voiceUsuarioId => widget.usuario.id;
 
   @override
-  String get voiceListeningPrompt => 'Ouvindo comando do historico...';
+  String get voiceListeningPrompt => 'Ouvindo comando do histórico...';
 
   @override
   void initState() {
@@ -103,7 +103,7 @@ class _HistoricoPageState extends State<HistoricoPage>
   }
 
   Future<VoiceCommandPageResult> _handleJaAberto(CommandResult _) async {
-    return VoiceCommandPageResult.handled(message: 'Historico ja esta aberto.');
+    return VoiceCommandPageResult.handled(message: 'Histórico já está aberto.');
   }
 
   Future<VoiceCommandPageResult> _handleScrollPorVoz(
@@ -187,7 +187,7 @@ class _HistoricoPageState extends State<HistoricoPage>
     if (usuarioId == null) {
       setState(() {
         _carregando = false;
-        _erro = 'Usuario sem identificacao para carregar o historico.';
+        _erro = 'Usuário sem identificação para carregar o histórico.';
       });
       return;
     }
@@ -394,7 +394,7 @@ class _HistoricoPageState extends State<HistoricoPage>
                             ),
                           if (evento.gravacaoId != null)
                             Chip(
-                              label: Text('Gravacao ${evento.gravacaoId}'),
+                              label: Text('Gravação ${evento.gravacaoId}'),
                               visualDensity: VisualDensity.compact,
                             ),
                         ],
@@ -415,7 +415,7 @@ class _HistoricoPageState extends State<HistoricoPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Historico'),
+        title: const Text('Histórico'),
         actions: [
           IconButton(
             tooltip: voiceOuvindo ? 'Parar escuta' : 'Comando de voz',
@@ -430,7 +430,7 @@ class _HistoricoPageState extends State<HistoricoPage>
           builder: (context) {
             if (_carregando) {
               return const AppLoadingView(
-                message: 'Carregando historico de acoes...',
+                message: 'Carregando histórico de ações...',
               );
             }
 
@@ -464,7 +464,7 @@ class _HistoricoPageState extends State<HistoricoPage>
                     icon: Icons.history_rounded,
                     title: 'Nenhum evento registrado',
                     subtitle:
-                        'Use comandos de voz, grave audios ou reproduza arquivos para popular o historico.',
+                        'Use comandos de voz, grave áudios ou reproduza arquivos para popular o histórico.',
                   ),
                 ],
               );

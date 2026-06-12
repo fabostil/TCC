@@ -180,7 +180,7 @@ class _HomePageState extends State<HomePage>
       _configuracao = atualizada;
       voiceStatusMessage = comandosAtivos
           ? 'Assistente ativado. Estou ouvindo comandos.'
-          : 'Permissao de microfone negada. Modo manual ativo.';
+          : 'Permissão de microfone negada. Modo manual ativo.';
     });
 
     if (atualizada.comandosVozAtivos) {
@@ -218,7 +218,7 @@ class _HomePageState extends State<HomePage>
                 _abrirConfiguracoes();
               },
               icon: const Icon(Icons.settings_outlined),
-              label: const Text('Ver configuracoes'),
+              label: const Text('Ver configurações'),
             ),
         ],
       ),
@@ -267,7 +267,7 @@ class _HomePageState extends State<HomePage>
       }
       AppFeedback.showMessage(
         context,
-        'Nao foi possivel sair da conta. Tente novamente.',
+        'Não foi possível sair da conta. Tente novamente.',
       );
       return;
     }
@@ -372,7 +372,7 @@ class _HomePageState extends State<HomePage>
 
   Future<VoiceCommandPageResult> _handleAssistenteAtivo(CommandResult _) async {
     return VoiceCommandPageResult.handled(
-      message: 'Assistente de voz ja esta ativo na tela inicial.',
+      message: 'Assistente de voz já está ativo na tela inicial.',
     );
   }
 
@@ -393,7 +393,7 @@ class _HomePageState extends State<HomePage>
   ) async {
     return VoiceCommandPageResult.handled(
       message: result.recognized
-          ? 'Comando nao executavel nesta tela.'
+          ? 'Comando não executável nesta tela.'
           : unknownVoiceCommandMessage,
     );
   }
@@ -503,7 +503,7 @@ class _HomePageState extends State<HomePage>
         actions: [
           IconButton(
             key: const Key('home_settings_button'),
-            tooltip: 'Configuracoes',
+            tooltip: 'Configurações',
             onPressed: _abrirConfiguracoes,
             icon: const Icon(Icons.settings_rounded),
           ),
@@ -536,14 +536,14 @@ class _HomePageState extends State<HomePage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Ola, ${widget.usuario.nome}',
+                    'Olá, ${widget.usuario.nome}',
                     style: theme.textTheme.headlineMedium,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                     comandosAtivos
-                        ? 'Comandos de voz ativos. Voce ainda pode usar os botoes sempre que quiser.'
-                        : 'Modo manual ativo. Voce pode habilitar comandos de voz em Configuracoes.',
+                        ? 'Comandos de voz ativos. Você ainda pode usar os botões sempre que quiser.'
+                        : 'Modo manual ativo. Você pode habilitar comandos de voz em Configurações.',
                     style: theme.textTheme.bodyLarge,
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -603,8 +603,8 @@ class _HomePageState extends State<HomePage>
             const SizedBox(height: AppSpacing.md),
             _HomeCard(
               icon: Icons.library_music_outlined,
-              title: 'Minhas gravacoes',
-              subtitle: 'Reproduza, renomeie e exclua gravacoes salvas.',
+              title: 'Minhas gravações',
+              subtitle: 'Reproduza, renomeie e exclua gravações salvas.',
               onTap: () => _abrirGravacoes(context),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -617,15 +617,15 @@ class _HomePageState extends State<HomePage>
             const SizedBox(height: AppSpacing.md),
             _HomeCard(
               icon: Icons.history_rounded,
-              title: 'Historico',
-              subtitle: 'Consulte comandos, gravacoes e acoes registradas.',
+              title: 'Histórico',
+              subtitle: 'Consulte comandos, gravações e ações registradas.',
               onTap: () => _abrirHistorico(context),
             ),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(
               icon: Icons.settings_outlined,
-              title: 'Configuracoes',
-              subtitle: 'Ajuste comandos de voz, escuta e opcoes de gravacao.',
+              title: 'Configurações',
+              subtitle: 'Ajuste comandos de voz, escuta e opções de gravação.',
               onTap: _abrirConfiguracoes,
             ),
           ],

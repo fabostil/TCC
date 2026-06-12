@@ -183,7 +183,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
       case VoiceCommandType.cancelarProjeto:
         _cancelarCriacaoProjeto();
         return VoiceCommandPageResult.handled(
-          message: 'Criacao de projeto cancelada.',
+          message: 'Criação de projeto cancelada.',
         );
       case VoiceCommandType.definirNomeProjeto:
       case VoiceCommandType.substituirNomeProjeto:
@@ -368,7 +368,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
       _nomeProjetoController.clear();
       _descricaoProjetoController.clear();
       _projectsController.cancelCreation();
-      voiceStatusMessage = 'Criacao de projeto cancelada.';
+      voiceStatusMessage = 'Criação de projeto cancelada.';
     });
   }
 
@@ -385,7 +385,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     final usuarioId = widget.usuario.id;
     if (usuarioId == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Usuario sem identificacao para criar projeto.',
+        message: 'Usuário sem identificação para criar projeto.',
       );
     }
 
@@ -433,7 +433,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
 
     if (projeto == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Projeto "$nomeFalado" nao encontrado.',
+        message: 'Projeto "$nomeFalado" não encontrado.',
       );
     }
 
@@ -488,12 +488,12 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     voiceSetState(() {
       _projetoPendenteExclusao = projeto;
       voiceStatusMessage =
-          'Excluir projeto ${projeto.nome}? Diga confirmar exclusao ou cancelar exclusao.';
+          'Excluir projeto ${projeto.nome}? Diga confirmar exclusão ou cancelar exclusão.';
     });
 
     return VoiceCommandPageResult.handled(
       message:
-          'Excluir projeto ${projeto.nome}? Diga confirmar exclusao ou cancelar exclusao.',
+          'Excluir projeto ${projeto.nome}? Diga confirmar exclusão ou cancelar exclusão.',
     );
   }
 
@@ -501,7 +501,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     final projeto = _projetoPendenteExclusao;
     if (projeto == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nao ha projeto aguardando confirmacao de exclusao.',
+        message: 'Não há projeto aguardando confirmação de exclusão.',
       );
     }
 
@@ -514,17 +514,17 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
   Future<VoiceCommandPageResult> _cancelarExclusaoProjetoPorVoz() async {
     if (_projetoPendenteExclusao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nao ha exclusao de projeto pendente.',
+        message: 'Não há exclusão de projeto pendente.',
       );
     }
 
     voiceSetState(() {
       _projetoPendenteExclusao = null;
-      voiceStatusMessage = 'Exclusao de projeto cancelada.';
+      voiceStatusMessage = 'Exclusão de projeto cancelada.';
     });
 
     return VoiceCommandPageResult.handled(
-      message: 'Exclusao de projeto cancelada.',
+      message: 'Exclusão de projeto cancelada.',
     );
   }
 
@@ -545,7 +545,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
         id: 'delete_project_${projeto.id}',
         title: 'Excluir projeto?',
         message:
-            'O projeto "${projeto.nome}" sera removido. As gravacoes vinculadas continuam salvas em Minhas gravacoes.',
+            'O projeto "${projeto.nome}" será removido. As gravações vinculadas continuam salvas em Minhas gravações.',
         confirmLabel: 'Excluir',
         destructive: true,
       );

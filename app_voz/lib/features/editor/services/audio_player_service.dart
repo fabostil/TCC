@@ -184,7 +184,7 @@ class AudioPlayerService {
       reason: 'audio_player_play',
     )) {
       throw Exception(
-        'Audio indisponivel: outra sessao esta usando o microfone.',
+        'Áudio indisponível: outra sessão está usando o microfone.',
       );
     }
 

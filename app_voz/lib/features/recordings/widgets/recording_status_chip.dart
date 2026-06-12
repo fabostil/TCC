@@ -35,7 +35,7 @@ class RecordingStatusChip extends StatelessWidget {
     switch (status) {
       case GravacaoStatus.concluida:
         return _StatusChipMetadata(
-          label: 'Concluida',
+          label: 'Concluída',
           icon: Icons.check_circle_outline,
           background: colorScheme.primaryContainer,
           foreground: colorScheme.onPrimaryContainer,
@@ -59,7 +59,7 @@ class RecordingStatusChip extends StatelessWidget {
         );
       case GravacaoStatus.excluida:
         return _StatusChipMetadata(
-          label: 'Excluida',
+          label: 'Excluída',
           icon: Icons.delete_outline,
           background: colorScheme.surfaceContainerHighest,
           foreground: colorScheme.onSurfaceVariant,

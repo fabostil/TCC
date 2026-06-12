@@ -169,7 +169,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
         gravacao.tamanhoBytes <= 0) {
       AppFeedback.showMessage(
         context,
-        'Arquivo de audio indisponivel para reproducao.',
+        'Arquivo de áudio indisponível para reprodução.',
       );
       return;
     }
@@ -217,7 +217,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nao foi possivel renomear a gravacao.')),
+        const SnackBar(content: Text('Não foi possível renomear a gravação.')),
       );
     } finally {
       if (mounted) {
@@ -266,7 +266,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nao foi possivel excluir a gravacao.')),
+        const SnackBar(content: Text('Não foi possível excluir a gravação.')),
       );
     } finally {
       if (mounted) {
@@ -305,7 +305,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
   Future<void> _abrirDetalhesGravacao(Gravacao gravacao) async {
     final gravacaoId = gravacao.id;
     if (gravacaoId == null) {
-      AppFeedback.showMessage(context, 'Gravacao sem identificacao local.');
+      AppFeedback.showMessage(context, 'Gravação sem identificação local.');
       return;
     }
 
@@ -358,7 +358,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
         return _handleReproduzirPorNome(resultado.parametro);
       case VoiceCommandType.pararReproducao:
         await _recordingsController.stopPlayback();
-        return VoiceCommandPageResult.handled(message: 'Reproducao parada.');
+        return VoiceCommandPageResult.handled(message: 'Reprodução parada.');
       case VoiceCommandType.renomearGravacao:
         return _handleRenomearPorVoz(
           resultado.parametro,
@@ -521,7 +521,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nenhuma gravacao encontrada para reproduzir.',
+        message: 'Nenhuma gravação encontrada para reproduzir.',
       );
     }
 
@@ -540,7 +540,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nenhuma gravacao encontrada para abrir detalhes.',
+        message: 'Nenhuma gravação encontrada para abrir detalhes.',
       );
     }
 
@@ -556,7 +556,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
     if (gravacao == null || novoNome == null || novoNome.trim().isEmpty) {
       return VoiceCommandPageResult.handled(
-        message: 'Diga: renomear gravacao nome atual para novo nome.',
+        message: 'Diga: renomear gravação nome atual para novo nome.',
       );
     }
 
@@ -569,7 +569,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Gravacao nao encontrada para exclusao.',
+        message: 'Gravação não encontrada para exclusão.',
       );
     }
 
@@ -602,7 +602,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
     voiceSetState(() {
       voiceStatusMessage =
-          'Gravacao renomeada para ${gravacaoAtualizada.nome}.';
+          'Gravação renomeada para ${gravacaoAtualizada.nome}.';
     });
   }
 

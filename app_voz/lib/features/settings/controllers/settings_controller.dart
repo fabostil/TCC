@@ -106,7 +106,7 @@ class SettingsController extends ChangeNotifier {
 
     final action = CustomCommandCatalog.findByTipo(commandType);
     if (action == null) {
-      throw ArgumentError('Selecione uma acao valida.');
+      throw ArgumentError('Selecione uma ação válida.');
     }
 
     final existingCommands = await _comandoRepository.listarPorUsuario(
@@ -167,7 +167,7 @@ class SettingsController extends ChangeNotifier {
   ConfiguracaoApp _requireConfiguration() {
     final configuration = _state.configuration;
     if (configuration == null) {
-      throw StateError('Configuracao ainda nao carregada.');
+      throw StateError('Configuração ainda não carregada.');
     }
     return configuration;
   }

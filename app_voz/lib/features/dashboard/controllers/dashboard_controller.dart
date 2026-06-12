@@ -45,7 +45,7 @@ class DashboardController extends ChangeNotifier {
       _setState(
         _state.copyWith(
           loading: false,
-          error: 'Usuario sem identificacao para carregar o dashboard.',
+          error: 'Usuário sem identificação para carregar o dashboard.',
         ),
       );
       return;

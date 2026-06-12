@@ -190,7 +190,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.iniciarGravacao,
           tipoComando: 'iniciar_gravacao',
-          acaoExecutada: 'Iniciar gravacao',
+          acaoExecutada: 'Iniciar gravação',
         );
       case 'record_pause':
         return _recognized(
@@ -198,7 +198,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.pausarGravacao,
           tipoComando: 'pausar_gravacao',
-          acaoExecutada: 'Pausar gravacao',
+          acaoExecutada: 'Pausar gravação',
         );
       case 'record_resume':
         return _recognized(
@@ -206,7 +206,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.retomarGravacao,
           tipoComando: 'retomar_gravacao',
-          acaoExecutada: 'Retomar gravacao',
+          acaoExecutada: 'Retomar gravação',
         );
       case 'record_stop':
         return _recognized(
@@ -214,7 +214,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.encerrarGravacao,
           tipoComando: 'encerrar_gravacao',
-          acaoExecutada: 'Encerrar gravacao',
+          acaoExecutada: 'Encerrar gravação',
         );
       case 'playback_play':
         return _recognized(
@@ -222,7 +222,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.reproduzirGravacao,
           tipoComando: 'reproduzir_gravacao',
-          acaoExecutada: 'Reproduzir gravacao',
+          acaoExecutada: 'Reproduzir gravação',
           parametro: parsed?.parametro,
         );
       case 'playback_stop':
@@ -231,7 +231,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.pararReproducao,
           tipoComando: 'parar_reproducao',
-          acaoExecutada: 'Parar reproducao',
+          acaoExecutada: 'Parar reprodução',
         );
       case 'marker_create':
         return _recognized(
@@ -352,7 +352,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.excluirGravacao,
           tipoComando: 'excluir_gravacao',
-          acaoExecutada: 'Excluir gravacao',
+          acaoExecutada: 'Excluir gravação',
           parametro: parsed?.parametro,
         );
       case 'recording_rename_named':
@@ -361,7 +361,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.renomearGravacao,
           tipoComando: 'renomear_gravacao',
-          acaoExecutada: 'Renomear gravacao',
+          acaoExecutada: 'Renomear gravação',
           parametro: parsed?.parametro,
           parametroSecundario: parsed?.parametroSecundario,
         );
@@ -371,7 +371,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.abrirDetalhesGravacao,
           tipoComando: 'abrir_detalhes_gravacao',
-          acaoExecutada: 'Abrir detalhes da gravacao',
+          acaoExecutada: 'Abrir detalhes da gravação',
           parametro: parsed?.parametro,
         );
       case 'recording_search':
@@ -413,7 +413,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.ativarEscutaContinua,
           tipoComando: 'ativar_escuta_continua',
-          acaoExecutada: 'Ativar escuta continua',
+          acaoExecutada: 'Ativar escuta contínua',
         );
       case 'settings_continuous_off':
         return _recognized(
@@ -421,7 +421,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.desativarEscutaContinua,
           tipoComando: 'desativar_escuta_continua',
-          acaoExecutada: 'Desativar escuta continua',
+          acaoExecutada: 'Desativar escuta contínua',
         );
       case 'settings_feedback_on':
         return _recognized(
@@ -461,7 +461,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.ativarParadaSilencio,
           tipoComando: 'ativar_parada_silencio',
-          acaoExecutada: 'Ativar parada por silencio',
+          acaoExecutada: 'Ativar parada por silêncio',
         );
       case 'settings_silence_stop_off':
         return _recognized(
@@ -469,7 +469,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.desativarParadaSilencio,
           tipoComando: 'desativar_parada_silencio',
-          acaoExecutada: 'Desativar parada por silencio',
+          acaoExecutada: 'Desativar parada por silêncio',
         );
       case 'settings_silence_time_set':
         return _recognized(
@@ -477,7 +477,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.definirTempoSilencio,
           tipoComando: 'definir_tempo_silencio',
-          acaoExecutada: 'Definir tempo de silencio',
+          acaoExecutada: 'Definir tempo de silêncio',
           parametro: parsed?.parametro,
         );
       case 'nav_editor':
@@ -518,7 +518,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.abrirConfiguracoes,
           tipoComando: 'abrir_configuracoes',
-          acaoExecutada: 'Abrir configuracoes',
+          acaoExecutada: 'Abrir configurações',
         );
       case 'nav_assistant':
         return _recognized(
@@ -534,7 +534,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.abrirHistorico,
           tipoComando: 'abrir_historico',
-          acaoExecutada: 'Abrir historico',
+          acaoExecutada: 'Abrir histórico',
         );
       case 'nav_back':
         return _recognized(
@@ -550,7 +550,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.confirmarAcao,
           tipoComando: 'confirmar_acao',
-          acaoExecutada: 'Confirmar acao',
+          acaoExecutada: 'Confirmar ação',
         );
       case 'cancel_action':
         return _recognized(
@@ -558,7 +558,7 @@ class AiCommandService {
           normalizedText,
           VoiceCommandType.cancelarAcao,
           tipoComando: 'cancelar_acao',
-          acaoExecutada: 'Cancelar acao',
+          acaoExecutada: 'Cancelar ação',
         );
       case 'logout':
         return _recognized(

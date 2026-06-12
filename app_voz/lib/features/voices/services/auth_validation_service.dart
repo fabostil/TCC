@@ -31,13 +31,13 @@ class AuthValidationService {
         email.contains('..') ||
         email.startsWith('.') ||
         email.endsWith('.')) {
-      return 'Informe um e-mail valido.';
+      return 'Informe um e-mail válido.';
     }
 
     final dominio = email.split('@').last;
     final partesDominio = dominio.split('.');
     if (partesDominio.any((parte) => parte.isEmpty || parte.startsWith('-'))) {
-      return 'Informe um e-mail valido.';
+      return 'Informe um e-mail válido.';
     }
 
     return null;
@@ -66,7 +66,7 @@ class AuthValidationService {
     final temNumero = RegExp(r'\d').hasMatch(senha);
 
     if (!temLetra || !temNumero) {
-      return 'Use letras e numeros na senha.';
+      return 'Use letras e números na senha.';
     }
 
     return null;
@@ -78,7 +78,7 @@ class AuthValidationService {
     }
 
     if (value != senha) {
-      return 'As senhas nao conferem.';
+      return 'As senhas não conferem.';
     }
 
     return null;

@@ -27,7 +27,7 @@ void main() {
       await controller.load(null);
 
       expect(controller.state.loading, isFalse);
-      expect(controller.state.error, contains('Usuario sem identificacao'));
+      expect(controller.state.error, contains('Usuário sem identificação'));
       expect(controller.state.data, isNull);
 
       controller.dispose();
@@ -41,7 +41,7 @@ void main() {
       await controller.load(7);
 
       expect(controller.state.loading, isFalse);
-      expect(controller.state.error, contains('Nao foi possivel carregar'));
+      expect(controller.state.error, contains('Não foi possível carregar'));
       expect(controller.state.data, isNull);
 
       controller.dispose();

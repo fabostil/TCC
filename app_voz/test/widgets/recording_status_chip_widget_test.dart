@@ -22,10 +22,10 @@ void main() {
       ),
     );
 
-    expect(find.text('Concluida'), findsOneWidget);
+    expect(find.text('Concluída'), findsOneWidget);
     expect(find.text('Interrompida'), findsOneWidget);
     expect(find.text('Arquivo ausente'), findsOneWidget);
-    expect(find.text('Excluida'), findsOneWidget);
+    expect(find.text('Excluída'), findsOneWidget);
   });
 
   testWidgets('renderiza status indefinido para valor desconhecido', (

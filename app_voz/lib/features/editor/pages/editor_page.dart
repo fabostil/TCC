@@ -432,7 +432,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
               VoiceSessionPhase.error,
               message: 'Erro no reconhecimento de voz.',
             );
-            statusProjeto = 'Nao foi possivel reconhecer a fala.';
+            statusProjeto = 'Não foi possível reconhecer a fala.';
             textoReconhecido = 'Não foi possível reconhecer a fala.';
           });
         },
@@ -448,8 +448,8 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
             VoiceSessionPhase.error,
             message: 'Falha ao iniciar escuta de voz.',
           );
-          textoReconhecido = 'Nao foi possivel iniciar a escuta de voz.';
-          statusProjeto = 'Verifique a permissao de microfone do app.';
+          textoReconhecido = 'Não foi possível iniciar a escuta de voz.';
+          statusProjeto = 'Verifique a permissão de microfone do app.';
         });
         _reiniciarEscutaContinuaSeNecessario(
           reason: VoiceRecoveryReason.afterError,
@@ -548,7 +548,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     setState(() {
       _setVoiceSession(
         VoiceSessionPhase.idle,
-        message: 'Modo gravacao finalizado.',
+        message: 'Modo gravação finalizado.',
       );
     });
 
@@ -578,9 +578,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Gravacao em andamento'),
+        title: const Text('Gravação em andamento'),
         content: const Text(
-          'Existe uma gravacao em andamento. Deseja encerrar a gravacao e sair do editor?',
+          'Existe uma gravação em andamento. Deseja encerrar a gravação e sair do editor?',
         ),
         actions: [
           TextButton(
@@ -752,7 +752,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
           return;
         case VoiceCommandType.listarGravacoes:
           setState(() {
-            statusProjeto = 'Lista de gravacoes disponivel nesta tela.';
+            statusProjeto = 'Lista de gravações disponível nesta tela.';
           });
           return;
         case VoiceCommandType.buscarGravacoes:
@@ -763,12 +763,12 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         case VoiceCommandType.scrollTopo:
         case VoiceCommandType.scrollFim:
           setState(() {
-            statusProjeto = 'Nao ha lista para rolar nesta tela.';
+            statusProjeto = 'Não há lista para rolar nesta tela.';
           });
           return;
         case VoiceCommandType.abrirEditor:
           setState(() {
-            statusProjeto = 'Editor ja esta aberto.';
+            statusProjeto = 'Editor já está aberto.';
           });
           return;
         case VoiceCommandType.definirNomeProjeto:
@@ -807,7 +807,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         case VoiceCommandType.cancelarAcao:
           setState(() {
             statusProjeto =
-                'Comando de navegacao reconhecido. Use o assistente de voz para navegar.';
+                'Comando de navegação reconhecido. Use o assistente de voz para navegar.';
           });
           return;
         case VoiceCommandType.desconhecido:
@@ -822,12 +822,12 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
 
       adicionarHistorico(
         comandoOriginal: comando,
-        acao: 'Comando nao reconhecido',
+        acao: 'Comando não reconhecido',
         tipo: 'comando_nao_reconhecido',
       );
 
       setState(() {
-        statusProjeto = 'Comando nao reconhecido.';
+        statusProjeto = 'Comando não reconhecido.';
       });
     } finally {
       if (mounted) {
@@ -846,11 +846,11 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     final usuarioId = widget.usuario.id;
 
     if (usuarioId == null) {
-      throw StateError('Usuario sem identificacao para salvar gravacao.');
+      throw StateError('Usuário sem identificação para salvar gravação.');
     }
 
     final numeroFaixa = faixas.length + 1;
-    final nomeFaixa = _gerarNomeGravacaoUnico('Gravacao $numeroFaixa');
+    final nomeFaixa = _gerarNomeGravacaoUnico('Gravação $numeroFaixa');
     final agora = DateTime.now();
     final gravacaoSalva = await _recordingService.createCompletedRecording(
       usuarioId: usuarioId,
@@ -1054,10 +1054,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.recordingLocked,
-          message: 'Microfone reservado para gravacao.',
+          message: 'Microfone reservado para gravação.',
         );
         _interactionMode = EditorInteractionMode.recording;
-        textoReconhecido = 'Gravacao iniciada.';
+        textoReconhecido = 'Gravação iniciada.';
       });
     } catch (_) {
       if (!mounted) {
@@ -1067,7 +1067,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.error,
-          message: 'Erro ao iniciar gravacao.',
+          message: 'Erro ao iniciar gravação.',
         );
         _interactionMode = EditorInteractionMode.normal;
         statusProjeto = UserFacingMessages.recordingControlError;
@@ -1137,7 +1137,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.idle,
-          message: 'Gravacao finalizada.',
+          message: 'Gravação finalizada.',
         );
         _interactionMode = EditorInteractionMode.normal;
       });
@@ -1149,7 +1149,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.error,
-          message: 'Erro ao encerrar gravacao.',
+          message: 'Erro ao encerrar gravação.',
         );
         _interactionMode = EditorInteractionMode.normal;
         statusProjeto = UserFacingMessages.recordingSaveError;
@@ -1162,7 +1162,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   Future<void> reproduzirProjeto(String comando) async {
     if (faixas.isEmpty) {
       setState(() {
-        statusProjeto = 'Ainda nao ha gravacoes para reproduzir.';
+        statusProjeto = 'Ainda não há gravações para reproduzir.';
       });
       return;
     }
@@ -1171,7 +1171,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     await _reproduzirFaixa(
       ultimaFaixa,
       comandoOriginal: comando,
-      acaoHistorico: 'Reproduziu gravacao real',
+      acaoHistorico: 'Reproduziu gravação real',
     );
   }
 
@@ -1204,7 +1204,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.idle,
-          message: 'Escuta pausada durante a reproducao.',
+          message: 'Escuta pausada durante a reprodução.',
           listening: false,
         );
       });
@@ -1213,8 +1213,8 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     await _recordingCoordinator.play(
       path: faixa.caminhoArquivo,
       name: faixa.nome,
-      emptyPathMessage: 'Arquivo da gravacao nao encontrado.',
-      recordingActiveMessage: 'Pare a gravacao antes de reproduzir audio.',
+      emptyPathMessage: 'Arquivo da gravação não encontrado.',
+      recordingActiveMessage: 'Pare a gravação antes de reproduzir áudio.',
       onHistory: () {
         if (!mounted) {
           return;
@@ -1244,7 +1244,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
 
       adicionarHistorico(
         comandoOriginal: comando,
-        acao: 'Parou reproducao',
+        acao: 'Parou reprodução',
         tipo: 'reproducao_parada',
       );
       unawaited(_retomarEscutaContinuaAposPlayback());
@@ -1459,7 +1459,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       _EditorFsmVisualState.sleeping => 'Aguardando comando',
       _EditorFsmVisualState.listeningCommand => 'Ouvindo comando',
       _EditorFsmVisualState.processingCommand => 'Processando comando',
-      _EditorFsmVisualState.error => 'Nao consegui concluir a acao',
+      _EditorFsmVisualState.error => 'Não consegui concluir a ação',
     };
   }
 
@@ -2427,10 +2427,10 @@ class EditorVoiceFlowPolicy {
   const EditorVoiceFlowPolicy();
 
   String get recordingVoiceUnavailableMessage =>
-      'Gravacao em andamento. Use os controles da tela para pausar ou encerrar.';
+      'Gravação em andamento. Use os controles da tela para pausar ou encerrar.';
 
   String get recordingNavigationBlockedMessage =>
-      'Ha uma gravacao em andamento. Encerre ou cancele antes de sair.';
+      'Há uma gravação em andamento. Encerre ou cancele antes de sair.';
 
   EditorVoiceNavigationDecision navigationDecision({
     required bool recording,

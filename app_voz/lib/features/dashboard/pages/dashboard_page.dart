@@ -91,7 +91,7 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Future<VoiceCommandPageResult> _handleJaAberto(CommandResult _) async {
-    return VoiceCommandPageResult.handled(message: 'Dashboard ja esta aberto.');
+    return VoiceCommandPageResult.handled(message: 'Dashboard já está aberto.');
   }
 
   Future<VoiceCommandPageResult> _handleScrollPorVoz(
@@ -325,7 +325,7 @@ class _DashboardPageState extends State<DashboardPage>
                     icon: Icons.insights_outlined,
                     title: 'Sem dados suficientes ainda',
                     subtitle:
-                        'Crie projetos, grave audios ou use comandos de voz para visualizar indicadores aqui.',
+                        'Crie projetos, grave áudios ou use comandos de voz para visualizar indicadores aqui.',
                   ),
                 ],
               );
@@ -347,12 +347,12 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                     _MetricCard(
                       icon: Icons.library_music_outlined,
-                      title: 'Gravacoes',
+                      title: 'Gravações',
                       value: dashboard.totalGravacoes.toString(),
                     ),
                     _MetricCard(
                       icon: Icons.timer_outlined,
-                      title: 'Duracao total',
+                      title: 'Duração total',
                       value: _formatarDuracao(dashboard.duracaoTotalSegundos),
                     ),
                     _MetricCard(
@@ -375,7 +375,7 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                     _MetricCard(
                       icon: Icons.help_outline_rounded,
-                      title: 'Nao reconhecidos',
+                      title: 'Não reconhecidos',
                       value: dashboard.comandosNaoReconhecidos.toString(),
                       color: theme.colorScheme.error,
                     ),
@@ -508,13 +508,13 @@ class _UltimaGravacaoCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Ultima gravacao', style: theme.textTheme.titleLarge),
+        Text('Última gravação', style: theme.textTheme.titleLarge),
         const SizedBox(height: AppSpacing.md),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: item == null
-                ? const Text('Nenhuma gravacao encontrada ate o momento.')
+                ? const Text('Nenhuma gravação encontrada até o momento.')
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -544,7 +544,7 @@ class _UltimaGravacaoCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Duracao: ${formatarDuracao(item.duracaoSegundos)}',
+                        'Duração: ${formatarDuracao(item.duracaoSegundos)}',
                         style: theme.textTheme.bodyMedium,
                       ),
                     ],
@@ -582,7 +582,7 @@ class _AcoesPorTipoCard extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: metricas.isEmpty
-                ? const Text('Nenhuma acao registrada ainda.')
+                ? const Text('Nenhuma ação registrada ainda.')
                 : Column(
                     children: metricas
                         .map(
@@ -802,7 +802,7 @@ class _InsightsCard extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.md),
             child: insights.isEmpty
                 ? const Text(
-                    'Ainda nao ha padroes suficientes para gerar recomendacoes.',
+                    'Ainda não há padrões suficientes para gerar recomendações.',
                   )
                 : Column(
                     children: insights.map((insight) {

@@ -73,7 +73,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   int? get voiceUsuarioId => widget.usuario.id;
 
   @override
-  String get voiceListeningPrompt => 'Ouvindo comando de gravacao...';
+  String get voiceListeningPrompt => 'Ouvindo comando de gravação...';
 
   @override
   late final VoiceCommandDispatcher voiceCommandDispatcher;
@@ -181,7 +181,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         gravacao.tamanhoBytes <= 0) {
       AppFeedback.showMessage(
         context,
-        'Arquivo de audio indisponivel para reproducao.',
+        'Arquivo de áudio indisponível para reprodução.',
       );
       return;
     }
@@ -229,7 +229,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nao foi possivel renomear a gravacao.')),
+        const SnackBar(content: Text('Não foi possível renomear a gravação.')),
       );
     } finally {
       if (mounted) {
@@ -261,7 +261,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     voiceSetState(() {
       voiceStatusMessage =
-          'Gravacao renomeada para ${gravacaoAtualizada.nome}.';
+          'Gravação renomeada para ${gravacaoAtualizada.nome}.';
     });
   }
 
@@ -305,7 +305,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nao foi possivel excluir a gravacao.')),
+        const SnackBar(content: Text('Não foi possível excluir a gravação.')),
       );
     } finally {
       if (mounted) {
@@ -319,7 +319,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   Future<void> _abrirDetalhesGravacao(Gravacao gravacao) async {
     final gravacaoId = gravacao.id;
     if (gravacaoId == null) {
-      AppFeedback.showMessage(context, 'Gravacao sem identificacao local.');
+      AppFeedback.showMessage(context, 'Gravação sem identificação local.');
       return;
     }
 
@@ -371,7 +371,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         return _handleReproduzirPorNome(resultado.parametro);
       case VoiceCommandType.pararReproducao:
         await _recordingsController.stopPlayback();
-        return VoiceCommandPageResult.handled(message: 'Reproducao parada.');
+        return VoiceCommandPageResult.handled(message: 'Reprodução parada.');
       case VoiceCommandType.buscarGravacoes:
         return _buscarGravacoesPorVoz(resultado.parametro);
       case VoiceCommandType.limparBusca:
@@ -389,9 +389,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       case VoiceCommandType.cancelarAcao:
         voiceSetState(() {
           _recordingsController.cancelPendingDeletion();
-          voiceStatusMessage = 'Exclusao cancelada.';
+          voiceStatusMessage = 'Exclusão cancelada.';
         });
-        return VoiceCommandPageResult.handled(message: 'Exclusao cancelada.');
+        return VoiceCommandPageResult.handled(message: 'Exclusão cancelada.');
       case VoiceCommandType.scrollBaixo:
       case VoiceCommandType.scrollCima:
       case VoiceCommandType.scrollTopo:
@@ -534,7 +534,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nenhuma gravacao encontrada para reproduzir.',
+        message: 'Nenhuma gravação encontrada para reproduzir.',
       );
     }
 
@@ -553,7 +553,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nenhuma gravacao encontrada para abrir detalhes.',
+        message: 'Nenhuma gravação encontrada para abrir detalhes.',
       );
     }
 
@@ -565,7 +565,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     final termoBusca = termo?.trim() ?? '';
     if (termoBusca.isEmpty) {
       return VoiceCommandPageResult.handled(
-        message: 'Diga o termo para buscar nas gravacoes.',
+        message: 'Diga o termo para buscar nas gravações.',
       );
     }
 
@@ -573,7 +573,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     _buscaController.text = termoBusca;
     await _carregarGravacoes();
     return VoiceCommandPageResult.handled(
-      message: 'Busca por $termoBusca aplicada nas gravacoes.',
+      message: 'Busca por $termoBusca aplicada nas gravações.',
     );
   }
 
@@ -585,7 +585,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     if (gravacao == null || novoNome == null || novoNome.trim().isEmpty) {
       return VoiceCommandPageResult.handled(
-        message: 'Diga: renomear gravacao nome atual para novo nome.',
+        message: 'Diga: renomear gravação nome atual para novo nome.',
       );
     }
 
@@ -598,18 +598,18 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Gravacao nao encontrada para exclusao.',
+        message: 'Gravação não encontrada para exclusão.',
       );
     }
 
     _recordingsController.requestDeletion(gravacao);
     voiceSetState(() {
       voiceStatusMessage =
-          'Confirmar exclusao de ${gravacao.nome}? Diga confirmar exclusao ou cancelar exclusao.';
+          'Confirmar exclusão de ${gravacao.nome}? Diga confirmar exclusão ou cancelar exclusão.';
     });
     return VoiceCommandPageResult.handled(
       message:
-          'Confirmar exclusao de ${gravacao.nome}? Diga confirmar exclusao ou cancelar exclusao.',
+          'Confirmar exclusão de ${gravacao.nome}? Diga confirmar exclusão ou cancelar exclusão.',
     );
   }
 
@@ -618,17 +618,17 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nenhuma exclusao pendente para confirmar.',
+        message: 'Nenhuma exclusão pendente para confirmar.',
       );
     }
 
     if (gravacao.id == null) {
       voiceSetState(() {
-        voiceStatusMessage = 'Gravacao invalida para exclusao.';
+        voiceStatusMessage = 'Gravação inválida para exclusão.';
       });
       _recordingsController.cancelPendingDeletion();
       return VoiceCommandPageResult.handled(
-        message: 'Gravacao invalida para exclusao.',
+        message: 'Gravação inválida para exclusão.',
       );
     }
 
@@ -646,26 +646,26 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
       if (!mounted) {
         return VoiceCommandPageResult.handled(
-          message: 'Gravacao ${gravacao.nome} excluida.',
+          message: 'Gravação ${gravacao.nome} excluída.',
         );
       }
 
       return VoiceCommandPageResult.handled(
-        message: 'Gravacao ${gravacao.nome} excluida.',
+        message: 'Gravação ${gravacao.nome} excluída.',
       );
     } catch (e) {
       if (!mounted) {
         return VoiceCommandPageResult.handled(
-          message: 'Nao foi possivel excluir a gravacao.',
+          message: 'Não foi possível excluir a gravação.',
         );
       }
 
       voiceSetState(() {
-        voiceStatusMessage = 'Nao foi possivel excluir a gravacao.';
+        voiceStatusMessage = 'Não foi possível excluir a gravação.';
       });
       _recordingsController.cancelPendingDeletion();
       return VoiceCommandPageResult.handled(
-        message: 'Nao foi possivel excluir a gravacao.',
+        message: 'Não foi possível excluir a gravação.',
       );
     } finally {
       if (mounted) {
@@ -757,7 +757,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                       onCancelar: () {
                         _recordingsController.cancelPendingDeletion();
                         voiceSetState(() {
-                          voiceStatusMessage = 'Exclusao cancelada.';
+                          voiceStatusMessage = 'Exclusão cancelada.';
                         });
                       },
                     ),
@@ -798,7 +798,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                     onCancelar: () {
                       _recordingsController.cancelPendingDeletion();
                       voiceSetState(() {
-                        voiceStatusMessage = 'Exclusao cancelada.';
+                        voiceStatusMessage = 'Exclusão cancelada.';
                       });
                     },
                   );

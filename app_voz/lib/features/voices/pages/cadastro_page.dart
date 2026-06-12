@@ -71,7 +71,7 @@ class _CadastroPageState extends State<CadastroPage> {
 
       if (!sucesso) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Este e-mail ja esta cadastrado.')),
+          const SnackBar(content: Text('Este e-mail já está cadastrado.')),
         );
         return;
       }
@@ -105,7 +105,7 @@ class _CadastroPageState extends State<CadastroPage> {
           content: Text(
             UserFacingMessages.error(
               e,
-              fallback: 'Nao foi possivel cadastrar. Tente novamente.',
+              fallback: 'Não foi possível cadastrar. Tente novamente.',
             ),
           ),
         ),

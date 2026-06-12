@@ -155,7 +155,7 @@ void main() {
       );
       expect(
         service.guidanceMessage(VoicePermissionResult.permanentlyDenied),
-        contains('configuracoes do Android'),
+        contains('configurações do Android'),
       );
     });
 

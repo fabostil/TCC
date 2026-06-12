@@ -2,20 +2,20 @@ class UserFacingMessages {
   const UserFacingMessages._();
 
   static const genericActionError =
-      'Nao foi possivel concluir a acao. Tente novamente.';
+      'Não foi possível concluir a ação. Tente novamente.';
   static const commandExecutionError =
-      'Nao consegui executar esse comando. Tente novamente.';
+      'Não consegui executar esse comando. Tente novamente.';
   static const deviceActionError =
-      'Nao foi possivel concluir a acao neste dispositivo.';
-  static const dataLoadError = 'Nao foi possivel carregar os dados.';
+      'Não foi possível concluir a ação neste dispositivo.';
+  static const dataLoadError = 'Não foi possível carregar os dados.';
   static const dataSaveError =
-      'Nao foi possivel salvar as informacoes. Tente novamente.';
+      'Não foi possível salvar as informações. Tente novamente.';
   static const playbackError =
-      'Nao foi possivel reproduzir o audio. Tente novamente.';
+      'Não foi possível reproduzir o áudio. Tente novamente.';
   static const recordingControlError =
-      'Nao foi possivel controlar a gravacao agora.';
+      'Não foi possível controlar a gravação agora.';
   static const recordingSaveError =
-      'Nao foi possivel salvar a gravacao. Tente novamente.';
+      'Não foi possível salvar a gravação. Tente novamente.';
 
   static String voiceStatus(String message) {
     final normalized = _normalize(message);
@@ -28,7 +28,7 @@ class UserFacingMessages {
       'idle' => 'Pronto para ouvir',
       'active' => 'Controle por voz ativo',
       'inactive' => 'Controle por voz pausado',
-      'error' => 'Nao consegui concluir a acao',
+      'error' => 'Não consegui concluir a ação',
       _ => message,
     };
   }
@@ -51,7 +51,7 @@ class UserFacingMessages {
   static String fileName(String path) {
     final normalized = path.replaceAll('\\', '/').trim();
     if (normalized.isEmpty) {
-      return 'arquivo de audio';
+      return 'arquivo de áudio';
     }
 
     final index = normalized.lastIndexOf('/');

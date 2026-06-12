@@ -39,7 +39,7 @@ class SpeechService {
     }
 
     if (!microphoneStatus.isGranted) {
-      _currentOnError?.call('Permissao de microfone negada.');
+      _currentOnError?.call('Permissão de microfone negada.');
       return false;
     }
 
@@ -60,7 +60,7 @@ class SpeechService {
 
     if (!_initialized) {
       _currentOnError?.call(
-        'Reconhecimento de voz indisponivel neste dispositivo.',
+        'Reconhecimento de voz indisponível neste dispositivo.',
       );
       return false;
     }
@@ -134,7 +134,7 @@ class SpeechService {
         error: error,
         stackTrace: stackTrace,
       );
-      onError?.call('Nao foi possivel iniciar a escuta de voz.');
+      onError?.call('Não foi possível iniciar a escuta de voz.');
       return false;
     }
 

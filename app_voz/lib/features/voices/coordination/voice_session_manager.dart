@@ -237,7 +237,7 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
         registerFailure(
           ownerId: ownerId,
           reason: error,
-          message: 'Nao foi possivel reconhecer a fala.',
+          message: 'Não foi possível reconhecer a fala.',
         );
         onError?.call(error);
       },
@@ -247,7 +247,7 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
       registerFailure(
         ownerId: ownerId,
         reason: 'start_failed',
-        message: 'Nao foi possivel iniciar a escuta de voz.',
+        message: 'Não foi possível iniciar a escuta de voz.',
       );
       releaseOwner(ownerId);
       return false;

@@ -16,16 +16,16 @@ void main() {
         await _pumpHome(tester, permissionClient: permissionClient);
         await tester.pump();
 
-        expect(find.text('Ola, Ana Silva'), findsOneWidget);
+        expect(find.text('Olá, Ana Silva'), findsOneWidget);
         expect(find.text('Novo projeto'), findsOneWidget);
         expect(find.text('Meus projetos'), findsOneWidget);
-        expect(find.text('Minhas gravacoes'), findsOneWidget);
+        expect(find.text('Minhas gravações'), findsOneWidget);
         expect(find.text('Dashboard'), findsOneWidget);
-        expect(find.text('Historico'), findsOneWidget);
-        expect(find.text('Configuracoes'), findsOneWidget);
+        expect(find.text('Histórico'), findsOneWidget);
+        expect(find.text('Configurações'), findsOneWidget);
         expect(
           find.text(
-            'Modo manual ativo. Voce pode habilitar comandos de voz em Configuracoes.',
+            'Modo manual ativo. Você pode habilitar comandos de voz em Configurações.',
           ),
           findsOneWidget,
         );
@@ -99,7 +99,7 @@ void main() {
 
       expect(logoutCalls, 1);
       expect(
-        find.text('Nao foi possivel sair da conta. Tente novamente.'),
+        find.text('Não foi possível sair da conta. Tente novamente.'),
         findsOneWidget,
       );
       expect(find.byType(HomePage), findsOneWidget);

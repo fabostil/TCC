@@ -55,28 +55,28 @@ class VoiceNavigationCommandHandler {
       VoiceCommandType.abrirDashboard => _targetAction(
         VoiceNavigationDestination.dashboard,
         openDashboard,
-        'Dashboard ja esta aberto.',
+        'Dashboard já está aberto.',
       ),
       VoiceCommandType.abrirProjetos => _targetAction(
         VoiceNavigationDestination.projects,
         openProjects,
-        'Projetos ja esta aberto.',
+        'Tela de projetos já está aberta.',
       ),
       VoiceCommandType.abrirGravacoes ||
       VoiceCommandType.listarGravacoes => _targetAction(
         VoiceNavigationDestination.recordings,
         openRecordings,
-        'Gravacoes ja esta aberto.',
+        'Tela de gravações já está aberta.',
       ),
       VoiceCommandType.abrirConfiguracoes => _targetAction(
         VoiceNavigationDestination.settings,
         openSettings,
-        'Configuracoes ja esta aberto.',
+        'Tela de configurações já está aberta.',
       ),
       VoiceCommandType.abrirHistorico => _targetAction(
         VoiceNavigationDestination.history,
         openHistory,
-        'Historico ja esta aberto.',
+        'Histórico já está aberto.',
       ),
       VoiceCommandType.abrirNovoProjeto => openNewProject,
       VoiceCommandType.criarProjeto when handleCreateProjectCommand =>

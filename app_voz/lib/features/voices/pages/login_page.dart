@@ -88,7 +88,7 @@ class _LoginPageState extends State<LoginPage> {
           content: Text(
             UserFacingMessages.error(
               e,
-              fallback: 'Nao foi possivel entrar. Tente novamente.',
+              fallback: 'Não foi possível entrar. Tente novamente.',
             ),
           ),
         ),
@@ -203,7 +203,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 8),
 
                 const Text(
-                  'Entre para controlar gravacoes por voz',
+                  'Entre para controlar gravações por voz',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16),
                 ),

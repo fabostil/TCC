@@ -83,7 +83,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   int? get voiceUsuarioId => widget.usuario.id;
 
   @override
-  String get voiceListeningPrompt => 'Ouvindo comando da gravacao...';
+  String get voiceListeningPrompt => 'Ouvindo comando da gravação...';
 
   @override
   late final VoiceCommandDispatcher voiceCommandDispatcher;
@@ -204,7 +204,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         gravacao.tamanhoBytes <= 0) {
       AppFeedback.showMessage(
         context,
-        'Arquivo de audio indisponivel para reproducao.',
+        'Arquivo de áudio indisponível para reprodução.',
       );
       return;
     }
@@ -221,7 +221,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
             _reproduzindo = false;
           });
           voiceSetState(() {
-            voiceStatusMessage = 'Reproducao parada.';
+            voiceStatusMessage = 'Reprodução parada.';
           });
         }
         return;
@@ -243,7 +243,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       unawaited(
         _registrarHistorico(
           tipo: 'gravacao_reproduzida',
-          descricao: 'Reproduziu a gravacao "${gravacao.nome}" nos detalhes',
+          descricao: 'Reproduziu a gravação "${gravacao.nome}" nos detalhes',
           gravacaoId: gravacao.id,
           projetoId: gravacao.projetoId,
         ),
@@ -308,7 +308,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       }
 
       voiceSetState(() {
-        voiceStatusMessage = 'Gravacao renomeada para ${atualizada.nome}.';
+        voiceStatusMessage = 'Gravação renomeada para ${atualizada.nome}.';
       });
 
       unawaited(
@@ -325,7 +325,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return;
       }
 
-      AppFeedback.showMessage(context, 'Nao foi possivel renomear a gravacao.');
+      AppFeedback.showMessage(context, 'Não foi possível renomear a gravação.');
     } finally {
       if (mounted) {
         setState(() {
@@ -343,7 +343,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
 
     final confirmar = await showVoiceConfirmationDialog(
       id: 'delete_recording_details_${gravacao.id}',
-      title: 'Excluir gravacao',
+      title: 'Excluir gravação',
       message: 'Deseja remover "${gravacao.nome}" do app e do dispositivo?',
       confirmLabel: 'Excluir',
       destructive: true,
@@ -375,7 +375,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         _registrarHistorico(
           tipo: 'gravacao_excluida',
           descricao:
-              'Excluiu a gravacao "${gravacao.nome}"${origemVoz ? ' por voz' : ''}',
+              'Excluiu a gravação "${gravacao.nome}"${origemVoz ? ' por voz' : ''}',
           projetoId: gravacao.projetoId,
         ),
       );
@@ -391,7 +391,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return;
       }
 
-      AppFeedback.showMessage(context, 'Nao foi possivel excluir a gravacao.');
+      AppFeedback.showMessage(context, 'Não foi possível excluir a gravação.');
     } finally {
       if (mounted && !navegouAposExcluir) {
         setState(() {
@@ -415,12 +415,12 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
             _reproduzindo = false;
           });
         }
-        return VoiceCommandPageResult.handled(message: 'Reproducao parada.');
+        return VoiceCommandPageResult.handled(message: 'Reprodução parada.');
       case VoiceCommandType.renomearGravacao:
         final novoNome = resultado.parametroSecundario;
         if (novoNome == null || novoNome.trim().isEmpty) {
           return VoiceCommandPageResult.handled(
-            message: 'Diga: renomear gravacao nome atual para novo nome.',
+            message: 'Diga: renomear gravação nome atual para novo nome.',
           );
         }
         await _salvarNovoNome(novoNome.trim(), origemVoz: true);
@@ -430,10 +430,10 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return VoiceCommandPageResult.handled(restartListening: false);
       case VoiceCommandType.confirmarAcao:
         return VoiceCommandPageResult.handled(
-          message: 'Nao ha acao aguardando confirmacao.',
+          message: 'Não há ação aguardando confirmação.',
         );
       case VoiceCommandType.cancelarAcao:
-        return VoiceCommandPageResult.handled(message: 'Acao cancelada.');
+        return VoiceCommandPageResult.handled(message: 'Ação cancelada.');
       case VoiceCommandType.scrollBaixo:
       case VoiceCommandType.scrollCima:
       case VoiceCommandType.scrollTopo:
@@ -668,7 +668,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Detalhes da gravacao'),
+        title: const Text('Detalhes da gravação'),
         centerTitle: true,
         actions: [
           IconButton(
@@ -684,7 +684,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
           builder: (context) {
             if (_carregando) {
               return const AppLoadingView(
-                message: 'Carregando detalhes da gravacao...',
+                message: 'Carregando detalhes da gravação...',
               );
             }
 
@@ -717,9 +717,9 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
                   const SizedBox(height: 80),
                   const AppEmptyState(
                     icon: Icons.music_off_outlined,
-                    title: 'Gravacao nao encontrada',
+                    title: 'Gravação não encontrada',
                     subtitle:
-                        'Esta gravacao pode ter sido excluida ou nao pertence mais ao banco local.',
+                        'Esta gravação pode ter sido excluída ou não pertence mais ao banco local.',
                   ),
                 ],
               );
@@ -845,7 +845,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
                       value: _formatarData(details.gravacao.dataCriacao),
                     ),
                     _InfoRow(
-                      label: 'Duracao',
+                      label: 'Duração',
                       value: _formatarDuracao(details.gravacao.duracaoSegundos),
                     ),
                     _InfoRow(
@@ -856,7 +856,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
-                  'Historico relacionado',
+                  'Histórico relacionado',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -865,7 +865,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
                     child: Padding(
                       padding: EdgeInsets.all(AppSpacing.lg),
                       child: Text(
-                        'Nenhuma atividade registrada para esta gravacao.',
+                        'Nenhuma atividade registrada para esta gravação.',
                       ),
                     ),
                   )
@@ -1002,7 +1002,7 @@ class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Renomear gravacao'),
+      title: const Text('Renomear gravação'),
       content: Form(
         key: _formKey,
         child: TextFormField(

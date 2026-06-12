@@ -87,6 +87,6 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('As senhas nao conferem.'), findsOneWidget);
+    expect(find.text('As senhas não conferem.'), findsOneWidget);
   });
 }

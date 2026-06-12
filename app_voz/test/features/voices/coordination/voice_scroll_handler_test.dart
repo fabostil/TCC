@@ -49,7 +49,7 @@ void main() {
     ).handle(command('descer'));
 
     expect(result?.handled, isTrue);
-    expect(result?.statusMessage, 'Nao ha lista para rolar nesta tela.');
+    expect(result?.statusMessage, 'Não há lista para rolar nesta tela.');
   });
 
   testWidgets('scroll down aumenta o offset sem ultrapassar limites', (

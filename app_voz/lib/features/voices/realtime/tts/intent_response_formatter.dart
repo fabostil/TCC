@@ -28,12 +28,12 @@ class IntentResponseFormatter {
         'Nenhuma gravação foi selecionada no editor para reproduzir.',
       'audio_output_unavailable' =>
         'O canal de áudio está ocupado no momento. Tente novamente em instantes.',
-      'database_error' => 'Nao foi possivel salvar essa alteracao agora.',
+      'database_error' => 'Não foi possível salvar essa alteração agora.',
       'recording_context_missing' =>
         'Não encontrei uma gravação recente para alterar.',
       'transaction_conflict_active' =>
         'Já existe uma ação aguardando confirmação. Confirme ou cancele antes de pedir outra.',
-      _ => 'Nao consegui executar o comando musical agora',
+      _ => 'Não consegui executar o comando musical agora',
     };
   }
 
@@ -42,7 +42,7 @@ class IntentResponseFormatter {
         intent is DeleteLastRecordingIntent) {
       return 'Confirmar exclusão da última gravação? Diga confirmar ou cancelar.';
     }
-    return 'Confirme a acao por voz para continuar.';
+    return 'Confirme a ação por voz para continuar.';
   }
 
   String formatConfirmationResolved(
@@ -56,12 +56,12 @@ class IntentResponseFormatter {
     if (approved) {
       return format(intent);
     }
-    return 'Acao cancelada.';
+    return 'Ação cancelada.';
   }
 
   String _playbackResponse(String action) {
     return switch (action) {
-      'start' => 'Iniciando reproducao',
+      'start' => 'Iniciando reprodução',
       'stop' => 'Parando a musica',
       'pause' => 'Pausando a musica',
       _ => unknownCommandResponse,
@@ -70,7 +70,7 @@ class IntentResponseFormatter {
 
   String _trackResponse(String action) {
     return switch (action) {
-      'record' => 'Preparando gravacao da faixa',
+      'record' => 'Preparando gravação da faixa',
       'mute' => 'Silenciando a faixa',
       'delete' => 'Removendo a faixa',
       _ => unknownCommandResponse,

@@ -117,6 +117,22 @@ void main() {
       expect(find.text('Ouvindo comando'), findsOneWidget);
       expect(find.text('listeningCommand'), findsNothing);
     });
+
+    test('mapeia estados internos para mensagens com acentuacao correta', () {
+      expect(UserFacingMessages.voiceStatus('sleeping'), 'Aguardando comando');
+      expect(
+        UserFacingMessages.voiceStatus('listeningCommand'),
+        'Ouvindo comando',
+      );
+      expect(
+        UserFacingMessages.voiceStatus('processing'),
+        'Processando comando',
+      );
+      expect(
+        UserFacingMessages.voiceStatus('error'),
+        'Não consegui concluir a ação',
+      );
+    });
   });
 
   group('UserFacingMessages', () {
@@ -135,8 +151,8 @@ void main() {
 
     test('preserva mensagem amigavel de validacao', () {
       expect(
-        UserFacingMessages.error(ArgumentError('Informe uma frase valida.')),
-        'Informe uma frase valida.',
+        UserFacingMessages.error(ArgumentError('Informe uma frase válida.')),
+        'Informe uma frase válida.',
       );
     });
 
@@ -166,7 +182,7 @@ void main() {
             body: AppEmptyState(
               icon: Icons.folder_off,
               title: 'Nenhum projeto',
-              subtitle: 'Crie um projeto para comecar.',
+              subtitle: 'Crie um projeto para começar.',
             ),
           ),
         ),
@@ -174,7 +190,7 @@ void main() {
 
       expect(find.byIcon(Icons.folder_off), findsOneWidget);
       expect(find.text('Nenhum projeto'), findsOneWidget);
-      expect(find.text('Crie um projeto para comecar.'), findsOneWidget);
+      expect(find.text('Crie um projeto para começar.'), findsOneWidget);
     });
 
     testWidgets('AppLoadingView renderiza mensagem de carregamento', (

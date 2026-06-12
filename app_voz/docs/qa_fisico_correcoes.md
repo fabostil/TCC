@@ -1162,3 +1162,63 @@ Testes criados/alterados:
 ### Criterio de aprovacao manual
 
 A etapa so passa se o usuario final nao vir estados internos, nomes de excecao, API keys, paths tecnicos ou mensagens de debug em fluxos normais.
+
+## F.14 - Ortografia, acentuação e encoding
+
+### Problema observado
+
+A interface ainda tinha textos sem acento, sem cedilha ou com encoding quebrado em mensagens visíveis ao usuário, especialmente em fluxos de voz, gravação, navegação, dashboard, configurações e histórico.
+
+### Diagnóstico
+
+Foram encontrados textos públicos sem acentuação em:
+
+* Home, Login e Cadastro;
+* Meus Projetos e Detalhes do Projeto;
+* Editor Musical e coordenador de gravação;
+* Minhas Gravações e Detalhes da Gravação;
+* Dashboard e insights;
+* Histórico;
+* Configurações;
+* `VoiceStatusBar`, mensagens compartilhadas, navegação por voz, scroll por voz e TTS.
+
+Também foi confirmado mojibake no Editor em mensagens como `NÃ£o foi possÃ­vel reconhecer a fala` e `gravaÃ§Ã£o`. As ocorrências em aliases, `tipoComando`, nomes de enums, rotas, owners e chaves internas foram preservadas quando não são texto final de UI.
+
+### Correção realizada
+
+* Corrigidos textos visíveis para português com acentos e cedilha, como `Não foi possível`, `Gravação`, `Configurações`, `Histórico`, `Ação`, `Permissão`, `Reprodução`, `Duração` e `Você`.
+* Corrigido mojibake confirmado no Editor.
+* Atualizados rótulos de status de gravação para `Concluída` e `Excluída`.
+* Atualizados status e mensagens de voz em helpers, mixins, navegação, scroll e TTS.
+* Atualizados rótulos de ações executadas em `CommandService` e `AiCommandService`, sem alterar aliases, `tipoComando` ou normalização.
+* Mantido suporte a comandos falados sem acento, como `configuracoes`, `gravacoes`, `historico`, `inicio` e `nao`.
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/widgets/core_ui_widget_test.dart`
+  * estados internos de voz continuam mapeados para mensagens amigáveis;
+  * mensagem de erro pública usa acentuação correta;
+  * textos compartilhados exibem `começar` com acento.
+* `test/widgets/recording_status_chip_widget_test.dart`
+  * chips exibem `Concluída` e `Excluída`.
+* `test/features/home/pages/home_page_test.dart`
+  * Home valida títulos e mensagem de modo manual com acentos.
+* `test/features/voices/services/command_service_test.dart`
+  * comandos sem acento `configuracoes`, `gravacoes`, `historico`, `inicio` e `nao` continuam reconhecidos.
+* Testes de navegação, scroll, editor, áudio, dashboard e TTS foram ajustados para as novas mensagens públicas.
+
+### Teste manual recomendado
+
+1. Rodar app no Android físico.
+2. Fazer login.
+3. Passar pelas telas Home, Meus projetos, Detalhes do projeto, Editor, Minhas gravações, Detalhes da gravação, Dashboard, Histórico e Configurações.
+4. Conferir títulos, botões, mensagens, chips, status de voz e modais.
+5. Confirmar que não aparecem `Gravacao`, `Configuracoes`, `Historico`, `Nao` ou caracteres quebrados como `Ã` e `�` na UI.
+6. Testar comandos falados sem acento: `configuracoes`, `gravacoes`, `historico`, `inicio` e `nao`.
+7. Confirmar que os comandos continuam funcionando.
+
+### Critério de aprovação manual
+
+A etapa só passa se a UI estiver em português correto, sem mojibake visível, e se comandos sem acento continuarem funcionando.

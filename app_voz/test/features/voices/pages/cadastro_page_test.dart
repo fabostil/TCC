@@ -82,9 +82,9 @@ void main() {
         find.text('O nome deve ter pelo menos 3 caracteres.'),
         findsOneWidget,
       );
-      expect(find.text('Informe um e-mail valido.'), findsOneWidget);
-      expect(find.text('Use letras e numeros na senha.'), findsOneWidget);
-      expect(find.text('As senhas nao conferem.'), findsOneWidget);
+      expect(find.text('Informe um e-mail válido.'), findsOneWidget);
+      expect(find.text('Use letras e números na senha.'), findsOneWidget);
+      expect(find.text('As senhas não conferem.'), findsOneWidget);
       expect(auth.registerCalls, 0);
     });
 
@@ -96,7 +96,7 @@ void main() {
       await tester.tap(find.byKey(const Key('cadastro_submit_button')));
       await tester.pump();
 
-      expect(find.text('Este e-mail ja esta cadastrado.'), findsOneWidget);
+      expect(find.text('Este e-mail já está cadastrado.'), findsOneWidget);
       expect(find.text('Login destino'), findsNothing);
       expect(auth.registerCalls, 1);
     });

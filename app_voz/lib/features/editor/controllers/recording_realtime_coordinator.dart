@@ -128,7 +128,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
           _state.copyWith(
             playing: false,
             timelineProgress: 0.0,
-            statusMessage: 'Reproducao finalizada.',
+            statusMessage: 'Reprodução finalizada.',
           ),
         );
       }
@@ -218,7 +218,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     Future<void> Function()? onAutomaticStop,
   }) async {
     if (_state.recording) {
-      _setStatus('Ja existe uma gravacao em andamento.');
+      _setStatus('Já existe uma gravação em andamento.');
       return;
     }
 
@@ -240,7 +240,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
         _state.copyWith(
           processing: false,
           statusMessage:
-              'Permissao do microfone removida. Reative para gravar novamente.',
+              'Permissão do microfone removida. Reative para gravar novamente.',
         ),
       );
       return;
@@ -250,12 +250,12 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       VoiceDiagnosticEventType.recordingStarted,
       ownerId: ownerId,
       reason: 'recording_intent',
-      message: 'Intencao de iniciar gravacao recebida.',
+      message: 'Intenção de iniciar gravação recebida.',
     );
     _setState(
       _state.copyWith(
         processing: true,
-        statusMessage: 'Preparando gravacao...',
+        statusMessage: 'Preparando gravação...',
       ),
     );
 
@@ -277,13 +277,13 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
           currentAmplitude: -160.0,
           silenceMs: 0,
           timelineProgress: 0.0,
-          statusMessage: 'Gravacao real iniciada.',
+          statusMessage: 'Gravação real iniciada.',
         ),
       );
       _clearLifecyclePauseFlags();
       _startRecordingProgressTimer();
       _startSilenceMonitoring(finalizeRecording, onHistory, onAutomaticStop);
-      onHistory('Iniciou gravacao real', 'gravacao_iniciada');
+      onHistory('Iniciou gravação real', 'gravacao_iniciada');
     } catch (e) {
       if (_isMicrophonePermissionError(e)) {
         await _handleMicrophonePermissionLost(
@@ -311,17 +311,17 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     required void Function(String action, String type) onHistory,
   }) async {
     if (!_state.recording) {
-      _setStatus('Nao existe gravacao em andamento para pausar.');
+      _setStatus('Não existe gravação em andamento para pausar.');
       return;
     }
 
     if (_state.paused) {
-      _setStatus('A gravacao ja esta pausada.');
+      _setStatus('A gravação já está pausada.');
       return;
     }
 
     _setState(
-      _state.copyWith(processing: true, statusMessage: 'Pausando gravacao...'),
+      _state.copyWith(processing: true, statusMessage: 'Pausando gravação...'),
     );
     try {
       await _recordingService.pauseRecording();
@@ -342,10 +342,10 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
         paused: true,
         processing: false,
         silenceMs: 0,
-        statusMessage: 'Gravacao pausada.',
+        statusMessage: 'Gravação pausada.',
       ),
     );
-    onHistory('Pausou gravacao', 'gravacao_pausada');
+    onHistory('Pausou gravação', 'gravacao_pausada');
   }
 
   Future<void> resumeRecording({
@@ -354,19 +354,19 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     Future<void> Function()? onAutomaticStop,
   }) async {
     if (!_state.recording || !_state.paused) {
-      _setStatus('Nao existe gravacao pausada para retomar.');
+      _setStatus('Não existe gravação pausada para retomar.');
       return;
     }
 
     _setState(
-      _state.copyWith(processing: true, statusMessage: 'Retomando gravacao...'),
+      _state.copyWith(processing: true, statusMessage: 'Retomando gravação...'),
     );
     if (_captureClosedByLifecycle) {
       _setState(
         _state.copyWith(
           processing: false,
           statusMessage:
-              'Gravacao pausada por interrupcao do sistema. Encerre e salve antes de continuar.',
+              'Gravação pausada por interrupção do sistema. Encerre e salve antes de continuar.',
         ),
       );
       return;
@@ -394,11 +394,11 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
         paused: false,
         processing: false,
         silenceMs: 0,
-        statusMessage: 'Gravacao retomada.',
+        statusMessage: 'Gravação retomada.',
       ),
     );
     _startSilenceMonitoring(finalizeRecording, onHistory, onAutomaticStop);
-    onHistory('Retomou gravacao', 'gravacao_retomada');
+    onHistory('Retomou gravação', 'gravacao_retomada');
   }
 
   Future<Gravacao?> stopRecording({
@@ -413,13 +413,13 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     bool automatic = false,
   }) async {
     if (!_state.recording) {
-      _setStatus('Nao existe gravacao em andamento para encerrar.');
+      _setStatus('Não existe gravação em andamento para encerrar.');
       return null;
     }
 
     _stopSilenceMonitoring();
     _setState(
-      _state.copyWith(processing: true, statusMessage: 'Salvando gravacao...'),
+      _state.copyWith(processing: true, statusMessage: 'Salvando gravação...'),
     );
 
     try {
@@ -432,9 +432,9 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
         _sessionManager.registerFailure(
           ownerId: ownerId,
           reason: 'recording_save_failed',
-          message: 'Falha ao salvar gravacao.',
+          message: 'Falha ao salvar gravação.',
         );
-        _resetAfterRecording('Nao foi possivel salvar a gravacao.');
+        _resetAfterRecording('Não foi possível salvar a gravação.');
         return null;
       }
 
@@ -445,13 +445,13 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       );
       _resetAfterRecording(
         automatic
-            ? '${saved.nome} salva automaticamente apos silencio.'
+            ? '${saved.nome} salva automaticamente após silêncio.'
             : '${saved.nome} salva no projeto.',
       );
       onHistory(
         automatic
-            ? 'Encerrou gravacao por silencio'
-            : 'Encerrou gravacao real e criou ${saved.nome}',
+            ? 'Encerrou gravação por silêncio'
+            : 'Encerrou gravação real e criou ${saved.nome}',
         automatic ? 'gravacao_finalizada_por_silencio' : 'gravacao_finalizada',
         recordingId: saved.id,
         projectId: saved.projetoId,
@@ -495,7 +495,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     _setState(
       _state.copyWith(
         processing: true,
-        statusMessage: 'Preparando reproducao...',
+        statusMessage: 'Preparando reprodução...',
       ),
     );
 
@@ -530,7 +530,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       _state.copyWith(
         playing: false,
         timelineProgress: 0.0,
-        statusMessage: 'Reproducao parada.',
+        statusMessage: 'Reprodução parada.',
       ),
     );
   }
@@ -577,7 +577,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
               VoiceDiagnosticEventType.recordingStopped,
               ownerId: ownerId,
               reason: 'automatic_silence_stop',
-              message: 'Parada automatica por silencio acionada.',
+              message: 'Parada automática por silêncio acionada.',
               metadata: {'silenceMs': nextSilence, 'level': level},
             );
             await stopRecording(
@@ -726,7 +726,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
           currentPath: safePath,
           silenceMs: 0,
           statusMessage:
-              'Gravacao pausada por interrupcao do sistema. Encerre e salve para continuar.',
+              'Gravação pausada por interrupção do sistema. Encerre e salve para continuar.',
         ),
       );
     } catch (e) {
@@ -746,7 +746,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       _state.copyWith(
         processing: false,
         statusMessage:
-            'Gravacao pausada por interrupcao do sistema. Escolha a proxima acao.',
+            'Gravação pausada por interrupção do sistema. Escolha a próxima ação.',
       ),
     );
   }
@@ -803,7 +803,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
         processing: false,
         silenceMs: 0,
         statusMessage:
-            'Permissao do microfone removida. Encerre e salve o audio parcial ou reative a permissao.',
+            'Permissão do microfone removida. Encerre e salve o áudio parcial ou reative a permissão.',
       ),
     );
   }
@@ -835,7 +835,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
         reason: reason,
         ownerId: ownerId,
         metadata: {
-          'message': 'Permissao do microfone removida.',
+          'message': 'Permissão do microfone removida.',
           if (error != null) 'error': error.toString(),
         },
       ),
@@ -846,7 +846,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
         reason: reason,
         ownerId: ownerId,
         metadata: {
-          'message': 'Permissao do microfone removida.',
+          'message': 'Permissão do microfone removida.',
           if (error != null) 'error': error.toString(),
         },
       ),

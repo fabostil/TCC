@@ -103,7 +103,7 @@ class DashboardService {
           tipo: DashboardInsightType.organizacao,
           titulo: 'Organize suas ideias em projetos',
           descricao:
-              'Voce ja tem gravacoes, mas ainda nao criou projetos. Criar projetos ajuda a separar demos, letras e referencias.',
+              'Você já tem gravações, mas ainda não criou projetos. Criar projetos ajuda a separar demos, letras e referências.',
           prioridade: DashboardInsightPriority.alta,
         ),
       );
@@ -111,9 +111,9 @@ class DashboardService {
       insights.add(
         DashboardInsight(
           tipo: DashboardInsightType.organizacao,
-          titulo: 'Revise gravacoes sem projeto',
+          titulo: 'Revise gravações sem projeto',
           descricao:
-              '$gravacoesSemProjeto gravacoes ainda nao estao ligadas a um projeto. Vincular essas ideias melhora a busca e a apresentacao.',
+              '$gravacoesSemProjeto gravações ainda não estão ligadas a um projeto. Vincular essas ideias melhora a busca e a apresentação.',
           prioridade: DashboardInsightPriority.media,
         ),
       );
@@ -123,9 +123,9 @@ class DashboardService {
       insights.add(
         const DashboardInsight(
           tipo: DashboardInsightType.producao,
-          titulo: 'Comece uma primeira gravacao',
+          titulo: 'Comece uma primeira gravação',
           descricao:
-              'Voce ja tem projeto criado. O proximo passo e registrar uma ideia no editor para alimentar o historico musical.',
+              'Você já tem projeto criado. O próximo passo é registrar uma ideia no editor para alimentar o histórico musical.',
           prioridade: DashboardInsightPriority.alta,
         ),
       );
@@ -135,9 +135,9 @@ class DashboardService {
       insights.add(
         const DashboardInsight(
           tipo: DashboardInsightType.producao,
-          titulo: 'Gravacoes muito curtas',
+          titulo: 'Gravações muito curtas',
           descricao:
-              'Ha varias capturas, mas a duracao total ainda e baixa. Vale gravar uma versao guia mais completa da melhor ideia.',
+              'Há várias capturas, mas a duração total ainda é baixa. Vale gravar uma versão guia mais completa da melhor ideia.',
           prioridade: DashboardInsightPriority.media,
         ),
       );
@@ -147,9 +147,9 @@ class DashboardService {
       insights.add(
         DashboardInsight(
           tipo: DashboardInsightType.alerta,
-          titulo: 'Ha gravacoes interrompidas',
+          titulo: 'Há gravações interrompidas',
           descricao:
-              '$gravacoesInterrompidas gravacao(oes) terminaram como interrompidas. Confira se precisam ser refeitas ou renomeadas.',
+              '$gravacoesInterrompidas gravações terminaram como interrompidas. Confira se precisam ser refeitas ou renomeadas.',
           prioridade: DashboardInsightPriority.media,
         ),
       );
@@ -159,9 +159,9 @@ class DashboardService {
       insights.add(
         DashboardInsight(
           tipo: DashboardInsightType.alerta,
-          titulo: 'Arquivos de audio ausentes',
+          titulo: 'Arquivos de áudio ausentes',
           descricao:
-              '$gravacoesComArquivoAusente gravacao(oes) apontam para arquivo ausente. Evite apresentar esses itens antes de revisar.',
+              '$gravacoesComArquivoAusente gravações apontam para arquivo ausente. Evite apresentar esses itens antes de revisar.',
           prioridade: DashboardInsightPriority.alta,
         ),
       );
@@ -175,7 +175,7 @@ class DashboardService {
           tipo: DashboardInsightType.voz,
           titulo: 'Comandos de voz precisam de ajuste',
           descricao:
-              'Muitos comandos nao foram reconhecidos. Cadastre frases personalizadas para os comandos que voce mais usa.',
+              'Muitos comandos não foram reconhecidos. Cadastre frases personalizadas para os comandos que você mais usa.',
           prioridade: DashboardInsightPriority.alta,
         ),
       );
@@ -183,9 +183,9 @@ class DashboardService {
       insights.add(
         const DashboardInsight(
           tipo: DashboardInsightType.voz,
-          titulo: 'Fluxo por voz esta consistente',
+          titulo: 'Fluxo por voz está consistente',
           descricao:
-              'Os comandos recentes foram reconhecidos sem falhas registradas. Esse e um bom ponto para testar em aparelho Android.',
+              'Os comandos recentes foram reconhecidos sem falhas registradas. Esse é um bom ponto para testar em aparelho Android.',
           prioridade: DashboardInsightPriority.baixa,
         ),
       );
@@ -202,7 +202,7 @@ class DashboardService {
           tipo: DashboardInsightType.producao,
           titulo: 'Retome uma ideia antiga',
           descricao:
-              'A ultima gravacao tem ${agora.difference(dataUltimaGravacao).inDays} dias. Reabrir esse material ajuda a manter continuidade criativa.',
+              'A última gravação tem ${agora.difference(dataUltimaGravacao).inDays} dias. Reabrir esse material ajuda a manter continuidade criativa.',
           prioridade: DashboardInsightPriority.media,
         ),
       );
@@ -215,7 +215,7 @@ class DashboardService {
           tipo: DashboardInsightType.historico,
           titulo: 'Padrao de uso detectado',
           descricao:
-              'A acao mais frequente e "${tipoMaisFrequente.tipo.replaceAll('_', ' ')}" com ${tipoMaisFrequente.total} ocorrencias.',
+              'A ação mais frequente é "${tipoMaisFrequente.tipo.replaceAll('_', ' ')}" com ${tipoMaisFrequente.total} ocorrências.',
           prioridade: DashboardInsightPriority.baixa,
         ),
       );
@@ -227,7 +227,7 @@ class DashboardService {
           tipo: DashboardInsightType.historico,
           titulo: 'Atividade recente registrada',
           descricao:
-              'O historico ja tem eventos suficientes para acompanhar sua rotina de criacao dentro do app.',
+              'O histórico já tem eventos suficientes para acompanhar sua rotina de criação dentro do app.',
           prioridade: DashboardInsightPriority.baixa,
         ),
       );

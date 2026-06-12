@@ -369,7 +369,7 @@ class RecordingManagementService {
     required List<Gravacao> gravacoesRelacionadas,
   }) async {
     if (gravacao.id == null) {
-      throw ArgumentError('Gravacao sem id nao pode ser renomeada.');
+      throw ArgumentError('Gravação sem id não pode ser renomeada.');
     }
 
     final nomeFinal = _uniqueName(
@@ -386,7 +386,7 @@ class RecordingManagementService {
 
   Future<void> deleteRecording(Gravacao gravacao) async {
     if (gravacao.id == null) {
-      throw ArgumentError('Gravacao sem id nao pode ser excluida.');
+      throw ArgumentError('Gravação sem id não pode ser excluída.');
     }
 
     final file = File(gravacao.caminhoArquivo);

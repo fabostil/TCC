@@ -113,7 +113,7 @@ class StreamFirstAudioRecordingService implements AudioRecordingCapture {
   @override
   Future<String> startRecording([String? filePath]) async {
     if (_disposed) {
-      throw StateError('StreamFirstAudioRecordingService ja foi descartado.');
+      throw StateError('Serviço de gravação já foi encerrado.');
     }
 
     _ensureChunkController();
@@ -128,7 +128,7 @@ class StreamFirstAudioRecordingService implements AudioRecordingCapture {
         ownerId: _ownerId,
         reason: 'record_permission_denied',
       );
-      throw Exception('Permissao de microfone negada.');
+      throw Exception('Permissão de microfone negada.');
     }
 
     final wavPath = filePath == null

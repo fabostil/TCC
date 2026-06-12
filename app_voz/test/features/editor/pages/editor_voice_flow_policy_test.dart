@@ -33,7 +33,7 @@ void main() {
       );
       expect(
         policy.recordingNavigationBlockedMessage,
-        'Ha uma gravacao em andamento. Encerre ou cancele antes de sair.',
+        'Há uma gravação em andamento. Encerre ou cancele antes de sair.',
       );
     });
 
@@ -57,7 +57,7 @@ void main() {
     test('documenta mensagem de indisponibilidade de voz durante gravacao', () {
       expect(
         policy.recordingVoiceUnavailableMessage,
-        'Gravacao em andamento. Use os controles da tela para pausar ou encerrar.',
+        'Gravação em andamento. Use os controles da tela para pausar ou encerrar.',
       );
     });
   });

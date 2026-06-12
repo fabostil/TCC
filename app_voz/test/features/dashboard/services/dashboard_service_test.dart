@@ -83,7 +83,7 @@ void main() {
       expect(insights.first.prioridade, DashboardInsightPriority.alta);
       expect(
         insights.any(
-          (insight) => insight.titulo == 'Fluxo por voz esta consistente',
+          (insight) => insight.titulo == 'Fluxo por voz está consistente',
         ),
         isTrue,
       );

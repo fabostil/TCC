@@ -228,7 +228,7 @@ void main() {
 
       expect(coordinator.state.playing, isFalse);
       expect(coordinator.state.timelineProgress, 0.0);
-      expect(coordinator.state.statusMessage, 'Reproducao finalizada.');
+      expect(coordinator.state.statusMessage, 'Reprodução finalizada.');
 
       coordinator.dispose();
       await playerService.dispose();
@@ -358,7 +358,7 @@ void main() {
         expect(coordinator.state.recording, isTrue);
         expect(coordinator.state.paused, isTrue);
         expect(coordinator.state.currentPath, '/tmp/take-safe.m4a');
-        expect(coordinator.state.statusMessage, contains('interrupcao'));
+        expect(coordinator.state.statusMessage, contains('interrupção'));
 
         final saved = await coordinator.stopRecording(
           finalizeRecording:
@@ -438,7 +438,7 @@ void main() {
         AppLifecycleState.resumed,
       );
 
-      expect(coordinator.state.statusMessage, contains('proxima acao'));
+      expect(coordinator.state.statusMessage, contains('próxima ação'));
       expect(
         VoiceSessionManager.instance.diagnostics.eventBus.timeline
             .whereType<VoiceStateChangedEvent>()

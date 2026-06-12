@@ -340,7 +340,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     final configuracao = _settingsState.configuration;
     if (configuracao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Configuracao ainda carregando.',
+        message: 'Configuração ainda carregando.',
       );
     }
 
@@ -802,7 +802,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(comando.frase),
-                      subtitle: Text(acao?.label ?? 'Acao personalizada'),
+                      subtitle: Text(acao?.label ?? 'Ação personalizada'),
                       leading: Switch(
                         value: comando.ativo,
                         onChanged: alternando || excluindo

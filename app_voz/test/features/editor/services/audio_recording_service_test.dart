@@ -61,7 +61,7 @@ void main() {
             isA<Exception>().having(
               (error) => error.toString(),
               'message',
-              contains('Permissao de microfone negada.'),
+              contains('Permissão de microfone negada.'),
             ),
           ),
         );

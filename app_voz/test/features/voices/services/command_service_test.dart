@@ -209,6 +209,19 @@ void main() {
       expect(service.interpret('home').type, VoiceCommandType.voltar);
       expect(service.interpret('in\u00edcio').type, VoiceCommandType.voltar);
       expect(service.interpret('inicio').type, VoiceCommandType.voltar);
+      expect(
+        service.interpret('configuracoes').type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
+        service.interpret('gravacoes').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
+        service.interpret('historico').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(service.interpret('inicio').type, VoiceCommandType.voltar);
       expect(service.interpret('tela inicial').type, VoiceCommandType.voltar);
       expect(
         service.interpret('voltar para tela inicial').type,
@@ -414,6 +427,7 @@ void main() {
         VoiceCommandType.ativarFeedbackSonoro,
       );
       expect(service.interpret('sim').type, VoiceCommandType.confirmarAcao);
+      expect(service.interpret('nao').type, VoiceCommandType.cancelarAcao);
       expect(service.interpret('desistir').type, VoiceCommandType.cancelarAcao);
     });
 

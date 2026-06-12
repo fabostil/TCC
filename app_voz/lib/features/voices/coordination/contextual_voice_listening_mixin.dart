@@ -51,7 +51,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
 
   String get voiceListeningPrompt;
 
-  String get voiceErrorPrompt => 'Nao entendi. Pode repetir.';
+  String get voiceErrorPrompt => 'Não entendi. Pode repetir.';
 
   bool get voiceHandlesGlobalCommands => true;
 

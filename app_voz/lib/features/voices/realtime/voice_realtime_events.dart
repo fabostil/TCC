@@ -37,7 +37,7 @@ class AudioPipelineReadyEvent extends VoiceRealtimeEvent {
          source: source,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Audio pipeline isolate pronto.',
+         message: 'Áudio pipeline isolate pronto.',
          metadata: metadata,
        );
 }
@@ -53,7 +53,7 @@ class AudioPipelineCaptureStartedEvent extends VoiceRealtimeEvent {
          source: source,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Audio pipeline iniciou captura simulada.',
+         message: 'Áudio pipeline iniciou captura simulada.',
          metadata: metadata,
        );
 }
@@ -88,7 +88,7 @@ class AudioPipelineCaptureStoppedEvent extends VoiceRealtimeEvent {
          source: source,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Audio pipeline encerrou captura simulada.',
+         message: 'Áudio pipeline encerrou captura simulada.',
          metadata: metadata,
        );
 }
@@ -104,7 +104,7 @@ class AudioPipelinePongEvent extends VoiceRealtimeEvent {
          source: source,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Audio pipeline respondeu PING.',
+         message: 'Áudio pipeline respondeu PING.',
          metadata: metadata,
        );
 }
@@ -120,7 +120,7 @@ class AudioPipelineShutdownCompleteEvent extends VoiceRealtimeEvent {
          source: source,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Audio pipeline finalizou shutdown.',
+         message: 'Áudio pipeline finalizou shutdown.',
          metadata: metadata,
        );
 }
@@ -138,7 +138,7 @@ class AudioPipelineErrorEvent extends VoiceRealtimeEvent {
          reason: reason,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Audio pipeline reportou erro.',
+         message: 'Áudio pipeline reportou erro.',
          severity: VoiceRealtimeEventSeverity.warning,
          metadata: metadata,
        );
@@ -255,7 +255,7 @@ class RecordingPausedEvent extends VoiceRealtimeEvent {
          reason: reason,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Gravacao pausada.',
+         message: 'Gravação pausada.',
        );
 }
 
@@ -273,7 +273,7 @@ class RecordingResumedEvent extends VoiceRealtimeEvent {
          reason: reason,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Gravacao retomada.',
+         message: 'Gravação retomada.',
        );
 }
 
@@ -292,7 +292,7 @@ class RecordingStartedEvent extends VoiceRealtimeEvent {
          reason: reason,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Gravacao iniciada.',
+         message: 'Gravação iniciada.',
          metadata: metadata,
        );
 }
@@ -312,7 +312,7 @@ class RecordingStoppedEvent extends VoiceRealtimeEvent {
          reason: reason,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Gravacao encerrada.',
+         message: 'Gravação encerrada.',
          metadata: metadata,
        );
 }
@@ -766,7 +766,7 @@ class VoiceCommandConfirmationRequiredEvent extends VoiceRealtimeEvent {
          reason: reason,
          correlationId: correlationId,
          causationId: causationId,
-         message: 'Confirmacao de comando de voz solicitada.',
+         message: 'Confirmação de comando de voz solicitada.',
          cancelable: true,
          metadata: {
            'action': action,

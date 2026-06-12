@@ -118,7 +118,7 @@ void main() {
         expect(failed.correlationId, 'database-flow');
         expect(
           const IntentResponseFormatter().formatFailure('database_error'),
-          'Nao foi possivel salvar essa alteracao agora.',
+          'Não foi possível salvar essa alteração agora.',
         );
       },
     );

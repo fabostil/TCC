@@ -774,7 +774,7 @@ class VoiceRuntimeEngine {
       _publishRecoverySkipped(
         request,
         reason: 'recover_action_rejected',
-        message: 'Acao de recovery nao foi executada.',
+        message: 'Ação de recuperação não foi executada.',
         metadata: {'sessionToken': sessionToken},
       );
       return;
