@@ -75,7 +75,11 @@ class _LoginPageState extends State<LoginPage> {
 
       if (usuario == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('E-mail ou senha incorretos.')),
+          const SnackBar(
+            content: Text(
+              'Não foi possível entrar. Confira o e-mail e a senha.',
+            ),
+          ),
         );
         return;
       }
@@ -95,7 +99,8 @@ class _LoginPageState extends State<LoginPage> {
           content: Text(
             UserFacingMessages.error(
               e,
-              fallback: 'Não foi possível entrar. Tente novamente.',
+              fallback:
+                  'Não consegui concluir o login. Confira os dados e tente novamente.',
             ),
           ),
         ),
@@ -163,9 +168,7 @@ class _LoginPageState extends State<LoginPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Não foi possível preparar sua conta. Tente novamente.',
-          ),
+          content: Text('Não consegui preparar sua conta. Tente novamente.'),
         ),
       );
     }

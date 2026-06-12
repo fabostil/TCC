@@ -325,7 +325,10 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return;
       }
 
-      AppFeedback.showMessage(context, 'Não foi possível renomear a gravação.');
+      AppFeedback.showMessage(
+        context,
+        'Não consegui renomear a gravação agora. Tente outro nome.',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -391,7 +394,10 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return;
       }
 
-      AppFeedback.showMessage(context, 'Não foi possível excluir a gravação.');
+      AppFeedback.showMessage(
+        context,
+        'Não consegui remover a gravação agora.',
+      );
     } finally {
       if (mounted && !navegouAposExcluir) {
         setState(() {

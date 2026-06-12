@@ -51,7 +51,7 @@ class VoiceScrollHandler {
             direction == VoiceScrollDirection.up ||
                 direction == VoiceScrollDirection.top
             ? 'Você já está no topo.'
-            : 'Você já está no fim da lista.',
+            : 'Você já chegou ao fim da lista.',
       );
     }
 

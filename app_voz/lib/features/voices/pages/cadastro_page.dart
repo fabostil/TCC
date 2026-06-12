@@ -71,16 +71,18 @@ class _CadastroPageState extends State<CadastroPage> {
 
       if (!sucesso) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Este e-mail já está cadastrado.')),
+          const SnackBar(
+            content: Text(
+              'Essa conta já existe. Tente entrar ou use outro e-mail.',
+            ),
+          ),
         );
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Cadastro criado. Para verificar a conta, entre com Google.',
-          ),
+          content: Text('Conta criada com sucesso. Entre para continuar.'),
         ),
       );
 
@@ -105,7 +107,8 @@ class _CadastroPageState extends State<CadastroPage> {
           content: Text(
             UserFacingMessages.error(
               e,
-              fallback: 'Não foi possível cadastrar. Tente novamente.',
+              fallback:
+                  'Não consegui criar sua conta. Confira os dados e tente novamente.',
             ),
           ),
         ),
@@ -173,9 +176,7 @@ class _CadastroPageState extends State<CadastroPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Não foi possível preparar sua conta. Tente novamente.',
-          ),
+          content: Text('Não consegui preparar sua conta. Tente novamente.'),
         ),
       );
     }

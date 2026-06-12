@@ -33,7 +33,7 @@ String? _validateCommandPhrase(String? value) {
     return 'Informe a frase do comando.';
   }
   if (normalized.isEmpty) {
-    return 'Informe uma frase valida para o comando.';
+    return 'Informe uma frase válida para o comando.';
   }
   if (normalized.length < _minCommandPhraseLength) {
     return 'A frase deve ter pelo menos 3 caracteres.';
@@ -169,7 +169,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       }
 
       _frasePersonalizadaController.clear();
-      _atualizarStatus('Comando personalizado salvo.');
+      _atualizarStatus(
+        'Comando personalizado salvo. Você já pode usar essa frase por voz.',
+      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -236,7 +238,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
         return;
       }
 
-      _atualizarStatus('Comando personalizado excluido.');
+      _atualizarStatus('Comando personalizado removido.');
     } finally {
       if (mounted) {
         setState(() {
@@ -278,7 +280,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
           return;
         }
 
-        _atualizarStatus('Controle por voz desativado.');
+        _atualizarStatus('Controle por voz pausado.');
         return;
       }
 
@@ -300,7 +302,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
         _atualizarStatus(
           permissao == VoicePermissionResult.permanentlyDenied
               ? 'Microfone bloqueado nas configurações do Android.'
-              : 'Permissão de microfone negada.',
+              : 'Permita o uso do microfone para controlar o app por voz.',
         );
         return;
       }
@@ -786,7 +788,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                 const SizedBox(height: AppSpacing.md),
                 if (settingsState.customCommands.isEmpty)
                   Text(
-                    'Nenhum comando personalizado cadastrado.',
+                    'Você ainda não criou comandos personalizados. Salve uma frase para usá-la por voz.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   )
                 else

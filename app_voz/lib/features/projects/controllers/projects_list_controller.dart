@@ -185,7 +185,7 @@ class ProjectsListController extends ChangeNotifier {
   Future<void> deleteProject({required Projeto project}) async {
     final projectId = project.id;
     if (projectId == null) {
-      throw ArgumentError('Projeto sem id nao pode ser excluido.');
+      throw ArgumentError('Não consegui identificar o projeto para remover.');
     }
 
     await _projetoRepository.removerProjeto(projectId);

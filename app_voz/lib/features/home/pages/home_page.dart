@@ -180,7 +180,7 @@ class _HomePageState extends State<HomePage>
       _configuracao = atualizada;
       voiceStatusMessage = comandosAtivos
           ? 'Assistente ativado. Estou ouvindo comandos.'
-          : 'Permissão de microfone negada. Modo manual ativo.';
+          : 'Permita o uso do microfone para controlar o app por voz. Modo manual ativo.';
     });
 
     if (atualizada.comandosVozAtivos) {
@@ -267,7 +267,7 @@ class _HomePageState extends State<HomePage>
       }
       AppFeedback.showMessage(
         context,
-        'Não foi possível sair da conta. Tente novamente.',
+        'Não consegui sair da conta agora. Tente novamente.',
       );
       return;
     }

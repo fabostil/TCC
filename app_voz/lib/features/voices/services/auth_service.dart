@@ -13,7 +13,7 @@ class AuthGoogleLoginException implements Exception {
 }
 
 const String authGoogleAccountPreparationMessage =
-    'Não foi possível preparar sua conta. Tente novamente.';
+    'Não consegui preparar sua conta. Tente novamente.';
 
 /// Orquestra autenticacao local e conversao de identidade externa em usuario.
 ///

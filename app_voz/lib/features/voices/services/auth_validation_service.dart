@@ -45,7 +45,7 @@ class AuthValidationService {
 
   String? validarSenhaLogin(String? value) {
     if (value == null || value.isEmpty) {
-      return 'Informe sua senha.';
+      return 'Digite sua senha para continuar.';
     }
 
     return null;
@@ -55,7 +55,7 @@ class AuthValidationService {
     final senha = value ?? '';
 
     if (senha.isEmpty) {
-      return 'Informe uma senha.';
+      return 'Crie uma senha para proteger sua conta.';
     }
 
     if (senha.length < 8) {
@@ -66,7 +66,7 @@ class AuthValidationService {
     final temNumero = RegExp(r'\d').hasMatch(senha);
 
     if (!temLetra || !temNumero) {
-      return 'Use letras e números na senha.';
+      return 'Use letras e números para deixar a senha mais segura.';
     }
 
     return null;

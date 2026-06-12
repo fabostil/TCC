@@ -807,7 +807,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         case VoiceCommandType.cancelarAcao:
           setState(() {
             statusProjeto =
-                'Comando de navegação reconhecido. Use o assistente de voz para navegar.';
+                'Esse comando não está disponível no editor. Use os botões da tela inicial para navegar.';
           });
           return;
         case VoiceCommandType.desconhecido:
@@ -827,7 +827,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       );
 
       setState(() {
-        statusProjeto = 'Comando não reconhecido.';
+        statusProjeto = unknownVoiceCommandMessage;
       });
     } finally {
       if (mounted) {
@@ -1067,7 +1067,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.error,
-          message: 'Erro ao iniciar gravação.',
+          message: 'Não consegui iniciar a gravação agora.',
         );
         _interactionMode = EditorInteractionMode.normal;
         statusProjeto = UserFacingMessages.recordingControlError;
@@ -1149,7 +1149,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       setState(() {
         _setVoiceSession(
           VoiceSessionPhase.error,
-          message: 'Erro ao encerrar gravação.',
+          message: 'Não consegui encerrar a gravação agora.',
         );
         _interactionMode = EditorInteractionMode.normal;
         statusProjeto = UserFacingMessages.recordingSaveError;
@@ -1162,7 +1162,8 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   Future<void> reproduzirProjeto(String comando) async {
     if (faixas.isEmpty) {
       setState(() {
-        statusProjeto = 'Ainda não há gravações para reproduzir.';
+        statusProjeto =
+            'Ainda não há gravações para reproduzir. Grave uma ideia primeiro.';
       });
       return;
     }
@@ -2044,7 +2045,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 12),
             if (faixas.isEmpty)
-              const Text('Nenhuma gravação adicionada ainda.'),
+              const Text(
+                'Suas gravações aparecerão aqui depois que você salvar uma ideia.',
+              ),
             if (faixas.isNotEmpty)
               ...faixas.map(
                 (faixa) => ListTile(
@@ -2087,7 +2090,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 12),
             if (historicoComandos.isEmpty)
-              const Text('Nenhum comando executado ainda.'),
+              const Text(
+                'Os comandos reconhecidos nesta sessão aparecerão aqui.',
+              ),
             if (historicoComandos.isNotEmpty)
               ...historicoComandos
                   .take(6)

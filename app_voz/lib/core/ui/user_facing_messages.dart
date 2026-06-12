@@ -2,20 +2,21 @@ class UserFacingMessages {
   const UserFacingMessages._();
 
   static const genericActionError =
-      'Não foi possível concluir a ação. Tente novamente.';
+      'Não consegui concluir essa ação. Tente novamente.';
   static const commandExecutionError =
-      'Não consegui executar esse comando. Tente novamente.';
+      'Não consegui executar esse comando agora. Tente dizer de outro jeito.';
   static const deviceActionError =
-      'Não foi possível concluir a ação neste dispositivo.';
-  static const dataLoadError = 'Não foi possível carregar os dados.';
+      'Não consegui concluir essa ação neste dispositivo.';
+  static const dataLoadError =
+      'Não consegui carregar as informações agora. Tente novamente.';
   static const dataSaveError =
-      'Não foi possível salvar as informações. Tente novamente.';
+      'Não consegui salvar as informações agora. Confira os dados e tente novamente.';
   static const playbackError =
-      'Não foi possível reproduzir o áudio. Tente novamente.';
+      'Não consegui reproduzir esta gravação agora. Verifique se o arquivo está disponível.';
   static const recordingControlError =
-      'Não foi possível controlar a gravação agora.';
+      'Não consegui controlar a gravação agora. Verifique o microfone e tente novamente.';
   static const recordingSaveError =
-      'Não foi possível salvar a gravação. Tente novamente.';
+      'Não consegui salvar a gravação agora. Tente encerrar novamente.';
 
   static String voiceStatus(String message) {
     final normalized = _normalize(message);
@@ -28,7 +29,7 @@ class UserFacingMessages {
       'idle' => 'Pronto para ouvir',
       'active' => 'Controle por voz ativo',
       'inactive' => 'Controle por voz pausado',
-      'error' => 'Não consegui concluir a ação',
+      'error' => genericActionError,
       _ => message,
     };
   }

@@ -48,7 +48,7 @@ class VoiceGlobalCommandService {
             comandosVozAtivos: false,
             escutaContinua: false,
           ),
-          message: 'Controle por voz desativado.',
+          message: 'Controle por voz pausado.',
           shouldStopListening: true,
         );
       case VoiceCommandType.ativarEscutaContinua:
@@ -151,7 +151,7 @@ class VoiceGlobalCommandService {
         handled: true,
         message: permissao == VoicePermissionResult.permanentlyDenied
             ? 'Microfone bloqueado nas configurações do Android.'
-            : 'Permissão de microfone negada.',
+            : 'Permita o uso do microfone para controlar o app por voz.',
       );
     }
 
@@ -169,7 +169,7 @@ class VoiceGlobalCommandService {
         handled: true,
         message: permissao == VoicePermissionResult.permanentlyDenied
             ? 'Microfone bloqueado nas configurações do Android.'
-            : 'Permissão de microfone negada.',
+            : 'Permita o uso do microfone para controlar o app por voz.',
       );
     }
 

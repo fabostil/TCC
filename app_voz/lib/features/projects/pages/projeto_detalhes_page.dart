@@ -217,7 +217,11 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível renomear a gravação.')),
+        const SnackBar(
+          content: Text(
+            'Não consegui renomear a gravação agora. Tente outro nome.',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -266,7 +270,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível excluir a gravação.')),
+        const SnackBar(content: Text('Não consegui remover a gravação agora.')),
       );
     } finally {
       if (mounted) {
@@ -521,7 +525,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nenhuma gravação encontrada para reproduzir.',
+        message:
+            'Não encontrei gravações neste projeto para reproduzir. Abra o editor para gravar uma ideia.',
       );
     }
 
@@ -540,7 +545,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nenhuma gravação encontrada para abrir detalhes.',
+        message: 'Não encontrei gravações neste projeto para abrir detalhes.',
       );
     }
 
@@ -569,7 +574,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Gravação não encontrada para exclusão.',
+        message:
+            'Não encontrei essa gravação no projeto. Diga o nome de uma gravação da lista.',
       );
     }
 

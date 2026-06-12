@@ -95,7 +95,7 @@ class SettingsController extends ChangeNotifier {
       throw StateError('Entre novamente para criar comandos personalizados.');
     }
     if (normalizedPhrase.isEmpty) {
-      throw ArgumentError('Informe uma frase valida para o comando.');
+      throw ArgumentError('Informe uma frase válida para o comando.');
     }
     if (normalizedPhrase.length < CustomCommandRules.minPhraseLength) {
       throw ArgumentError('Informe uma frase com pelo menos 3 caracteres.');
@@ -117,7 +117,9 @@ class SettingsController extends ChangeNotifier {
           CustomCommandRules.normalizePhrase(command.frase) == normalizedPhrase,
     );
     if (duplicate) {
-      throw ArgumentError('Ja existe um comando personalizado com essa frase.');
+      throw ArgumentError(
+        'Você já cadastrou essa frase. Escolha outra para o comando.',
+      );
     }
 
     await _comandoRepository.salvar(

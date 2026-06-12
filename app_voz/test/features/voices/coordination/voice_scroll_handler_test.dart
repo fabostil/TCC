@@ -124,4 +124,21 @@ void main() {
     expect(result?.handled, isTrue);
     expect(controller.offset, controller.position.maxScrollExtent);
   });
+
+  testWidgets('fim informa quando a lista ja esta no final', (tester) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await pumpScrollable(tester, controller);
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pump();
+
+    final result = await handleAndSettle(
+      tester,
+      VoiceScrollHandler(controller: controller),
+      command('fim da lista'),
+    );
+
+    expect(result?.handled, isTrue);
+    expect(result?.statusMessage, 'Você já chegou ao fim da lista.');
+  });
 }

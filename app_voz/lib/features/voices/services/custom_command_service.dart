@@ -89,7 +89,7 @@ class CustomCommandRules {
 
   static const int minPhraseLength = 3;
   static const String reservedPhraseMessage =
-      'Esse comando ja e usado pelo app. Escolha outra frase.';
+      'Esse comando já é usado pelo app. Escolha outra frase.';
 
   static String normalizePhrase(
     String phrase, {

@@ -1,3 +1,4 @@
+import 'package:app_voz/core/ui/user_facing_messages.dart';
 import 'package:app_voz/features/dashboard/controllers/dashboard_controller.dart';
 import 'package:app_voz/features/dashboard/services/dashboard_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,7 +42,7 @@ void main() {
       await controller.load(7);
 
       expect(controller.state.loading, isFalse);
-      expect(controller.state.error, contains('Não foi possível carregar'));
+      expect(controller.state.error, UserFacingMessages.dataLoadError);
       expect(controller.state.data, isNull);
 
       controller.dispose();

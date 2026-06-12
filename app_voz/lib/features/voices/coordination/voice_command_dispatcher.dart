@@ -38,8 +38,8 @@ class VoiceCommandPageResult {
     return VoiceCommandPageResult._(
       handled: true,
       statusMessage: recognized
-          ? 'Comando nao disponivel nesta tela.'
-          : 'Comando nao reconhecido nesta tela.',
+          ? 'Esse comando não está disponível nesta tela.'
+          : unknownVoiceCommandMessage,
       restartListening: true,
     );
   }

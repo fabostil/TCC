@@ -44,7 +44,10 @@ void main() {
 
       expect(find.text('Informe seu nome.'), findsOneWidget);
       expect(find.text('Informe seu e-mail.'), findsOneWidget);
-      expect(find.text('Informe uma senha.'), findsOneWidget);
+      expect(
+        find.text('Crie uma senha para proteger sua conta.'),
+        findsOneWidget,
+      );
       expect(find.text('Confirme sua senha.'), findsOneWidget);
       expect(auth.registerCalls, 0);
       expect(auth.googleCalls, 0);
@@ -83,7 +86,10 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Informe um e-mail válido.'), findsOneWidget);
-      expect(find.text('Use letras e números na senha.'), findsOneWidget);
+      expect(
+        find.text('Use letras e números para deixar a senha mais segura.'),
+        findsOneWidget,
+      );
       expect(find.text('As senhas não conferem.'), findsOneWidget);
       expect(auth.registerCalls, 0);
     });
@@ -96,7 +102,10 @@ void main() {
       await tester.tap(find.byKey(const Key('cadastro_submit_button')));
       await tester.pump();
 
-      expect(find.text('Este e-mail já está cadastrado.'), findsOneWidget);
+      expect(
+        find.text('Essa conta já existe. Tente entrar ou use outro e-mail.'),
+        findsOneWidget,
+      );
       expect(find.text('Login destino'), findsNothing);
       expect(auth.registerCalls, 1);
     });

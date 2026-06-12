@@ -39,7 +39,9 @@ class SpeechService {
     }
 
     if (!microphoneStatus.isGranted) {
-      _currentOnError?.call('Permissão de microfone negada.');
+      _currentOnError?.call(
+        'Permita o uso do microfone para controlar o app por voz.',
+      );
       return false;
     }
 

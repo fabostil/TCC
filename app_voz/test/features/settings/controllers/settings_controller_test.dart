@@ -123,7 +123,7 @@ void main() {
           isA<ArgumentError>().having(
             (error) => error.message,
             'message',
-            'Ja existe um comando personalizado com essa frase.',
+            'Você já cadastrou essa frase. Escolha outra para o comando.',
           ),
         ),
       );

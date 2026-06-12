@@ -229,7 +229,11 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível renomear a gravação.')),
+        const SnackBar(
+          content: Text(
+            'Não consegui renomear a gravação agora. Tente outro nome.',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -298,14 +302,14 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         return;
       }
 
-      AppFeedback.showMessage(context, 'Gravação excluída com sucesso.');
+      AppFeedback.showMessage(context, 'Gravação removida do app.');
     } catch (e) {
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível excluir a gravação.')),
+        const SnackBar(content: Text('Não consegui remover a gravação agora.')),
       );
     } finally {
       if (mounted) {
@@ -534,7 +538,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nenhuma gravação encontrada para reproduzir.',
+        message:
+            'Não encontrei gravações para reproduzir. Grave um áudio no editor primeiro.',
       );
     }
 
@@ -553,7 +558,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nenhuma gravação encontrada para abrir detalhes.',
+        message:
+            'Não encontrei gravações para abrir detalhes. Grave um áudio no editor primeiro.',
       );
     }
 
@@ -598,7 +604,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Gravação não encontrada para exclusão.',
+        message:
+            'Não encontrei essa gravação. Diga o nome de uma gravação da lista.',
       );
     }
 
@@ -618,17 +625,18 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Nenhuma exclusão pendente para confirmar.',
+        message:
+            'Não há gravação aguardando confirmação. Diga excluir gravação antes de confirmar.',
       );
     }
 
     if (gravacao.id == null) {
       voiceSetState(() {
-        voiceStatusMessage = 'Gravação inválida para exclusão.';
+        voiceStatusMessage = 'Não consegui remover essa gravação agora.';
       });
       _recordingsController.cancelPendingDeletion();
       return VoiceCommandPageResult.handled(
-        message: 'Gravação inválida para exclusão.',
+        message: 'Não consegui remover essa gravação agora.',
       );
     }
 
@@ -656,16 +664,16 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     } catch (e) {
       if (!mounted) {
         return VoiceCommandPageResult.handled(
-          message: 'Não foi possível excluir a gravação.',
+          message: 'Não consegui remover a gravação agora.',
         );
       }
 
       voiceSetState(() {
-        voiceStatusMessage = 'Não foi possível excluir a gravação.';
+        voiceStatusMessage = 'Não consegui remover a gravação agora.';
       });
       _recordingsController.cancelPendingDeletion();
       return VoiceCommandPageResult.handled(
-        message: 'Não foi possível excluir a gravação.',
+        message: 'Não consegui remover a gravação agora.',
       );
     } finally {
       if (mounted) {
@@ -768,7 +776,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                     icon: Icons.library_music_outlined,
                     title: 'Nenhuma gravação encontrada',
                     subtitle:
-                        'Grave um áudio no editor e ele aparecerá aqui automaticamente.',
+                        'Suas gravações aparecerão aqui. Abra o editor para registrar a primeira ideia.',
                   ),
                 ],
               );

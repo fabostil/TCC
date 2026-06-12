@@ -82,7 +82,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Informe seu e-mail.'), findsOneWidget);
-      expect(find.text('Informe sua senha.'), findsOneWidget);
+      expect(find.text('Digite sua senha para continuar.'), findsOneWidget);
       expect(auth.localCalls, 0);
       expect(auth.googleCalls, 0);
     });
@@ -95,7 +95,10 @@ void main() {
       await tester.tap(find.byKey(const Key('login_submit_button')));
       await tester.pump();
 
-      expect(find.text('E-mail ou senha incorretos.'), findsOneWidget);
+      expect(
+        find.text('Não foi possível entrar. Confira o e-mail e a senha.'),
+        findsOneWidget,
+      );
       expect(find.text('Home destino'), findsNothing);
       expect(auth.localCalls, 1);
       expect(auth.googleCalls, 0);

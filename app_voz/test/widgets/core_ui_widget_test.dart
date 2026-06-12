@@ -130,7 +130,7 @@ void main() {
       );
       expect(
         UserFacingMessages.voiceStatus('error'),
-        'Não consegui concluir a ação',
+        'Não consegui concluir essa ação. Tente novamente.',
       );
     });
   });
@@ -153,6 +153,36 @@ void main() {
       expect(
         UserFacingMessages.error(ArgumentError('Informe uma frase válida.')),
         'Informe uma frase válida.',
+      );
+    });
+
+    test('mensagens compartilhadas sao especificas e sem termos tecnicos', () {
+      const messages = [
+        UserFacingMessages.genericActionError,
+        UserFacingMessages.commandExecutionError,
+        UserFacingMessages.dataLoadError,
+        UserFacingMessages.dataSaveError,
+        UserFacingMessages.playbackError,
+        UserFacingMessages.recordingControlError,
+        UserFacingMessages.recordingSaveError,
+      ];
+
+      for (final message in messages) {
+        final lower = message.toLowerCase();
+        expect(lower, isNot(contains('exception')));
+        expect(lower, isNot(contains('stacktrace')));
+        expect(lower, isNot(contains('sqlite')));
+        expect(lower, isNot(contains('hash')));
+        expect(lower, isNot(contains('token')));
+      }
+
+      expect(
+        UserFacingMessages.playbackError,
+        contains('Verifique se o arquivo está disponível'),
+      );
+      expect(
+        UserFacingMessages.recordingControlError,
+        contains('Verifique o microfone'),
       );
     });
 

@@ -99,7 +99,7 @@ void main() {
 
       expect(logoutCalls, 1);
       expect(
-        find.text('Não foi possível sair da conta. Tente novamente.'),
+        find.text('Não consegui sair da conta agora. Tente novamente.'),
         findsOneWidget,
       );
       expect(find.byType(HomePage), findsOneWidget);

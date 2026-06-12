@@ -97,7 +97,7 @@ class VoicePermissionService {
       VoicePermissionResult.granted =>
         'Microfone liberado para comandos de voz.',
       VoicePermissionResult.denied =>
-        'Permissão de microfone negada. O app continua funcionando em modo manual.',
+        'Permita o uso do microfone para controlar o app por voz. O modo manual continua disponível.',
       VoicePermissionResult.permanentlyDenied =>
         'Microfone bloqueado nas configurações do Android. Abra as permissões do app para reativar os comandos de voz.',
     };

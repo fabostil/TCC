@@ -13,7 +13,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Informe seu e-mail.'), findsOneWidget);
-    expect(find.text('Informe sua senha.'), findsOneWidget);
+    expect(find.text('Digite sua senha para continuar.'), findsOneWidget);
   });
 
   testWidgets('LoginPage alterna visibilidade da senha', (tester) async {
@@ -55,7 +55,10 @@ void main() {
 
     expect(find.text('Informe seu nome.'), findsOneWidget);
     expect(find.text('Informe seu e-mail.'), findsOneWidget);
-    expect(find.text('Informe uma senha.'), findsOneWidget);
+    expect(
+      find.text('Crie uma senha para proteger sua conta.'),
+      findsOneWidget,
+    );
     expect(find.text('Confirme sua senha.'), findsOneWidget);
   });
 

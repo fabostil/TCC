@@ -1269,3 +1269,78 @@ Testes criados/alterados em `test/features/voices/pages/login_page_test.dart`:
 ### Critério de aprovação manual
 
 A etapa só passa se o usuário tiver uma orientação clara e honesta sobre senha esquecida, sem promessa falsa de recuperação automática.
+
+## F.16 — Microcopy de mensagens
+
+### Problema observado
+
+Após a remoção de textos técnicos e a correção de ortografia, algumas mensagens públicas ainda estavam corretas, mas genéricas ou pouco orientativas para uma apresentação de TCC.
+
+### Diagnóstico
+
+Foram revisadas mensagens visíveis em SnackBars, status de voz, resultados de comandos, validações de formulário, estados vazios, login/cadastro, projetos, gravações, editor, configurações e comandos personalizados. Os principais pontos encontrados foram:
+
+* mensagens genéricas em `UserFacingMessages`, como falha de ação, carregamento, salvamento, reprodução e gravação;
+* comando desconhecido e comando indisponível sem exemplos claros;
+* mensagens de login/cadastro que não orientavam o próximo passo;
+* estados vazios de projetos, gravações, faixas e comandos sem orientação suficiente;
+* mensagens de sucesso ou remoção pouco específicas;
+* alguns textos finais ainda sem acentuação, como `excluido`, `Descricao` e `nao disponivel`.
+
+### Correção realizada
+
+* Melhoradas mensagens centralizadas em `lib/core/ui/user_facing_messages.dart`.
+* O comando desconhecido passou a sugerir exemplos úteis: `meus projetos`, `minhas gravações` e `configurações`.
+* Comandos reconhecidos, mas indisponíveis na tela atual, passaram a explicar a indisponibilidade.
+* Login e cadastro ganharam mensagens mais orientativas para senha, credenciais inválidas, conta já existente e falhas de criação.
+* Projetos e gravações passaram a usar mensagens específicas para criação, remoção, busca vazia, reprodução e erros.
+* Configurações e comandos personalizados passaram a orientar melhor frases reservadas, duplicadas, salvamento e lista vazia.
+* Editor e scroll por voz passaram a orientar melhor comandos desconhecidos, lista ausente, fim da lista e falta de gravações.
+
+Exemplos de antes/depois:
+
+* Antes: `Comando não reconhecido.`
+  Depois: `Não entendi o comando. Tente dizer: meus projetos, minhas gravações ou configurações.`
+* Antes: `Comando nao disponivel nesta tela.`
+  Depois: `Esse comando não está disponível nesta tela.`
+* Antes: `E-mail ou senha incorretos.`
+  Depois: `Não foi possível entrar. Confira o e-mail e a senha.`
+* Antes: `Este e-mail já está cadastrado.`
+  Depois: `Essa conta já existe. Tente entrar ou use outro e-mail.`
+* Antes: `Nenhuma gravação encontrada`
+  Depois: `Suas gravações aparecerão aqui. Abra o editor para registrar a primeira ideia.`
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/features/voices/coordination/voice_command_dispatcher_test.dart`
+  * comando desconhecido sugere comandos úteis e não mostra termos técnicos;
+  * comando reconhecido fora da tela explica indisponibilidade.
+* `test/features/voices/controllers/voice_command_controller_test.dart`
+  * reforça que a mensagem de comando desconhecido é amigável e contém exemplos.
+* `test/features/voices/coordination/voice_scroll_handler_test.dart`
+  * reforça mensagem para fim da lista.
+* `test/widgets/core_ui_widget_test.dart`
+  * valida mensagens compartilhadas específicas e sem termos técnicos.
+* `test/features/voices/pages/login_page_test.dart`, `test/features/voices/pages/cadastro_page_test.dart` e `test/widgets/auth_pages_widget_test.dart`
+  * atualizados para as novas mensagens de login, senha e cadastro.
+* `test/features/settings/controllers/settings_controller_test.dart`
+  * atualizado para a nova mensagem de comando personalizado duplicado.
+
+### Teste manual recomendado
+
+1. Rodar o app no Android físico.
+2. Fazer login.
+3. Dizer um comando desconhecido.
+4. Confirmar que a mensagem sugere comandos úteis.
+5. Criar projeto e conferir mensagem de sucesso.
+6. Criar/gravar áudio e conferir mensagem de sucesso.
+7. Abrir lista vazia, se possível, e conferir mensagem orientativa.
+8. Tentar ação inválida em configurações/comandos personalizados.
+9. Confirmar que a mensagem explica o problema e o próximo passo.
+10. Confirmar que não aparecem termos técnicos.
+
+### Critério de aprovação manual
+
+A etapa só passa se as principais mensagens públicas forem claras, úteis e consistentes, sem parecer log técnico ou resposta genérica.

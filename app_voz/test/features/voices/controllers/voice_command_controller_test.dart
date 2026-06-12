@@ -112,7 +112,11 @@ void main() {
         expect(result.commandResult.type, VoiceCommandType.desconhecido);
         expect(result.commandResult.recognized, isFalse);
         expect(unknownVoiceCommandMessage, isNot(contains('GEMINI_API_KEY')));
+        expect(unknownVoiceCommandMessage, isNot(contains('exception')));
         expect(unknownVoiceCommandMessage, contains('Não entendi o comando'));
+        expect(unknownVoiceCommandMessage, contains('meus projetos'));
+        expect(unknownVoiceCommandMessage, contains('minhas gravações'));
+        expect(unknownVoiceCommandMessage, contains('configurações'));
       },
     );
     test('usa comando personalizado sem chave da IA', () async {

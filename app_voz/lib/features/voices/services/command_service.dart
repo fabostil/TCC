@@ -54,7 +54,7 @@ enum VoiceCommandType {
 }
 
 const unknownVoiceCommandMessage =
-    'Não entendi o comando. Tente dizer: novo projeto, minhas gravações, dashboard ou configurações.';
+    'Não entendi o comando. Tente dizer: meus projetos, minhas gravações ou configurações.';
 
 class CommandResult {
   const CommandResult({

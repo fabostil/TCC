@@ -201,10 +201,10 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
         voiceSetState(() {
           _projectsController.showCreation();
           _descricaoProjetoController.text = resultado.parametro ?? '';
-          voiceStatusMessage = 'Descricao do projeto definida por voz.';
+          voiceStatusMessage = 'Descrição do projeto definida por voz.';
         });
         return VoiceCommandPageResult.handled(
-          message: 'Descricao do projeto definida por voz.',
+          message: 'Descrição do projeto definida por voz.',
         );
       case VoiceCommandType.abrirProjetoPorNome:
         return _abrirProjetoPorNome(resultado.parametro);
@@ -385,7 +385,8 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     final usuarioId = widget.usuario.id;
     if (usuarioId == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Usuário sem identificação para criar projeto.',
+        message:
+            'Não consegui identificar sua sessão. Entre novamente para criar o projeto.',
       );
     }
 
@@ -417,7 +418,10 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
 
     await _abrirProjeto(novoProjeto);
     await startContinuousVoiceListeningIfActive();
-    return VoiceCommandPageResult.handled(restartListening: false);
+    return VoiceCommandPageResult.handled(
+      message: 'Projeto ${novoProjeto.nome} criado com sucesso.',
+      restartListening: false,
+    );
   }
 
   Future<VoiceCommandPageResult> _abrirProjetoPorNome(
@@ -507,7 +511,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
 
     await _excluirProjeto(projeto, pedirConfirmacao: false);
     return VoiceCommandPageResult.handled(
-      message: 'Projeto ${projeto.nome} excluido.',
+      message: 'Projeto ${projeto.nome} removido do app.',
     );
   }
 
@@ -568,7 +572,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
 
       voiceSetState(() {
         _projetoPendenteExclusao = null;
-        voiceStatusMessage = 'Projeto ${projeto.nome} excluido.';
+        voiceStatusMessage = 'Projeto ${projeto.nome} removido do app.';
       });
     } finally {
       if (mounted) {
@@ -819,7 +823,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
                     icon: Icons.folder_open_outlined,
                     title: 'Nenhum projeto criado ainda',
                     subtitle:
-                        'Crie um projeto para começar a organizar suas gravações.',
+                        'Crie um projeto para começar a organizar suas ideias musicais e gravações.',
                   ),
                 ],
               );
@@ -1012,7 +1016,7 @@ class _ProjetoCriacaoCardState extends State<_ProjetoCriacaoCard> {
                 maxLines: 3,
                 textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(
-                  labelText: 'Descricao (opcional)',
+                  labelText: 'Descrição (opcional)',
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
