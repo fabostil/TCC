@@ -4,6 +4,8 @@ import '../realtime/runtime/runtime_registry.dart';
 import 'voice_listening_coordinator.dart';
 
 /// Cancela STT ao empilhar rotas e invalida reinícios ao desempilhar.
+final VoiceRouteObserver voiceRouteObserver = VoiceRouteObserver();
+
 class VoiceRouteObserver extends RouteObserver<PageRoute<dynamic>> {
   final VoiceListeningCoordinator _coordinator =
       VoiceListeningCoordinator.instance;

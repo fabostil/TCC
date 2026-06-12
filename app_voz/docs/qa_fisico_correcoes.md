@@ -654,3 +654,60 @@ Testes criados/alterados:
 ### Criterio de aprovacao manual
 
 A etapa so passa se o app aceitar variacoes naturais dos comandos principais sem exigir frase exata e sem executar acoes destrutivas sem confirmacao.
+
+## F.7 - Ciclo de vida da escuta por voz
+
+### Problema observado
+
+No teste fisico Android, a escuta por voz podia nao retomar depois de navegar e voltar entre telas autenticadas. O problema era mais perceptivel ao usar a seta da AppBar, o botao voltar do Android ou ao abrir uma tela por toque e retornar para a tela anterior.
+
+### Diagnostico
+
+A causa confirmada no codigo estava no ciclo de vida das rotas. O app ja possuia `VoiceRouteObserver` registrado no `MaterialApp`, e esse observer cancelava a escuta ao empilhar uma nova rota. Porem, o `ContextualVoiceListeningMixin` nao assinava o observer como `RouteAware` e nao recebia `didPopNext` quando a tela anterior voltava ao topo.
+
+Tambem havia risco de uma tela coberta continuar aceitando transcricoes atrasadas, porque o mixin nao tinha um estado interno de rota ativa para bloquear processamento contextual enquanto outra tela estava no topo. Algumas paginas retomavam manualmente apos `Navigator.push`, mas esse comportamento nao era centralizado e nao cobria todos os caminhos de navegacao global.
+
+### Correcao realizada
+
+* A instancia global de `VoiceRouteObserver` foi centralizada em `lib/features/voices/coordination/voice_route_observer.dart`, permitindo que o `main.dart` e o mixin usem o mesmo observer.
+* `ContextualVoiceListeningMixin` passou a implementar `RouteAware`.
+* O mixin agora assina a rota atual em `didChangeDependencies` e cancela a assinatura em `disposeContextualVoiceListening`.
+* `didPushNext` marca a pagina como inativa e pausa a escuta contextual da tela coberta.
+* `didPopNext` marca a pagina como ativa novamente e chama `startContinuousVoiceListeningIfActive`.
+* O processamento de comandos, callbacks de STT e reinicios continuos agora checam se a rota ainda esta ativa.
+* A assinatura do observer e idempotente, evitando duplicidade quando `didChangeDependencies` roda mais de uma vez.
+
+### Testes automatizados
+
+Teste criado:
+
+* `test/features/voices/coordination/contextual_voice_listening_mixin_test.dart`
+  * tela ativa aceita processamento contextual;
+  * tela coberta por outra rota nao processa comando contextual;
+  * retorno por `didPopNext` solicita retomada uma unica vez;
+  * dispose remove registro de rota e libera o owner de voz.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Fazer login.
+3. Na Home, dizer "Meus projetos".
+4. Em Meus Projetos, usar a seta de voltar/AppBar.
+5. De volta a Home, dizer "Configuracoes".
+6. Confirmar que o comando funciona.
+7. Em Configuracoes, apertar voltar do Android.
+8. De volta a Home ou tela anterior, dizer "Dashboard".
+9. Confirmar que o comando funciona.
+10. Abrir Minhas Gravacoes por voz.
+11. Voltar por botao Android.
+12. Dizer "Meus projetos".
+13. Confirmar que funciona.
+14. Abrir Editor sem gravacao ativa.
+15. Voltar.
+16. Dizer "Configuracoes".
+17. Confirmar que funciona.
+18. Confirmar que nenhum comando e executado duplicado.
+
+### Criterio de aprovacao manual
+
+A etapa so passa se a escuta por voz continuar funcionando depois de navegar e voltar entre telas principais, sem precisar reiniciar o app e sem executar comandos duplicados.

@@ -5,8 +5,6 @@ import 'core/theme/app_theme_controller.dart';
 import 'features/voices/coordination/voice_route_observer.dart';
 import 'features/voices/pages/login_page.dart';
 
-final VoiceRouteObserver voiceRouteObserver = VoiceRouteObserver();
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 

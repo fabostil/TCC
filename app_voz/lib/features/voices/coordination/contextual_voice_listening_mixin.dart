@@ -13,12 +13,14 @@ import '../services/voice_global_command_service.dart';
 import 'voice_command_dispatcher.dart';
 import 'voice_listening_coordinator.dart';
 import 'voice_navigation_command_handler.dart';
+import 'voice_route_observer.dart';
 import 'voice_session_manager.dart';
 import 'voice_session_state.dart';
 import 'voice_state_machine.dart';
 
 /// Escuta contínua + interpretação compartilhada para telas contextuais (Fase 2).
-mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
+mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
+    implements RouteAware {
   final VoiceListeningCoordinator voiceCoordinator =
       VoiceListeningCoordinator.instance;
   final VoiceCommandController voiceCommandController =
@@ -33,7 +35,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
   bool voiceExecutandoComando = false;
   bool voiceIaPensando = false;
   bool _voiceLifecycleObserverRegistered = false;
+  bool _voiceRouteObserverRegistered = false;
+  bool _voiceRouteActive = true;
   AppLifecycleListener? _voiceLifecycleListener;
+  PageRoute<dynamic>? _voiceRoute;
   String? voiceStatusMessage;
   VoiceSessionState voiceSessionState = const VoiceSessionState.idle();
 
@@ -62,6 +67,41 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
     if (mounted) {
       setState(fn);
     }
+  }
+
+  @visibleForTesting
+  bool get voiceRouteActiveForTesting => _voiceRouteActive;
+
+  @visibleForTesting
+  bool get voiceRouteObserverRegisteredForTesting =>
+      _voiceRouteObserverRegistered;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _subscribeVoiceRouteObserver();
+  }
+
+  @override
+  void didPush() {
+    _voiceRouteActive = true;
+  }
+
+  @override
+  void didPushNext() {
+    _voiceRouteActive = false;
+    unawaited(_pauseContextualVoiceForCoveredRoute());
+  }
+
+  @override
+  void didPopNext() {
+    _voiceRouteActive = true;
+    unawaited(startContinuousVoiceListeningIfActive());
+  }
+
+  @override
+  void didPop() {
+    _voiceRouteActive = false;
   }
 
   void setVoiceSession(
@@ -93,13 +133,18 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
   void scheduleVoiceListeningOnFirstFrame() {
     _ensureVoiceLifecycleObserver();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (mounted && _voiceRouteActive) {
         unawaited(startContinuousVoiceListeningIfActive());
       }
     });
   }
 
   void disposeContextualVoiceListening() {
+    if (_voiceRouteObserverRegistered) {
+      voiceRouteObserver.unsubscribe(this);
+      _voiceRoute = null;
+      _voiceRouteObserverRegistered = false;
+    }
     if (_voiceLifecycleObserverRegistered) {
       _voiceLifecycleListener?.dispose();
       _voiceLifecycleListener = null;
@@ -115,7 +160,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
 
     _voiceLifecycleListener = AppLifecycleListener(
       onResume: () {
-        if (!mounted) {
+        if (!mounted || !_voiceRouteActive) {
           return;
         }
 
@@ -123,6 +168,50 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
       },
     );
     _voiceLifecycleObserverRegistered = true;
+  }
+
+  void _subscribeVoiceRouteObserver() {
+    final route = ModalRoute.of(context);
+    if (route is! PageRoute<dynamic>) {
+      return;
+    }
+
+    if (_voiceRouteObserverRegistered && identical(_voiceRoute, route)) {
+      return;
+    }
+
+    if (_voiceRouteObserverRegistered) {
+      voiceRouteObserver.unsubscribe(this);
+    }
+
+    _voiceRoute = route;
+    voiceRouteObserver.subscribe(this, route);
+    _voiceRouteObserverRegistered = true;
+    _voiceRouteActive = route.isCurrent;
+  }
+
+  Future<void> _pauseContextualVoiceForCoveredRoute() async {
+    if (voiceSessionManager.activeOwnerId == voiceOwnerId ||
+        voiceSessionManager.isSpeechListening) {
+      await voiceSessionManager.cancelListening(
+        ownerId: voiceOwnerId,
+        reason: 'route_covered',
+      );
+    }
+    voiceCoordinator.releaseOwner(voiceOwnerId);
+
+    if (!mounted) {
+      return;
+    }
+
+    voiceSetState(() {
+      setVoiceSession(
+        VoiceSessionPhase.idle,
+        message: voiceStatusMessage,
+        listening: false,
+        thinking: false,
+      );
+    });
   }
 
   Future<void> toggleContextualVoiceListening() async {
@@ -149,10 +238,14 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
 
   Future<void> startContinuousVoiceListeningIfActive() async {
     _ensureVoiceLifecycleObserver();
+    if (!_voiceRouteActive) {
+      return;
+    }
+
     final configuracao = await ConfiguracaoAppRepository.instance
         .buscarConfiguracao();
 
-    if (!mounted) {
+    if (!mounted || !_voiceRouteActive) {
       return;
     }
 
@@ -170,10 +263,14 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
 
   Future<void> startContextualVoiceListening() async {
     _ensureVoiceLifecycleObserver();
+    if (!_voiceRouteActive) {
+      return;
+    }
+
     final configuracao = await ConfiguracaoAppRepository.instance
         .buscarConfiguracao();
 
-    if (!mounted) {
+    if (!mounted || !_voiceRouteActive) {
       return;
     }
 
@@ -207,10 +304,13 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
     final started = await voiceSessionManager.startListening(
       ownerId: voiceOwnerId,
       onResult: (texto) {
+        if (!_voiceRouteActive) {
+          return;
+        }
         unawaited(processContextualVoiceInput(texto));
       },
       onStatus: (status) {
-        if (!mounted) {
+        if (!mounted || !_voiceRouteActive) {
           return;
         }
 
@@ -227,7 +327,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
         }
       },
       onError: (_) {
-        if (!mounted) {
+        if (!mounted || !_voiceRouteActive) {
           return;
         }
 
@@ -261,6 +361,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
   }
 
   Future<void> processContextualVoiceInput(String texto) async {
+    if (!_voiceRouteActive) {
+      return;
+    }
+
     if (voiceExecutandoComando) {
       return;
     }
@@ -296,7 +400,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
       unawaited(registerVoiceCommand(resultado));
     }
 
-    if (!mounted || resultado.normalizedText.isEmpty) {
+    if (!mounted || !_voiceRouteActive || resultado.normalizedText.isEmpty) {
       voiceExecutandoComando = false;
       voiceIaPensando = false;
       voiceSessionState = voiceSessionState.transitionTo(
@@ -318,6 +422,11 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
 
     if (voiceHandlesGlobalCommands) {
       final globalResult = await voiceGlobalCommandService.execute(resultado);
+      if (!_voiceRouteActive) {
+        voiceExecutandoComando = false;
+        voiceIaPensando = false;
+        return;
+      }
       if (globalResult.handled) {
         voiceSessionManager.markExecuting(
           ownerId: voiceOwnerId,
@@ -355,6 +464,11 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
       final navigationResult = await voiceNavigationCommandHandler?.handle(
         resultado,
       );
+      if (!_voiceRouteActive) {
+        voiceExecutandoComando = false;
+        voiceIaPensando = false;
+        return;
+      }
       if (navigationResult != null) {
         await _completePageCommandResult(navigationResult);
         return;
@@ -366,6 +480,11 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
       message: voiceStatusMessage,
     );
     final pageResult = await voiceCommandDispatcher.dispatch(resultado);
+    if (!_voiceRouteActive) {
+      voiceExecutandoComando = false;
+      voiceIaPensando = false;
+      return;
+    }
 
     await _completePageCommandResult(pageResult);
   }
@@ -402,6 +521,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
       reason: reason,
       shouldRestart: () =>
           mounted &&
+          _voiceRouteActive &&
           voiceEscutaContinuaAtiva &&
           !voiceParadaManual &&
           !voiceExecutandoComando &&
