@@ -8,18 +8,15 @@ import '../../../models/configuracao_app.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/configuracao_app_repository.dart';
 import '../../dashboard/pages/dashboard_page.dart';
-<<<<<<< HEAD
-import '../../recordings/pages/gravacao_page.dart';
-=======
 import '../../history/pages/historico_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
->>>>>>> feature/true-voice-first
 import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/pages/login_page.dart';
+import '../../voices/pages/voice_page.dart'; // Importamos a página do nosso teste
 import '../../voices/services/auth_session_service.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/voice_permission_service.dart';
@@ -286,33 +283,6 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-<<<<<<< HEAD
-  void _abrirAssistente(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => VoicePage(usuario: usuario)),
-    );
-  }
-
-  void _abrirGravacao(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => GravacaoPage(usuario: usuario)),
-    );
-  }
-
-  void _abrirGravacoes(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => MinhasGravacoesPage(usuario: usuario)),
-    );
-  }
-
-  void _abrirDashboard(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => DashboardPage(usuario: usuario)),
-=======
   Future<VoiceCommandPageResult> _handleAbrirNovoProjeto(
     CommandResult result,
   ) async {
@@ -451,6 +421,14 @@ class _HomePageState extends State<HomePage>
     await _retomarEscutaAposNavegacao();
   }
 
+  // >>> MÉTODOS DE ROTA <<<
+
+  Future<void> _abrirAssistenteTeste(BuildContext context) async {
+    await _navegarERetomar(
+      MaterialPageRoute(builder: (_) => VoicePage(usuario: widget.usuario)),
+    );
+  }
+
   Future<void> _abrirNovoProjeto(BuildContext context) async {
     await _navegarERetomar(
       MaterialPageRoute(
@@ -495,7 +473,6 @@ class _HomePageState extends State<HomePage>
       MaterialPageRoute(
         builder: (_) => ConfiguracoesPage(usuario: widget.usuario),
       ),
->>>>>>> feature/true-voice-first
     );
   }
 
@@ -570,13 +547,9 @@ class _HomePageState extends State<HomePage>
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-<<<<<<< HEAD
-                    'Controle gravações por voz, salve ideias musicais e acompanhe seus áudios em um só lugar.',
-=======
                     comandosAtivos
                         ? 'Comandos de voz ativos. Voce ainda pode usar os botoes sempre que quiser.'
                         : 'Modo manual ativo. Voce pode habilitar comandos de voz em Configuracoes.',
->>>>>>> feature/true-voice-first
                     style: theme.textTheme.bodyLarge,
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -621,19 +594,13 @@ class _HomePageState extends State<HomePage>
             Text('Atalhos', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(
-<<<<<<< HEAD
-              icon: Icons.mic_none_rounded,
-              title: 'Assistente de voz',
-              subtitle: 'Teste comandos como iniciar, pausar, retomar e encerrar.',
-              onTap: () => _abrirAssistente(context),
+              icon: Icons.mic_external_on_rounded,
+              title: 'Teste de Escuta Contínua',
+              subtitle: 'Acesse a tela que modificamos para testar o loop.',
+              onTap: () => _abrirAssistenteTeste(context),
             ),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(
-              icon: Icons.fiber_manual_record_rounded,
-              title: 'Gravar áudio',
-              subtitle: 'Use Flutter Sound para gravar, pausar, retomar e salvar.',
-              onTap: () => _abrirGravacao(context),
-=======
               icon: Icons.add_circle_outline_rounded,
               title: 'Novo projeto',
               subtitle: 'Crie um projeto musical e va direto para o editor.',
@@ -645,7 +612,6 @@ class _HomePageState extends State<HomePage>
               title: 'Meus projetos',
               subtitle: 'Acompanhe os projetos criados e seus detalhes.',
               onTap: () => _abrirProjetos(context),
->>>>>>> feature/true-voice-first
             ),
             const SizedBox(height: AppSpacing.md),
             _HomeCard(
@@ -658,11 +624,7 @@ class _HomePageState extends State<HomePage>
             _HomeCard(
               icon: Icons.insights_outlined,
               title: 'Dashboard',
-<<<<<<< HEAD
-              subtitle: 'Visualize métricas simples sobre as gravações.',
-=======
               subtitle: 'Visualize metricas e resumos de uso do sistema.',
->>>>>>> feature/true-voice-first
               onTap: () => _abrirDashboard(context),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -729,7 +691,10 @@ class _HomeCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: theme.colorScheme.primary),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: theme.colorScheme.primary,
+              ),
             ],
           ),
         ),
