@@ -64,3 +64,23 @@ app.*.map.json
 windows/
 
 lib/core/config/picovoice_config.dart
+
+# LaTeX / Overleaf generated files
+*.aux
+*.out
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.xdv
+*.nav
+*.snm
+*.vrb
+*.bak
+*.tmp
