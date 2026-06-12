@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../../core/ui/user_facing_messages.dart';
 import '../../../models/gravacao.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../editor/services/audio_player_service.dart';
@@ -114,11 +115,11 @@ class RecordingsListController extends ChangeNotifier {
         termoBusca: effectiveSearchTerm,
       );
       _setState(_state.copyWith(loading: false, recordings: recordings));
-    } catch (e) {
+    } catch (_) {
       _setState(
         _state.copyWith(
           loading: false,
-          error: 'Erro ao carregar gravacoes: $e',
+          error: UserFacingMessages.dataLoadError,
         ),
       );
     }
@@ -155,11 +156,11 @@ class RecordingsListController extends ChangeNotifier {
         termoBusca: effectiveSearchTerm,
       );
       _setState(_state.copyWith(loading: false, recordings: recordings));
-    } catch (e) {
+    } catch (_) {
       _setState(
         _state.copyWith(
           loading: false,
-          error: 'Erro ao carregar gravacoes do projeto: $e',
+          error: UserFacingMessages.dataLoadError,
         ),
       );
     }

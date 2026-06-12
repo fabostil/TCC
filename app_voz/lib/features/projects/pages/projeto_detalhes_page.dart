@@ -6,6 +6,7 @@ import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_feedback.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../core/ui/user_facing_messages.dart';
 import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/projeto.dart';
@@ -184,7 +185,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível reproduzir o áudio: $e')),
+        const SnackBar(content: Text(UserFacingMessages.playbackError)),
       );
     }
   }
@@ -216,7 +217,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível renomear a gravação: $e')),
+        const SnackBar(content: Text('Nao foi possivel renomear a gravacao.')),
       );
     } finally {
       if (mounted) {
@@ -232,8 +233,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
     final confirmar = await showVoiceConfirmationDialog(
       id: 'delete_project_recording_$gravacaoId',
       title: 'Excluir gravação',
-      message:
-          'Deseja excluir "${gravacao.nome}" do banco de dados e do arquivo físico?',
+      message: 'Deseja remover "${gravacao.nome}" do app e do dispositivo?',
       confirmLabel: 'Excluir',
       destructive: true,
     );
@@ -266,7 +266,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível excluir a gravação: $e')),
+        const SnackBar(content: Text('Nao foi possivel excluir a gravacao.')),
       );
     } finally {
       if (mounted) {

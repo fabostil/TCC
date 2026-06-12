@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_spacing.dart';
+import 'user_facing_messages.dart';
 
 class VoiceStatusBar extends StatelessWidget {
   final String message;
@@ -18,6 +19,7 @@ class VoiceStatusBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final displayMessage = UserFacingMessages.voiceStatus(message);
     final color = thinking
         ? colorScheme.secondary
         : listening
@@ -63,7 +65,7 @@ class VoiceStatusBar extends StatelessWidget {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    message,
+                    displayMessage,
                     textAlign: TextAlign.left,
                     style: theme.textTheme.bodySmall?.copyWith(color: color),
                   ),

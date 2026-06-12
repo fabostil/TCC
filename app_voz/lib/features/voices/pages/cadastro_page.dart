@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/ui/app_logo.dart';
+import '../../../core/ui/user_facing_messages.dart';
 import '../../../models/usuario.dart';
 import '../../home/pages/home_page.dart';
 import '../services/auth_service.dart';
@@ -99,9 +100,16 @@ class _CadastroPageState extends State<CadastroPage> {
         _carregando = false;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao cadastrar: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserFacingMessages.error(
+              e,
+              fallback: 'Nao foi possivel cadastrar. Tente novamente.',
+            ),
+          ),
+        ),
+      );
     }
   }
 

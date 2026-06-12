@@ -1080,3 +1080,85 @@ Testes criados/alterados:
 ### Criterio de aprovacao manual
 
 A etapa so passa se comandos personalizados estiverem coerentes com a funcionalidade real do app: salvar, listar, reconhecer/executar quando aplicavel e proteger comandos reservados sem quebrar comandos globais, comandos locais ou fallback sem Gemini.
+
+## F.13 - Textos tecnicos na UI
+
+### Problema observado
+
+A interface ainda podia expor textos tecnicos em fluxos normais, como estados internos de voz, excecoes concatenadas em mensagens de erro, caminho completo de arquivo e termos de persistencia como banco de dados.
+
+### Diagnostico
+
+Foram confirmados no codigo os seguintes pontos visiveis ao usuario:
+
+* o cabecalho visual de voz do Editor mostrava labels internos como `sleeping`, `listeningCommand` e `processingCommand`;
+* `VoiceStatusBar` exibia diretamente a mensagem recebida, sem proteger contra estados internos;
+* o Editor mostrava o caminho completo da gravacao atual e das faixas salvas;
+* erros em Login, Cadastro, Configuracoes, Projeto Detalhes, Minhas Gravacoes, Detalhes da Gravacao, Historico, Dashboard e controllers de listas podiam concatenar excecoes com `$e`;
+* confirmacoes de exclusao de gravacao mencionavam `banco de dados`;
+* respostas de falha TTS podiam mencionar erro de banco de dados.
+
+Termos tecnicos restantes em `debugPrint`, diagnostics, services e testes foram classificados como log/codigo interno, nao UI.
+
+### Correcao realizada
+
+* Criado `UserFacingMessages` em `lib/core/ui/user_facing_messages.dart` para centralizar:
+  * traducao de estados internos de voz;
+  * sanitizacao de erros antes de mostrar ao usuario;
+  * exibicao de nome de arquivo sem caminho interno.
+* `VoiceStatusBar` passou a mapear estados tecnicos para labels amigaveis.
+* O Editor passou a mostrar:
+  * `Aguardando comando`;
+  * `Ouvindo comando`;
+  * `Processando comando`;
+  * `Nao consegui concluir a acao`.
+* O Editor deixou de mostrar caminhos completos e passou a exibir apenas `Arquivo atual: <nome do arquivo>`.
+* Mensagens com excecao crua foram substituidas por frases amigaveis em:
+  * Login;
+  * Cadastro;
+  * Configuracoes;
+  * Dashboard;
+  * Historico;
+  * Meus Projetos / Detalhes do Projeto;
+  * Minhas Gravacoes;
+  * Detalhes da Gravacao;
+  * Editor;
+  * controllers de projetos e gravacoes.
+* Confirmacoes de exclusao passaram a falar em remover do app e do dispositivo, sem citar banco de dados.
+* Falha de TTS para persistencia deixou de mencionar banco de dados.
+* `GEMINI_API_KEY` continua fora das mensagens publicas ao usuario.
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/widgets/core_ui_widget_test.dart`
+  * `VoiceStatusBar` traduz `listeningCommand` para `Ouvindo comando`;
+  * `UserFacingMessages.error` bloqueia `GEMINI_API_KEY`;
+  * `UserFacingMessages.error` bloqueia `PlatformException`;
+  * mensagens amigaveis de validacao sao preservadas;
+  * caminhos internos exibem somente o nome do arquivo.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Fazer login.
+3. Na Home, observar o status de voz.
+4. Dizer comando desconhecido.
+5. Confirmar que nao aparece `GEMINI_API_KEY`, `Exception` ou texto tecnico.
+6. Abrir Configuracoes.
+7. Verificar se textos de controle por voz sao amigaveis.
+8. Abrir Editor.
+9. Confirmar que o painel de voz nao mostra `sleeping`, `listeningCommand` ou `processingCommand`.
+10. Gravar e salvar audio.
+11. Confirmar que nao aparece caminho interno de arquivo como mensagem principal.
+12. Abrir Minhas Gravacoes.
+13. Verificar se os dados sao apresentados de forma amigavel.
+14. Abrir detalhes de uma gravacao.
+15. Confirmar que erros e confirmacoes nao citam banco de dados, exceptions ou paths tecnicos.
+16. Forcar erro simples, se possivel, sem quebrar app.
+17. Confirmar que a mensagem e compreensivel para usuario final.
+
+### Criterio de aprovacao manual
+
+A etapa so passa se o usuario final nao vir estados internos, nomes de excecao, API keys, paths tecnicos ou mensagens de debug em fluxos normais.

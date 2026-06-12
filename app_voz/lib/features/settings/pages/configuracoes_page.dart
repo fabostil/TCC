@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../core/ui/user_facing_messages.dart';
 import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/comando_personalizado.dart';
 import '../../../models/configuracao_app.dart';
@@ -174,7 +175,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
         return;
       }
 
-      _atualizarStatus(e.toString());
+      _atualizarStatus(
+        UserFacingMessages.error(e, fallback: UserFacingMessages.dataSaveError),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -799,7 +802,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(comando.frase),
-                      subtitle: Text(acao?.label ?? comando.tipoComando),
+                      subtitle: Text(acao?.label ?? 'Acao personalizada'),
                       leading: Switch(
                         value: comando.ativo,
                         onChanged: alternando || excluindo

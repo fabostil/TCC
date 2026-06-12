@@ -7,6 +7,7 @@ import '../../../core/ui/app_feedback.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_search_field.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../core/ui/user_facing_messages.dart';
 import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/usuario.dart';
@@ -196,7 +197,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível reproduzir o áudio: $e')),
+        const SnackBar(content: Text(UserFacingMessages.playbackError)),
       );
     }
   }
@@ -228,7 +229,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível renomear a gravação: $e')),
+        const SnackBar(content: Text('Nao foi possivel renomear a gravacao.')),
       );
     } finally {
       if (mounted) {
@@ -269,8 +270,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     final confirmar = await showVoiceConfirmationDialog(
       id: 'delete_recording_$gravacaoId',
       title: 'Excluir gravação',
-      message:
-          'Deseja excluir "${gravacao.nome}" do banco de dados e do arquivo físico?',
+      message: 'Deseja remover "${gravacao.nome}" do app e do dispositivo?',
       confirmLabel: 'Excluir',
       destructive: true,
     );
@@ -305,7 +305,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível excluir a gravação: $e')),
+        const SnackBar(content: Text('Nao foi possivel excluir a gravacao.')),
       );
     } finally {
       if (mounted) {
@@ -656,16 +656,16 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     } catch (e) {
       if (!mounted) {
         return VoiceCommandPageResult.handled(
-          message: 'Nao foi possivel excluir a gravacao: $e',
+          message: 'Nao foi possivel excluir a gravacao.',
         );
       }
 
       voiceSetState(() {
-        voiceStatusMessage = 'Nao foi possivel excluir a gravacao: $e';
+        voiceStatusMessage = 'Nao foi possivel excluir a gravacao.';
       });
       _recordingsController.cancelPendingDeletion();
       return VoiceCommandPageResult.handled(
-        message: 'Nao foi possivel excluir a gravacao: $e',
+        message: 'Nao foi possivel excluir a gravacao.',
       );
     } finally {
       if (mounted) {

@@ -2,6 +2,7 @@ import 'package:app_voz/core/ui/app_empty_state.dart';
 import 'package:app_voz/core/ui/app_feedback.dart';
 import 'package:app_voz/core/ui/app_loading_view.dart';
 import 'package:app_voz/core/ui/app_search_field.dart';
+import 'package:app_voz/core/ui/user_facing_messages.dart';
 import 'package:app_voz/core/ui/voice_status_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -102,6 +103,56 @@ void main() {
       expect(find.text('IA pensando...'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.byIcon(Icons.mic_none_rounded), findsNothing);
+    });
+
+    testWidgets('traduz estado interno para texto amigavel', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: VoiceStatusBar(message: 'listeningCommand', listening: true),
+          ),
+        ),
+      );
+
+      expect(find.text('Ouvindo comando'), findsOneWidget);
+      expect(find.text('listeningCommand'), findsNothing);
+    });
+  });
+
+  group('UserFacingMessages', () {
+    test('remove detalhes tecnicos de erros publicos', () {
+      expect(
+        UserFacingMessages.error(Exception('GEMINI_API_KEY ausente')),
+        UserFacingMessages.genericActionError,
+      );
+      expect(
+        UserFacingMessages.error(
+          Exception('PlatformException(sign_in_failed)'),
+        ),
+        UserFacingMessages.genericActionError,
+      );
+    });
+
+    test('preserva mensagem amigavel de validacao', () {
+      expect(
+        UserFacingMessages.error(ArgumentError('Informe uma frase valida.')),
+        'Informe uma frase valida.',
+      );
+    });
+
+    test('mostra somente nome do arquivo em caminho interno', () {
+      expect(
+        UserFacingMessages.currentRecordingFile(
+          r'C:\Users\aleli\AppData\audio\take-01.m4a',
+        ),
+        'Arquivo atual: take-01.m4a',
+      );
+      expect(
+        UserFacingMessages.currentRecordingFile(
+          '/data/user/0/br.com.app/files/take-02.wav',
+        ),
+        'Arquivo atual: take-02.wav',
+      );
     });
   });
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../../core/ui/user_facing_messages.dart';
 import '../../../models/gravacao.dart';
 import '../../voices/coordination/voice_diagnostics.dart';
 import '../../voices/coordination/voice_session_manager.dart';
@@ -294,12 +295,12 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       _sessionManager.registerFailure(
         ownerId: ownerId,
         reason: 'recording_start_failed',
-        message: 'Erro ao iniciar gravacao: $e',
+        message: UserFacingMessages.recordingControlError,
       );
       _setState(
         _state.copyWith(
           processing: false,
-          statusMessage: 'Erro ao iniciar gravacao: $e',
+          statusMessage: UserFacingMessages.recordingControlError,
         ),
       );
       rethrow;
@@ -467,9 +468,9 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       _sessionManager.registerFailure(
         ownerId: ownerId,
         reason: 'recording_stop_failed',
-        message: 'Erro ao encerrar gravacao: $e',
+        message: UserFacingMessages.recordingSaveError,
       );
-      _resetAfterRecording('Erro ao encerrar gravacao: $e');
+      _resetAfterRecording(UserFacingMessages.recordingSaveError);
       rethrow;
     }
   }
@@ -516,7 +517,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
           playing: false,
           processing: false,
           timelineProgress: 0.0,
-          statusMessage: 'Erro ao reproduzir audio: $e',
+          statusMessage: UserFacingMessages.playbackError,
         ),
       );
     }

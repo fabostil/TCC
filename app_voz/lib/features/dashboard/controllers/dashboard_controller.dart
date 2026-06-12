@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/ui/user_facing_messages.dart';
 import '../services/dashboard_service.dart';
 
 class DashboardState {
@@ -55,11 +56,11 @@ class DashboardController extends ChangeNotifier {
     try {
       final dashboard = await _dashboardService.carregar(usuarioId);
       _setState(_state.copyWith(loading: false, data: dashboard));
-    } catch (e) {
+    } catch (_) {
       _setState(
         _state.copyWith(
           loading: false,
-          error: 'Nao foi possivel carregar o dashboard: $e',
+          error: UserFacingMessages.dataLoadError,
         ),
       );
     }

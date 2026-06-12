@@ -134,7 +134,7 @@ class SpeechService {
         error: error,
         stackTrace: stackTrace,
       );
-      onError?.call('Nao foi possivel iniciar a escuta de voz: $error');
+      onError?.call('Nao foi possivel iniciar a escuta de voz.');
       return false;
     }
 

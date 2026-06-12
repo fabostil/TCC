@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../core/ui/user_facing_messages.dart';
 import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/historico_acao.dart';
 import '../../../models/usuario.dart';
@@ -212,14 +213,14 @@ class _HistoricoPageState extends State<HistoricoPage>
           ..addAll(eventos);
         _carregando = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
 
       setState(() {
         _carregando = false;
-        _erro = 'Nao foi possivel carregar o historico: $e';
+        _erro = UserFacingMessages.dataLoadError;
       });
     }
   }

@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/ui/user_facing_messages.dart';
 import '../../../models/configuracao_app.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/projeto.dart';
@@ -300,13 +301,13 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
           ..clear()
           ..addAll(gravacoes);
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
 
       setState(() {
-        statusProjeto = 'Erro ao carregar gravações: $e';
+        statusProjeto = UserFacingMessages.dataLoadError;
       });
     }
   }
@@ -431,7 +432,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
               VoiceSessionPhase.error,
               message: 'Erro no reconhecimento de voz.',
             );
-            statusProjeto = 'Erro no reconhecimento de voz: $error';
+            statusProjeto = 'Nao foi possivel reconhecer a fala.';
             textoReconhecido = 'Não foi possível reconhecer a fala.';
           });
         },
@@ -1058,7 +1059,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         _interactionMode = EditorInteractionMode.recording;
         textoReconhecido = 'Gravacao iniciada.';
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
@@ -1069,7 +1070,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
           message: 'Erro ao iniciar gravacao.',
         );
         _interactionMode = EditorInteractionMode.normal;
-        statusProjeto = 'Erro ao iniciar gravacao: $e';
+        statusProjeto = UserFacingMessages.recordingControlError;
       });
       unawaited(_retomarEscutaContinuaAposModoGravacao());
     } finally {
@@ -1088,13 +1089,13 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
           adicionarHistorico(comandoOriginal: comando, acao: acao, tipo: tipo);
         },
       );
-    } catch (e) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
 
       setState(() {
-        statusProjeto = 'Erro ao pausar gravacao: $e';
+        statusProjeto = UserFacingMessages.recordingControlError;
       });
     }
   }
@@ -1106,13 +1107,13 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         onHistory: _historicoDaGravacao(comando),
         onAutomaticStop: _retomarEscutaContinuaAposModoGravacao,
       );
-    } catch (e) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
 
       setState(() {
-        statusProjeto = 'Erro ao retomar gravacao: $e';
+        statusProjeto = UserFacingMessages.recordingControlError;
       });
     }
   }
@@ -1140,7 +1141,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         );
         _interactionMode = EditorInteractionMode.normal;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
@@ -1151,7 +1152,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
           message: 'Erro ao encerrar gravacao.',
         );
         _interactionMode = EditorInteractionMode.normal;
-        statusProjeto = 'Erro ao encerrar gravacao: $e';
+        statusProjeto = UserFacingMessages.recordingSaveError;
       });
     } finally {
       await _retomarEscutaContinuaAposModoGravacao();
@@ -1247,13 +1248,13 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         tipo: 'reproducao_parada',
       );
       unawaited(_retomarEscutaContinuaAposPlayback());
-    } catch (e) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
 
       setState(() {
-        statusProjeto = 'Erro ao parar reproducao: $e';
+        statusProjeto = UserFacingMessages.playbackError;
       });
     }
   }
@@ -1455,10 +1456,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
 
   String get _fsmLabel {
     return switch (_fsmVisualState) {
-      _EditorFsmVisualState.sleeping => 'sleeping',
-      _EditorFsmVisualState.listeningCommand => 'listeningCommand',
-      _EditorFsmVisualState.processingCommand => 'processingCommand',
-      _EditorFsmVisualState.error => 'error',
+      _EditorFsmVisualState.sleeping => 'Aguardando comando',
+      _EditorFsmVisualState.listeningCommand => 'Ouvindo comando',
+      _EditorFsmVisualState.processingCommand => 'Processando comando',
+      _EditorFsmVisualState.error => 'Nao consegui concluir a acao',
     };
   }
 
@@ -1650,7 +1651,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                   border: Border.all(color: colors.border),
                 ),
                 child: Text(
-                  caminhoGravacaoAtual!,
+                  UserFacingMessages.currentRecordingFile(
+                    caminhoGravacaoAtual!,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: colors.textMuted, fontSize: 12),
@@ -2049,7 +2052,9 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                   leading: const Icon(Icons.audiotrack),
                   title: Text(faixa.nome),
                   subtitle: Text(
-                    faixa.caminhoArquivo,
+                    UserFacingMessages.currentRecordingFile(
+                      faixa.caminhoArquivo,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

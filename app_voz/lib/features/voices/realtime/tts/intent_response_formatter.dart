@@ -28,8 +28,7 @@ class IntentResponseFormatter {
         'Nenhuma gravação foi selecionada no editor para reproduzir.',
       'audio_output_unavailable' =>
         'O canal de áudio está ocupado no momento. Tente novamente em instantes.',
-      'database_error' =>
-        'Não foi possível alterar o arquivo no banco de dados agora.',
+      'database_error' => 'Nao foi possivel salvar essa alteracao agora.',
       'recording_context_missing' =>
         'Não encontrei uma gravação recente para alterar.',
       'transaction_conflict_active' =>

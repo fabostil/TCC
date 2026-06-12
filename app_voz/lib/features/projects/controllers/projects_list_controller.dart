@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/ui/user_facing_messages.dart';
 import '../../../models/projeto.dart';
 import '../../../repositories/projeto_repository.dart';
 import '../../voices/services/command_service.dart';
@@ -91,9 +92,12 @@ class ProjectsListController extends ChangeNotifier {
         termoBusca: effectiveSearchTerm,
       );
       _setState(_state.copyWith(loading: false, projects: projects));
-    } catch (e) {
+    } catch (_) {
       _setState(
-        _state.copyWith(loading: false, error: 'Erro ao carregar projetos: $e'),
+        _state.copyWith(
+          loading: false,
+          error: UserFacingMessages.dataLoadError,
+        ),
       );
     }
   }

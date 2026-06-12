@@ -6,6 +6,7 @@ import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_feedback.dart';
 import '../../../core/ui/app_loading_view.dart';
 import '../../../core/ui/app_spacing.dart';
+import '../../../core/ui/user_facing_messages.dart';
 import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/historico_acao.dart';
@@ -176,7 +177,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       }
 
       setState(() {
-        _erro = 'Erro ao carregar detalhes da gravacao: $e';
+        _erro = UserFacingMessages.dataLoadError;
         _carregando = false;
       });
     }
@@ -252,7 +253,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return;
       }
 
-      AppFeedback.showMessage(context, 'Nao foi possivel reproduzir: $e');
+      AppFeedback.showMessage(context, UserFacingMessages.playbackError);
     } finally {
       if (mounted) {
         setState(() {
@@ -324,7 +325,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return;
       }
 
-      AppFeedback.showMessage(context, 'Nao foi possivel renomear: $e');
+      AppFeedback.showMessage(context, 'Nao foi possivel renomear a gravacao.');
     } finally {
       if (mounted) {
         setState(() {
@@ -343,8 +344,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     final confirmar = await showVoiceConfirmationDialog(
       id: 'delete_recording_details_${gravacao.id}',
       title: 'Excluir gravacao',
-      message:
-          'Deseja excluir "${gravacao.nome}" do banco de dados e do arquivo fisico?',
+      message: 'Deseja remover "${gravacao.nome}" do app e do dispositivo?',
       confirmLabel: 'Excluir',
       destructive: true,
     );
@@ -391,7 +391,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return;
       }
 
-      AppFeedback.showMessage(context, 'Nao foi possivel excluir: $e');
+      AppFeedback.showMessage(context, 'Nao foi possivel excluir a gravacao.');
     } finally {
       if (mounted && !navegouAposExcluir) {
         setState(() {
