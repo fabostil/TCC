@@ -10,8 +10,15 @@ import '../../../models/usuario.dart';
 import '../../../repositories/comando_voz_repository.dart';
 import '../../../repositories/configuracao_app_repository.dart';
 import '../../../repositories/historico_repository.dart';
+import '../../dashboard/pages/dashboard_page.dart';
+import '../../history/pages/historico_page.dart';
+import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/services/recording_management_service.dart';
+import '../../recordings/pages/minhas_gravacoes_page.dart';
+import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/controllers/voice_command_controller.dart';
+import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_session_manager.dart';
 import '../../voices/coordination/voice_session_state.dart';
@@ -55,6 +62,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   final VoiceCommandController commandController = VoiceCommandController();
   final VoiceGlobalCommandService _globalCommandService =
       VoiceGlobalCommandService();
+  late final VoiceNavigationCommandHandler _navigationCommandHandler;
   final RecordingRealtimeCoordinator _recordingCoordinator =
       RecordingRealtimeCoordinator(ownerId: _voiceOwnerId);
   final RecordingManagementService _recordingService =
@@ -142,6 +150,17 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _navigationCommandHandler = VoiceNavigationCommandHandler(
+      currentDestination: VoiceNavigationDestination.other,
+      goHome: _handleIrParaHome,
+      openProjects: _handleAbrirProjetosGlobal,
+      openRecordings: _handleAbrirGravacoesGlobal,
+      openDashboard: _handleAbrirDashboardGlobal,
+      openHistory: _handleAbrirHistoricoGlobal,
+      openSettings: _handleAbrirConfiguracoesGlobal,
+      openNewProject: _handleAbrirNovoProjetoGlobal,
+      goBack: _handleVoltarGlobal,
+    );
     _voiceSessionToken = _generateVoiceSessionToken();
     nomeProjeto = widget.projeto?.nome ?? nomeProjeto;
     _publishRealtimeContext();
@@ -662,6 +681,26 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         return;
       }
 
+      final navigationResult = await _navigationCommandHandler.handle(
+        resultado,
+      );
+      if (navigationResult != null) {
+        if (!mounted) {
+          return;
+        }
+
+        if (navigationResult.statusMessage != null) {
+          setState(() {
+            statusProjeto = navigationResult.statusMessage!;
+          });
+        }
+
+        if (navigationResult.restartListening) {
+          _reiniciarEscutaContinuaSeNecessario();
+        }
+        return;
+      }
+
       switch (resultado.type) {
         case VoiceCommandType.iniciarGravacao:
           await iniciarGravacao(comando);
@@ -797,6 +836,115 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     }
 
     return gravacaoSalva;
+  }
+
+  Future<VoiceCommandPageResult> _handleIrParaHome(CommandResult _) async {
+    return _navegarGlobal(
+      onNavigate: () {
+        Navigator.popUntil(context, (route) => route.isFirst);
+      },
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleVoltarGlobal(CommandResult _) async {
+    return _navegarGlobal(
+      onNavigate: () {
+        Navigator.maybePop(context);
+      },
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirProjetosGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      route: MaterialPageRoute(
+        builder: (_) => MeusProjetosPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirNovoProjetoGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      route: MaterialPageRoute(
+        builder: (_) => MeusProjetosPage(
+          usuario: widget.usuario,
+          abrirCriacaoAoEntrar: true,
+        ),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirGravacoesGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      route: MaterialPageRoute(
+        builder: (_) => MinhasGravacoesPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirDashboardGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      route: MaterialPageRoute(
+        builder: (_) => DashboardPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirHistoricoGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      route: MaterialPageRoute(
+        builder: (_) => HistoricoPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirConfiguracoesGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      route: MaterialPageRoute(
+        builder: (_) => ConfiguracoesPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _navegarGlobal<T>({
+    Route<T>? route,
+    VoidCallback? onNavigate,
+  }) async {
+    if (gravando) {
+      return VoiceCommandPageResult.handled(
+        message: 'Encerre a gravacao antes de navegar.',
+      );
+    }
+
+    if (ouvindo || _voiceSessionManager.isSpeechListening) {
+      await _voiceSessionManager.cancelListening(
+        ownerId: _voiceOwnerId,
+        reason: 'global_navigation',
+      );
+    }
+
+    if (!mounted) {
+      return VoiceCommandPageResult.handled(restartListening: false);
+    }
+
+    if (route != null) {
+      await Navigator.push(context, route);
+    } else {
+      onNavigate?.call();
+    }
+
+    return VoiceCommandPageResult.handled(restartListening: false);
   }
 
   RecordingHistoryWriter _historicoDaGravacao(String comando) {

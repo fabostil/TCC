@@ -473,3 +473,108 @@ Não entendi o comando. Tente dizer: novo projeto, minhas gravações, dashboard
 ### Critério de aprovação manual
 
 A etapa só passa manualmente se comandos essenciais não dependerem da `GEMINI_API_KEY` e se o usuário não vir mensagem técnica.
+
+## F.5 — Comandos globais de navegação
+
+### Problema observado
+
+Durante o teste físico Android, comandos de navegação funcionavam principalmente na Home, mas não eram executados de forma consistente em todas as telas principais autenticadas.
+
+Exemplos práticos: a intenção `meus projetos` podia ser reconhecida fora da Home, mas a tela atual marcava o comando como indisponível; o mesmo podia acontecer com Dashboard, Histórico, Configurações e Gravações.
+
+### Diagnóstico
+
+A causa confirmada estava na execução dos comandos, não no parser:
+
+* a F.4 já fazia `CommandService` reconhecer os comandos globais essenciais;
+* `ContextualVoiceListeningMixin` centralizava a escuta/interpretação, mas delegava a execução para o `VoiceCommandDispatcher` de cada página;
+* Home tratava navegação para as telas principais;
+* várias telas autenticadas tinham dispatchers contextuais que retornavam `VoiceCommandPageResult.unavailable` para comandos como `abrirDashboard`, `abrirProjetos`, `abrirGravacoes`, `abrirHistorico` e `abrirConfiguracoes`;
+* `ConfiguracoesPage` desativava o serviço global de configurações por voz para evitar duplicidade, então precisava de navegação global separada desse serviço;
+* `EditorPage` não usa `ContextualVoiceListeningMixin` e mantém um fluxo próprio de comandos, por isso também precisava de integração própria.
+
+### Correção realizada
+
+* Criado `VoiceNavigationCommandHandler`, um handler central para classificar e executar comandos globais de navegação já interpretados pelo `CommandService`.
+* `ContextualVoiceListeningMixin` passou a tentar navegação global antes do dispatcher contextual da página.
+* `ConfiguracoesPage` passou a manter navegação global mesmo com `voiceHandlesGlobalCommands == false`.
+* `EditorPage` recebeu integração direta com o mesmo handler, respeitando seu fluxo próprio.
+* `criar projeto` foi tratado como navegação global fora de Meus Projetos, mas foi preservado como comando contextual de salvar/criar dentro de `MeusProjetosPage`.
+* Para `tela inicial`/`inicio`, as páginas autenticadas usam `Navigator.popUntil(... route.isFirst)` para voltar à raiz autenticada sem empilhar Home repetida.
+* Para `voltar`, as páginas usam `Navigator.maybePop`, preservando a pilha autenticada e sem navegar para Login.
+* No Editor, a navegação global é bloqueada durante gravação ativa com mensagem segura, deixando os conflitos finos entre voz/gravação/player para F.9.
+
+Telas integradas:
+
+* `HomePage`
+* `MeusProjetosPage`
+* `ProjetoDetalhesPage`
+* `MinhasGravacoesPage`
+* `DetalhesGravacaoPage`
+* `DashboardPage`
+* `HistoricoPage`
+* `ConfiguracoesPage`
+* `EditorPage`
+
+Comandos cobertos:
+
+* `tela inicial`, `inicio`, `voltar para tela inicial`, `ir para tela inicial`
+* `meus projetos`, `projetos`, `abrir projetos`
+* `minhas gravacoes`, `gravacoes`, `abrir gravacoes`
+* `dashboard`, `abrir dashboard`
+* `historico`, `abrir historico`
+* `configuracoes`, `abrir configuracoes`
+* `novo projeto`, `criar projeto`
+* `voltar`
+
+### Testes automatizados
+
+Testes criados:
+
+* `test/features/voices/coordination/voice_navigation_command_handler_test.dart`
+  * comandos globais chamam o callback correto;
+  * destino atual não empilha a mesma rota;
+  * `criar projeto` pode ser preservado como comando contextual em Meus Projetos;
+  * comando desconhecido não é tratado pelo handler global.
+
+Validações executadas:
+
+```text
+dart analyze
+No issues found!
+
+flutter test --reporter compact
+00:29 +418: All tests passed!
+
+flutter build apk --debug
+Built build\app\outputs\flutter-apk\app-debug.apk
+```
+
+### Teste manual recomendado
+
+1. Rodar app no Android físico.
+2. Fazer login.
+3. Na Home, dizer:
+   * "Meus projetos"
+   * "Minhas gravações"
+   * "Dashboard"
+   * "Histórico"
+   * "Configurações"
+4. Entrar em Meus Projetos e dizer:
+   * "Minhas gravações"
+   * "Configurações"
+   * "Tela inicial"
+5. Entrar em Minhas Gravações e dizer:
+   * "Meus projetos"
+   * "Dashboard"
+   * "Tela inicial"
+6. Entrar no Editor ou Detalhes de Gravação e dizer:
+   * "Tela inicial"
+   * "Configurações"
+   * "Voltar"
+7. Confirmar que nenhuma ação leva indevidamente para Login.
+8. Confirmar que não aparece mensagem "Configure GEMINI_API_KEY".
+
+### Critério de aprovação manual
+
+A etapa só passa manualmente se comandos globais principais funcionarem fora da Home e não levarem o usuário para Login.

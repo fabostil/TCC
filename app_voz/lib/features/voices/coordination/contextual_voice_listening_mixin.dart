@@ -12,6 +12,7 @@ import '../services/command_service.dart';
 import '../services/voice_global_command_service.dart';
 import 'voice_command_dispatcher.dart';
 import 'voice_listening_coordinator.dart';
+import 'voice_navigation_command_handler.dart';
 import 'voice_session_manager.dart';
 import 'voice_session_state.dart';
 import 'voice_state_machine.dart';
@@ -46,7 +47,11 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
 
   bool get voiceHandlesGlobalCommands => true;
 
+  bool get voiceHandlesGlobalNavigationCommands => true;
+
   bool get voiceRegistersCommands => true;
+
+  VoiceNavigationCommandHandler? get voiceNavigationCommandHandler => null;
 
   /// Implementar com `@override late final` em [initState].
   VoiceCommandDispatcher get voiceCommandDispatcher;
@@ -346,12 +351,28 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T> {
       }
     }
 
+    if (voiceHandlesGlobalNavigationCommands) {
+      final navigationResult = await voiceNavigationCommandHandler?.handle(
+        resultado,
+      );
+      if (navigationResult != null) {
+        await _completePageCommandResult(navigationResult);
+        return;
+      }
+    }
+
     voiceSessionManager.markExecuting(
       ownerId: voiceOwnerId,
       message: voiceStatusMessage,
     );
     final pageResult = await voiceCommandDispatcher.dispatch(resultado);
 
+    await _completePageCommandResult(pageResult);
+  }
+
+  Future<void> _completePageCommandResult(
+    VoiceCommandPageResult pageResult,
+  ) async {
     if (pageResult.statusMessage != null) {
       voiceSetState(() {
         voiceStatusMessage = pageResult.statusMessage;

@@ -10,8 +10,13 @@ import '../../../models/dashboard_action_metric.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/historico_acao.dart';
 import '../../../models/usuario.dart';
+import '../../history/pages/historico_page.dart';
+import '../../projects/pages/meus_projetos_page.dart';
+import '../../recordings/pages/minhas_gravacoes_page.dart';
+import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
 import '../controllers/dashboard_controller.dart';
@@ -45,9 +50,22 @@ class _DashboardPageState extends State<DashboardPage>
   late final VoiceCommandDispatcher voiceCommandDispatcher;
 
   @override
+  late final VoiceNavigationCommandHandler voiceNavigationCommandHandler;
+
+  @override
   void initState() {
     super.initState();
     _dashboardController.addListener(_onDashboardStateChanged);
+    voiceNavigationCommandHandler = VoiceNavigationCommandHandler(
+      currentDestination: VoiceNavigationDestination.dashboard,
+      goHome: _handleIrParaHome,
+      openProjects: _handleAbrirProjetosGlobal,
+      openRecordings: _handleAbrirGravacoesGlobal,
+      openHistory: _handleAbrirHistoricoGlobal,
+      openSettings: _handleAbrirConfiguracoesGlobal,
+      openNewProject: _handleAbrirNovoProjetoGlobal,
+      goBack: _handleVoltar,
+    );
     voiceCommandDispatcher = VoiceCommandDispatcher(
       handlers: {
         VoiceCommandType.voltar: _handleVoltar,
@@ -68,6 +86,73 @@ class _DashboardPageState extends State<DashboardPage>
 
   Future<VoiceCommandPageResult> _handleJaAberto(CommandResult _) async {
     return VoiceCommandPageResult.handled(message: 'Dashboard ja esta aberto.');
+  }
+
+  Future<VoiceCommandPageResult> _handleIrParaHome(CommandResult _) async {
+    await suspendContextualVoiceListening();
+    if (mounted) {
+      Navigator.popUntil(context, (route) => route.isFirst);
+    }
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirProjetosGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      MaterialPageRoute(
+        builder: (_) => MeusProjetosPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirNovoProjetoGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      MaterialPageRoute(
+        builder: (_) => MeusProjetosPage(
+          usuario: widget.usuario,
+          abrirCriacaoAoEntrar: true,
+        ),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirGravacoesGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      MaterialPageRoute(
+        builder: (_) => MinhasGravacoesPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirHistoricoGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      MaterialPageRoute(builder: (_) => HistoricoPage(usuario: widget.usuario)),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirConfiguracoesGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      MaterialPageRoute(
+        builder: (_) => ConfiguracoesPage(usuario: widget.usuario),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _navegarGlobal<T>(Route<T> route) async {
+    await suspendContextualVoiceListening();
+    if (mounted) {
+      await Navigator.push(context, route);
+    }
+    return VoiceCommandPageResult.handled(restartListening: false);
   }
 
   @override

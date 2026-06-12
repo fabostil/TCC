@@ -14,6 +14,7 @@ import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/pages/login_page.dart';
 import '../../voices/services/auth_session_service.dart';
@@ -89,9 +90,22 @@ class _HomePageState extends State<HomePage>
   late final VoiceCommandDispatcher voiceCommandDispatcher;
 
   @override
+  late final VoiceNavigationCommandHandler voiceNavigationCommandHandler;
+
+  @override
   void initState() {
     super.initState();
     voiceStatusMessage = 'Assistente de voz aguardando.';
+    voiceNavigationCommandHandler = VoiceNavigationCommandHandler(
+      currentDestination: VoiceNavigationDestination.home,
+      openProjects: _handleAbrirProjetos,
+      openRecordings: _handleAbrirGravacoes,
+      openDashboard: _handleAbrirDashboard,
+      openHistory: _handleAbrirHistorico,
+      openSettings: _handleAbrirConfiguracoes,
+      openNewProject: _handleAbrirNovoProjeto,
+      goBack: _handleVoltar,
+    );
     voiceCommandDispatcher = VoiceCommandDispatcher(
       handlers: {
         VoiceCommandType.abrirNovoProjeto: _handleAbrirNovoProjeto,

@@ -8,8 +8,13 @@ import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/comando_personalizado.dart';
 import '../../../models/configuracao_app.dart';
 import '../../../models/usuario.dart';
+import '../../dashboard/pages/dashboard_page.dart';
+import '../../history/pages/historico_page.dart';
+import '../../projects/pages/meus_projetos_page.dart';
+import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/custom_command_service.dart';
@@ -77,9 +82,22 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   late final VoiceCommandDispatcher voiceCommandDispatcher;
 
   @override
+  late final VoiceNavigationCommandHandler voiceNavigationCommandHandler;
+
+  @override
   void initState() {
     super.initState();
     _settingsController.addListener(_onSettingsStateChanged);
+    voiceNavigationCommandHandler = VoiceNavigationCommandHandler(
+      currentDestination: VoiceNavigationDestination.settings,
+      goHome: _handleIrParaHome,
+      openProjects: _handleAbrirProjetosGlobal,
+      openRecordings: _handleAbrirGravacoesGlobal,
+      openDashboard: _handleAbrirDashboardGlobal,
+      openHistory: _handleAbrirHistoricoGlobal,
+      openNewProject: _handleAbrirNovoProjetoGlobal,
+      goBack: _handleVoltarGlobal,
+    );
     voiceCommandDispatcher = VoiceCommandDispatcher(
       onFallback: _dispatchSettingsVoice,
     );
@@ -458,6 +476,108 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
           recognized: resultado.recognized,
         );
     }
+  }
+
+  Future<VoiceCommandPageResult> _handleIrParaHome(CommandResult _) async {
+    await suspendContextualVoiceListening();
+    if (mounted) {
+      Navigator.popUntil(context, (route) => route.isFirst);
+    }
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
+  Future<VoiceCommandPageResult> _handleVoltarGlobal(CommandResult _) async {
+    await suspendContextualVoiceListening();
+    if (mounted) {
+      Navigator.maybePop(context);
+    }
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirProjetosGlobal(
+    CommandResult _,
+  ) async {
+    final usuario = widget.usuario;
+    if (usuario == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Usuario sem sessao autenticada.',
+      );
+    }
+
+    return _navegarGlobal(
+      MaterialPageRoute(builder: (_) => MeusProjetosPage(usuario: usuario)),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirNovoProjetoGlobal(
+    CommandResult _,
+  ) async {
+    final usuario = widget.usuario;
+    if (usuario == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Usuario sem sessao autenticada.',
+      );
+    }
+
+    return _navegarGlobal(
+      MaterialPageRoute(
+        builder: (_) =>
+            MeusProjetosPage(usuario: usuario, abrirCriacaoAoEntrar: true),
+      ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirGravacoesGlobal(
+    CommandResult _,
+  ) async {
+    final usuario = widget.usuario;
+    if (usuario == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Usuario sem sessao autenticada.',
+      );
+    }
+
+    return _navegarGlobal(
+      MaterialPageRoute(builder: (_) => MinhasGravacoesPage(usuario: usuario)),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirDashboardGlobal(
+    CommandResult _,
+  ) async {
+    final usuario = widget.usuario;
+    if (usuario == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Usuario sem sessao autenticada.',
+      );
+    }
+
+    return _navegarGlobal(
+      MaterialPageRoute(builder: (_) => DashboardPage(usuario: usuario)),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirHistoricoGlobal(
+    CommandResult _,
+  ) async {
+    final usuario = widget.usuario;
+    if (usuario == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Usuario sem sessao autenticada.',
+      );
+    }
+
+    return _navegarGlobal(
+      MaterialPageRoute(builder: (_) => HistoricoPage(usuario: usuario)),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _navegarGlobal<T>(Route<T> route) async {
+    await suspendContextualVoiceListening();
+    if (mounted) {
+      await Navigator.push(context, route);
+    }
+    return VoiceCommandPageResult.handled(restartListening: false);
   }
 
   void _atualizarStatus(String status) {
