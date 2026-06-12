@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app_voz/features/voices/coordination/contextual_voice_listening_mixin.dart';
 import 'package:app_voz/features/voices/coordination/voice_command_dispatcher.dart';
 import 'package:app_voz/features/voices/coordination/voice_route_observer.dart';
@@ -71,6 +73,50 @@ void main() {
 
       expect(VoiceSessionManager.instance.activeOwnerId, isNull);
     });
+
+    testWidgets('modal confirma por voz e retoma escuta', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      const commandService = CommandService();
+
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+      key.currentState!.voiceEscutaContinuaAtiva = true;
+      await tester.tap(find.byKey(_TestVoicePage.openDialogButtonKey));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Confirmar exclusao'), findsOneWidget);
+
+      await key.currentState!.voiceConfirmationController.handle(
+        commandService.interpret('confirmar exclusao'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Confirmar exclusao'), findsNothing);
+      expect(key.currentState!.confirmedDialogs, 1);
+      expect(key.currentState!.cancelledDialogs, 0);
+      expect(key.currentState!.resumeAttempts, 1);
+    });
+
+    testWidgets('modal cancela por voz e limpa pendencia', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      const commandService = CommandService();
+
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+      await tester.tap(find.byKey(_TestVoicePage.openDialogButtonKey));
+      await tester.pumpAndSettle();
+
+      await key.currentState!.voiceConfirmationController.handle(
+        commandService.interpret('nao'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Confirmar exclusao'), findsNothing);
+      expect(key.currentState!.confirmedDialogs, 0);
+      expect(key.currentState!.cancelledDialogs, 1);
+      expect(
+        key.currentState!.voiceConfirmationController.hasPendingConfirmation,
+        isFalse,
+      );
+    });
   });
 }
 
@@ -92,6 +138,7 @@ class _TestVoicePage extends StatefulWidget {
   const _TestVoicePage({super.key});
 
   static const openRouteButtonKey = Key('open_route');
+  static const openDialogButtonKey = Key('open_voice_dialog');
 
   @override
   State<_TestVoicePage> createState() => _TestVoicePageState();
@@ -101,6 +148,8 @@ class _TestVoicePageState extends State<_TestVoicePage>
     with ContextualVoiceListeningMixin<_TestVoicePage> {
   int dispatchCount = 0;
   int resumeAttempts = 0;
+  int confirmedDialogs = 0;
+  int cancelledDialogs = 0;
 
   @override
   String get voiceOwnerId => 'test_contextual';
@@ -130,12 +179,33 @@ class _TestVoicePageState extends State<_TestVoicePage>
     resumeAttempts++;
   }
 
+  @override
+  Future<void> startContextualVoiceListening() async {
+    resumeAttempts++;
+  }
+
   void processTestCommand() {
     if (!voiceRouteActiveForTesting) {
       return;
     }
 
     dispatchCount++;
+  }
+
+  Future<void> _openConfirmation() async {
+    final confirmed = await showVoiceConfirmationDialog(
+      id: 'delete_test',
+      title: 'Confirmar exclusao',
+      message: 'Esta acao remove o item de teste.',
+      confirmLabel: 'Excluir',
+      destructive: true,
+    );
+
+    if (confirmed) {
+      confirmedDialogs++;
+    } else {
+      cancelledDialogs++;
+    }
   }
 
   @override
@@ -148,16 +218,28 @@ class _TestVoicePageState extends State<_TestVoicePage>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: ElevatedButton(
-          key: _TestVoicePage.openRouteButtonKey,
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const Scaffold(body: Text('route two')),
-              ),
-            );
-          },
-          child: const Text('Abrir rota'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton(
+              key: _TestVoicePage.openRouteButtonKey,
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const Scaffold(body: Text('route two')),
+                  ),
+                );
+              },
+              child: const Text('Abrir rota'),
+            ),
+            ElevatedButton(
+              key: _TestVoicePage.openDialogButtonKey,
+              onPressed: () {
+                unawaited(_openConfirmation());
+              },
+              child: const Text('Abrir dialog'),
+            ),
+          ],
         ),
       ),
     );

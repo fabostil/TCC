@@ -529,25 +529,13 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     }
 
     if (pedirConfirmacao) {
-      final confirmar = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Excluir projeto?'),
-          content: Text(
+      final confirmar = await showVoiceConfirmationDialog(
+        id: 'delete_project_${projeto.id}',
+        title: 'Excluir projeto?',
+        message:
             'O projeto "${projeto.nome}" sera removido. As gravacoes vinculadas continuam salvas em Minhas gravacoes.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(context, true),
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('Excluir'),
-            ),
-          ],
-        ),
+        confirmLabel: 'Excluir',
+        destructive: true,
       );
 
       if (confirmar != true) {

@@ -337,8 +337,8 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       return;
     }
 
-    final confirmar = await AppFeedback.confirm(
-      context,
+    final confirmar = await showVoiceConfirmationDialog(
+      id: 'delete_recording_details_${gravacao.id}',
       title: 'Excluir gravacao',
       message:
           'Deseja excluir "${gravacao.nome}" do banco de dados e do arquivo fisico?',
@@ -423,12 +423,12 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         await _salvarNovoNome(novoNome.trim(), origemVoz: true);
         return VoiceCommandPageResult.handled();
       case VoiceCommandType.excluirGravacao:
-        return VoiceCommandPageResult.handled(
-          message: 'Para excluir esta gravacao, diga confirmar exclusao.',
-        );
-      case VoiceCommandType.confirmarAcao:
-        await _excluirConfirmada(origemVoz: true);
+        await _excluirGravacao();
         return VoiceCommandPageResult.handled(restartListening: false);
+      case VoiceCommandType.confirmarAcao:
+        return VoiceCommandPageResult.handled(
+          message: 'Nao ha acao aguardando confirmacao.',
+        );
       case VoiceCommandType.cancelarAcao:
         return VoiceCommandPageResult.handled(message: 'Acao cancelada.');
       case VoiceCommandType.voltar:

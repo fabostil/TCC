@@ -711,3 +711,82 @@ Teste criado:
 ### Criterio de aprovacao manual
 
 A etapa so passa se a escuta por voz continuar funcionando depois de navegar e voltar entre telas principais, sem precisar reiniciar o app e sem executar comandos duplicados.
+
+## F.8 - Confirmacao por voz em modais
+
+### Problema observado
+
+Durante o QA fisico, modais de confirmacao podiam impedir que o usuario respondesse por voz com "confirmar", "sim", "cancelar" ou "nao". Isso quebrava o fluxo voice-first em acoes destrutivas, porque o app mostrava a confirmacao visual, mas nao havia um estado central de confirmacao pendente ligado ao dialogo.
+
+### Diagnostico
+
+Os dialogos visuais de exclusao e saida eram abertos por `showDialog` ou `AppFeedback.confirm`, mas nao registravam uma confirmacao pendente para comandos de voz. A F.7 corrigiu o ciclo de vida de paginas com `RouteAware`, mas `DialogRoute` nao ativava um listener contextual proprio para o modal.
+
+Tambem foi confirmado um risco em `DetalhesGravacaoPage`: o comando contextual `confirmarAcao` chamava a exclusao confirmada diretamente, mesmo sem uma confirmacao pendente. Esse comportamento foi removido para impedir acao destrutiva sem contexto.
+
+### Correcao realizada
+
+* Criado `VoiceConfirmationController` para registrar uma confirmacao pendente, aceitar apenas confirmacao/cancelamento enquanto ela existir e bloquear comandos desconhecidos ou globais durante o modal.
+* `ContextualVoiceListeningMixin` passou a expor `showVoiceConfirmationDialog`, que registra a confirmacao do dialogo, permite fechar por voz e retoma a escuta contextual ao fechar quando as flags de voz da pagina continuam ativas.
+* A confirmacao pendente e limpa ao confirmar, cancelar, fechar pelo botao voltar ou destruir a tela.
+* O mixin passou a aceitar comandos de confirmacao mesmo quando o comando anterior abriu o modal e ainda esta aguardando o resultado.
+* Foram integrados os modais principais de exclusao de projeto, exclusao de gravacao, exclusao de gravacao em detalhes de projeto, exclusao em detalhes da gravacao e saida da sessao.
+* `confirmar` ou `sim` fora de confirmacao pendente nao executam exclusao.
+* Comandos globais, como "configuracoes", ficam bloqueados enquanto uma confirmacao destrutiva esta pendente.
+
+Comandos aceitos para confirmar:
+
+* "confirmar"
+* "confirmo"
+* "sim"
+* "pode confirmar"
+* "confirmar exclusao"
+
+Comandos aceitos para cancelar:
+
+* "cancelar"
+* "cancela"
+* "nao"
+* "desistir"
+* "voltar"
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/features/voices/coordination/voice_confirmation_controller_test.dart`
+  * "sim" sem pendencia nao executa nada;
+  * "sim" e "confirmar exclusao" confirmam quando ha pendencia;
+  * "cancelar" e "nao" cancelam e limpam estado;
+  * comando desconhecido nao confirma;
+  * comando global fica bloqueado durante confirmacao.
+* `test/features/voices/coordination/contextual_voice_listening_mixin_test.dart`
+  * modal confirma por voz e fecha;
+  * modal cancela por voz e limpa pendencia;
+  * escuta e retomada apos o modal.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Fazer login.
+3. Criar ou abrir projeto.
+4. Criar/gravar uma gravacao de teste.
+5. Pedir/tocar para excluir gravacao.
+6. Quando o modal aparecer, dizer "cancelar".
+7. Confirmar que a gravacao nao foi excluida.
+8. Repetir e dizer "confirmar".
+9. Confirmar que a gravacao foi excluida.
+10. Criar ou abrir um projeto.
+11. Pedir/tocar para excluir projeto.
+12. No modal, dizer "nao".
+13. Confirmar que projeto nao foi excluido.
+14. Repetir e dizer "confirmar exclusao".
+15. Confirmar que o projeto foi excluido.
+16. Apos cada modal fechado, dizer "Configuracoes" ou "Meus projetos".
+17. Confirmar que a escuta continua funcionando.
+18. Dizer "sim" fora de qualquer modal.
+19. Confirmar que nada destrutivo acontece.
+
+### Criterio de aprovacao manual
+
+A etapa so passa se modais principais aceitarem confirmacao/cancelamento por voz com seguranca e a escuta continuar funcionando apos o modal fechar.

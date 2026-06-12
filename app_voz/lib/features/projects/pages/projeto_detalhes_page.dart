@@ -227,8 +227,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
 
   Future<void> _excluirGravacao(Gravacao gravacao) async {
     final gravacaoId = gravacao.id;
-    final confirmar = await AppFeedback.confirm(
-      context,
+    final confirmar = await showVoiceConfirmationDialog(
+      id: 'delete_project_recording_$gravacaoId',
       title: 'Excluir gravação',
       message:
           'Deseja excluir "${gravacao.nome}" do banco de dados e do arquivo físico?',

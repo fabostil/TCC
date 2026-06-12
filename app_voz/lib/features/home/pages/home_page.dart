@@ -248,22 +248,11 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _sairDaConta() async {
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sair do app?'),
-        content: const Text('Deseja encerrar a sessao e voltar para o login?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sair'),
-          ),
-        ],
-      ),
+    final confirmar = await showVoiceConfirmationDialog(
+      id: 'logout',
+      title: 'Sair do app?',
+      message: 'Deseja encerrar a sessao e voltar para o login?',
+      confirmLabel: 'Sair',
     );
 
     if (confirmar != true || !mounted) {

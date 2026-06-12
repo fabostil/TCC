@@ -11,6 +11,7 @@ import '../controllers/voice_command_controller.dart';
 import '../services/command_service.dart';
 import '../services/voice_global_command_service.dart';
 import 'voice_command_dispatcher.dart';
+import 'voice_confirmation_controller.dart';
 import 'voice_listening_coordinator.dart';
 import 'voice_navigation_command_handler.dart';
 import 'voice_route_observer.dart';
@@ -27,6 +28,8 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       VoiceCommandController();
   final VoiceGlobalCommandService voiceGlobalCommandService =
       VoiceGlobalCommandService();
+  final VoiceConfirmationController voiceConfirmationController =
+      VoiceConfirmationController();
   final VoiceSessionManager voiceSessionManager = VoiceSessionManager.instance;
 
   bool voiceOuvindo = false;
@@ -140,6 +143,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   }
 
   void disposeContextualVoiceListening() {
+    voiceConfirmationController.clear();
     if (_voiceRouteObserverRegistered) {
       voiceRouteObserver.unsubscribe(this);
       _voiceRoute = null;
@@ -365,7 +369,8 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       return;
     }
 
-    if (voiceExecutandoComando) {
+    if (voiceExecutandoComando &&
+        !voiceConfirmationController.hasPendingConfirmation) {
       return;
     }
 
@@ -419,6 +424,25 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         processing: true,
       );
     });
+
+    final confirmationResult = await voiceConfirmationController.handle(
+      resultado,
+    );
+    if (confirmationResult.handled) {
+      if (mounted && confirmationResult.message.isNotEmpty) {
+        voiceSetState(() {
+          voiceStatusMessage = confirmationResult.message;
+        });
+      }
+      voiceExecutandoComando = false;
+      voiceIaPensando = false;
+      voiceSessionState = voiceSessionState.transitionTo(
+        VoiceSessionPhase.idle,
+        message: voiceStatusMessage,
+      );
+      scheduleVoiceContinuousRestart();
+      return;
+    }
 
     if (voiceHandlesGlobalCommands) {
       final globalResult = await voiceGlobalCommandService.execute(resultado);
@@ -554,6 +578,79 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         thinking: false,
       );
     });
+  }
+
+  Future<bool> showVoiceConfirmationDialog({
+    required String id,
+    required String title,
+    required String message,
+    String confirmLabel = 'Confirmar',
+    String cancelLabel = 'Cancelar',
+    bool destructive = false,
+  }) async {
+    var completedByVoice = false;
+
+    voiceExecutandoComando = false;
+    voiceIaPensando = false;
+    voiceSessionState = voiceSessionState.transitionTo(
+      VoiceSessionPhase.idle,
+      message: voiceStatusMessage,
+    );
+    scheduleVoiceContinuousRestart();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        voiceConfirmationController.register(
+          VoiceConfirmationRequest(
+            id: id,
+            description: title,
+            onConfirm: () {
+              completedByVoice = true;
+              Navigator.pop(dialogContext, true);
+            },
+            onCancel: () {
+              completedByVoice = true;
+              Navigator.pop(dialogContext, false);
+            },
+          ),
+        );
+
+        return AlertDialog(
+          title: Text(title),
+          content: Text(
+            '$message\n\nDiga "confirmar" para continuar ou "cancelar" para voltar.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(cancelLabel),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: destructive
+                  ? ElevatedButton.styleFrom(backgroundColor: Colors.red)
+                  : null,
+              child: Text(confirmLabel),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!completedByVoice) {
+      voiceConfirmationController.clear();
+    }
+
+    if (mounted &&
+        _voiceRouteActive &&
+        voiceEscutaContinuaAtiva &&
+        !voiceOuvindo &&
+        !voiceParadaManual) {
+      await startContextualVoiceListening();
+    }
+
+    return result ?? false;
   }
 
   Future<void> registerVoiceCommand(CommandResult resultado) async {
