@@ -10,6 +10,10 @@ void main() {
         service.normalize('  Iniciar   Grava\u00e7\u00e3o  '),
         'iniciar gravacao',
       );
+      expect(
+        service.normalize('  Abrir,   Hist\u00f3rico!  '),
+        'abrir historico',
+      );
     });
 
     test('reconhece comandos de gravacao', () {
@@ -21,10 +25,26 @@ void main() {
         service.interpret('gravar').type,
         VoiceCommandType.iniciarGravacao,
       );
+      expect(
+        service.interpret('come\u00e7ar grava\u00e7\u00e3o').type,
+        VoiceCommandType.iniciarGravacao,
+      );
       expect(service.interpret('pausar').type, VoiceCommandType.pausarGravacao);
+      expect(
+        service.interpret('pausar grava\u00e7\u00e3o').type,
+        VoiceCommandType.pausarGravacao,
+      );
       expect(
         service.interpret('retomar grava\u00e7\u00e3o').type,
         VoiceCommandType.retomarGravacao,
+      );
+      expect(
+        service.interpret('parar grava\u00e7\u00e3o').type,
+        VoiceCommandType.encerrarGravacao,
+      );
+      expect(
+        service.interpret('encerrar grava\u00e7\u00e3o').type,
+        VoiceCommandType.encerrarGravacao,
       );
       expect(
         service.interpret('finalizar grava\u00e7\u00e3o').type,
@@ -53,20 +73,40 @@ void main() {
 
     test('reconhece comandos de navegacao', () {
       expect(
+        service.interpret('dashboard').type,
+        VoiceCommandType.abrirDashboard,
+      );
+      expect(
         service.interpret('abrir dashboard').type,
         VoiceCommandType.abrirDashboard,
+      );
+      expect(
+        service.interpret('projetos').type,
+        VoiceCommandType.abrirProjetos,
       );
       expect(
         service.interpret('meus projetos').type,
         VoiceCommandType.abrirProjetos,
       );
       expect(
+        service.interpret('gravacoes').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
         service.interpret('minhas grava\u00e7\u00f5es').type,
         VoiceCommandType.abrirGravacoes,
       );
       expect(
+        service.interpret('configura\u00e7\u00f5es').type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
         service.interpret('abrir configura\u00e7\u00f5es').type,
         VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
+        service.interpret('hist\u00f3rico').type,
+        VoiceCommandType.abrirHistorico,
       );
       expect(
         service.interpret('abrir hist\u00f3rico').type,
@@ -85,6 +125,11 @@ void main() {
         VoiceCommandType.abrirEditor,
       );
       expect(service.interpret('voltar').type, VoiceCommandType.voltar);
+      expect(
+        service.interpret('voltar para tela inicial').type,
+        VoiceCommandType.voltar,
+      );
+      expect(service.interpret('in\u00edcio').type, VoiceCommandType.voltar);
       expect(service.interpret('sair').type, VoiceCommandType.sair);
     });
 

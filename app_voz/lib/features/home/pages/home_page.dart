@@ -391,7 +391,7 @@ class _HomePageState extends State<HomePage>
     return VoiceCommandPageResult.handled(
       message: result.recognized
           ? 'Comando nao executavel nesta tela.'
-          : 'Comando nao reconhecido. Configure GEMINI_API_KEY para NLU.',
+          : unknownVoiceCommandMessage,
     );
   }
 

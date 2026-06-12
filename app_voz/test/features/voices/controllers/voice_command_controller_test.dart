@@ -64,6 +64,54 @@ void main() {
       expect(result.aiConfigured, isFalse);
       expect(aiCalled, isFalse);
     });
+
+    test('resolve comandos essenciais localmente sem chave da IA', () async {
+      var aiCalled = false;
+      final controller = VoiceCommandController(
+        aiCommandService: AiCommandService(
+          apiKey: '',
+          httpPost: (uri, headers, body, timeout) async {
+            aiCalled = true;
+            return _geminiResponse('{"action":"nav_history"}');
+          },
+        ),
+        feedbackService: const NoopVoiceFeedbackService(),
+      );
+
+      final dashboard = await controller.interpret('Dashboard');
+      final historico = await controller.interpret('Hist\u00f3rico');
+      final configuracoes = await controller.interpret(
+        'Configura\u00e7\u00f5es',
+      );
+
+      expect(dashboard.commandResult.type, VoiceCommandType.abrirDashboard);
+      expect(historico.commandResult.type, VoiceCommandType.abrirHistorico);
+      expect(
+        configuracoes.commandResult.type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(dashboard.usedAi, isFalse);
+      expect(historico.usedAi, isFalse);
+      expect(configuracoes.usedAi, isFalse);
+      expect(aiCalled, isFalse);
+    });
+
+    test(
+      'comando desconhecido sem IA mantem mensagem amigavel disponivel',
+      () async {
+        final controller = VoiceCommandController(
+          aiCommandService: AiCommandService(apiKey: ''),
+          feedbackService: const NoopVoiceFeedbackService(),
+        );
+
+        final result = await controller.interpret('abrir afinador');
+
+        expect(result.commandResult.type, VoiceCommandType.desconhecido);
+        expect(result.commandResult.recognized, isFalse);
+        expect(unknownVoiceCommandMessage, isNot(contains('GEMINI_API_KEY')));
+        expect(unknownVoiceCommandMessage, contains('Não entendi o comando'));
+      },
+    );
   });
 }
 

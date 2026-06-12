@@ -375,3 +375,101 @@ Built build\app\outputs\flutter-apk\app-debug.apk
 ### Critério de aprovação manual
 
 A etapa só passa manualmente se Login/Cadastro não aparecerem ao usar voltar depois de autenticação, exceto após logout explícito.
+
+## F.4 — Fallback local sem GEMINI_API_KEY
+
+### Problema observado
+
+Durante o teste físico Android, comandos básicos como Dashboard, Histórico e Configurações podiam cair em uma mensagem técnica pedindo configuração de `GEMINI_API_KEY`.
+
+Esse comportamento expunha uma dependência interna ao usuário final e fazia comandos essenciais dependerem de NLU externo, mesmo quando a intenção poderia ser resolvida localmente.
+
+### Diagnóstico
+
+A ordem de interpretação já estava correta em `VoiceCommandController`: primeiro `CommandService`, depois comandos personalizados e só então `AiCommandService` quando a IA estivesse configurada.
+
+A causa confirmada estava em dois pontos:
+
+* o parser local não reconhecia algumas formas essenciais isoladas, como `dashboard`, `historico`, `configuracoes`, `projetos`, `gravacoes`, `inicio` e `tela inicial`;
+* a `HomePage` mostrava a mensagem técnica `Comando nao reconhecido. Configure GEMINI_API_KEY para NLU.` quando um comando chegava como desconhecido.
+
+### Correção realizada
+
+* `CommandService` passou a expor uma mensagem amigável única para comando desconhecido sem citar `GEMINI_API_KEY`.
+* A normalização local passou a remover pontuação simples, além de minúsculas, acentos, cedilha, trim e espaços duplicados.
+* O fallback local passou a reconhecer comandos essenciais de navegação:
+  * `dashboard` e `abrir dashboard`;
+  * `historico` e `abrir historico`;
+  * `configuracoes` e `abrir configuracoes`;
+  * `projetos`, `meus projetos` e `abrir projetos`;
+  * `gravacoes`, `minhas gravacoes` e `abrir gravacoes`;
+  * `novo projeto` e `criar projeto`.
+* O fallback local passou a reconhecer retorno básico:
+  * `voltar`;
+  * `tela inicial`;
+  * `inicio`;
+  * `voltar para tela inicial`;
+  * `ir para tela inicial`.
+* Os comandos de gravação essenciais já existentes foram preservados e cobertos por testes adicionais:
+  * `gravar`;
+  * `iniciar gravacao`;
+  * `comecar gravacao`;
+  * `pausar gravacao`;
+  * `retomar gravacao`;
+  * `parar gravacao`;
+  * `encerrar gravacao`.
+* `HomePage` deixou de mostrar a mensagem técnica e passou a exibir:
+
+```text
+Não entendi o comando. Tente dizer: novo projeto, minhas gravações, dashboard ou configurações.
+```
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/features/voices/services/command_service_test.dart`
+  * normalização remove acentos, pontuação simples e espaços duplicados;
+  * comandos essenciais de navegação são reconhecidos localmente;
+  * comandos de retorno como `voltar para tela inicial` e `inicio` são reconhecidos;
+  * comandos essenciais de gravação são reconhecidos localmente.
+* `test/features/voices/controllers/voice_command_controller_test.dart`
+  * comandos essenciais são resolvidos localmente sem chave da IA;
+  * comando desconhecido sem IA permanece desconhecido sem acionar Gemini;
+  * mensagem amigável não cita `GEMINI_API_KEY`.
+
+Validações executadas:
+
+```text
+dart analyze
+No issues found!
+
+flutter test --reporter compact
+00:27 +414: All tests passed!
+
+flutter build apk --debug
+Built build\app\outputs\flutter-apk\app-debug.apk
+```
+
+### Teste manual recomendado
+
+1. Rodar o app no Android físico sem configurar `GEMINI_API_KEY`.
+2. Fazer login.
+3. Na Home, dizer:
+   * "Dashboard"
+   * "Histórico"
+   * "Configurações"
+   * "Meus projetos"
+   * "Minhas gravações"
+   * "Novo projeto"
+4. Confirmar que nenhum desses comandos mostra mensagem "Configure GEMINI_API_KEY".
+5. Dizer um comando desconhecido.
+6. Confirmar que aparece mensagem amigável:
+
+```text
+Não entendi o comando. Tente dizer: novo projeto, minhas gravações, dashboard ou configurações.
+```
+
+### Critério de aprovação manual
+
+A etapa só passa manualmente se comandos essenciais não dependerem da `GEMINI_API_KEY` e se o usuário não vir mensagem técnica.

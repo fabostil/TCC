@@ -49,6 +49,9 @@ enum VoiceCommandType {
   desconhecido,
 }
 
+const unknownVoiceCommandMessage =
+    'Não entendi o comando. Tente dizer: novo projeto, minhas gravações, dashboard ou configurações.';
+
 class CommandResult {
   const CommandResult({
     required this.originalText,
@@ -722,7 +725,8 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const [
+    if (_matchesAny(normalizedText, const [
+      'dashboard',
       'abrir dashboard',
       'mostrar dashboard',
       'ir para dashboard',
@@ -740,11 +744,12 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const [
+    if (_matchesAny(normalizedText, const [
+      'projetos',
+      'meus projetos',
       'abrir projetos',
       'mostrar projetos',
       'ir para projetos',
-      'meus projetos',
     ])) {
       return _recognized(
         text,
@@ -755,10 +760,12 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const [
-      'abrir gravacoes',
-      'mostrar gravacoes',
+    if (_matchesAny(normalizedText, const [
+      'gravacoes',
       'minhas gravacoes',
+      'abrir gravacoes',
+      'abrir minhas gravacoes',
+      'mostrar gravacoes',
       'ir para gravacoes',
     ])) {
       return _recognized(
@@ -770,7 +777,8 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const [
+    if (_matchesAny(normalizedText, const [
+      'configuracoes',
       'abrir configuracoes',
       'mostrar configuracoes',
       'ir para configuracoes',
@@ -798,7 +806,8 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const [
+    if (_matchesAny(normalizedText, const [
+      'historico',
       'abrir historico',
       'mostrar historico',
       'ir para historico',
@@ -847,11 +856,15 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const [
+    if (_matchesAny(normalizedText, const [
       'voltar',
       'voltar tela',
       'voltar para home',
       'ir para home',
+      'tela inicial',
+      'inicio',
+      'voltar para tela inicial',
+      'ir para tela inicial',
     ])) {
       return _recognized(
         text,
@@ -885,7 +898,12 @@ class CommandService {
         .replaceAll(RegExp('[\\u00fa\\u00f9\\u00fb\\u00fc]'), 'u')
         .replaceAll('\u00e7', 'c');
 
-    return withoutAccents.replaceAll(RegExp(r'\s+'), ' ');
+    final withoutPunctuation = withoutAccents.replaceAll(
+      RegExp(r'[^a-z0-9\s]'),
+      ' ',
+    );
+
+    return withoutPunctuation.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   CommandResult _recognized(
@@ -921,6 +939,10 @@ class CommandService {
 
   bool _containsAny(String text, List<String> patterns) {
     return patterns.any(text.contains);
+  }
+
+  bool _matchesAny(String text, List<String> patterns) {
+    return patterns.any((pattern) => text == pattern || text.contains(pattern));
   }
 
   bool _containsWord(String text, String word) {
