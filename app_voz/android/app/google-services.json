@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "382035408454",
+    "project_id": "app-voz-930a7",
+    "storage_bucket": "app-voz-930a7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:382035408454:android:7c40925531555303fd3c47",
+        "android_client_info": {
+          "package_name": "br.com.assistentemusical.appvoz"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "382035408454-gbmbdlb271es7lmtnvujss9bmc0nklef.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "br.com.assistentemusical.appvoz",
+            "certificate_hash": "e652f58f9bc29dc10751828be7dc619d3d41ade0"
+          }
+        },
+        {
+          "client_id": "382035408454-kl9ukah3qkfoulnfuo0hghojh1ak9l1f.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRWT-vt18witzTXDpYQQB9CG1v7XgBNu0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "382035408454-kl9ukah3qkfoulnfuo0hghojh1ak9l1f.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

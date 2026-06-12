@@ -1,10 +1,29 @@
 import 'package:flutter/material.dart';
 
-import '../../../repositories/usuario_repository.dart';
+import '../../../core/ui/app_logo.dart';
+import '../../../models/usuario.dart';
+import '../../home/pages/home_page.dart';
+import '../services/auth_service.dart';
+import '../services/auth_validation_service.dart';
+import '../services/google_auth_service.dart';
+import '../widgets/google_sign_in_button.dart';
 import 'login_page.dart';
 
+typedef CadastroHomeBuilder = Widget Function(Usuario usuario);
+
 class CadastroPage extends StatefulWidget {
-  const CadastroPage({super.key});
+  const CadastroPage({
+    super.key,
+    this.authService,
+    this.homeBuilder,
+    this.loginBuilder,
+    this.logoBuilder,
+  });
+
+  final AuthService? authService;
+  final CadastroHomeBuilder? homeBuilder;
+  final WidgetBuilder? loginBuilder;
+  final WidgetBuilder? logoBuilder;
 
   @override
   State<CadastroPage> createState() => _CadastroPageState();
@@ -17,9 +36,13 @@ class _CadastroPageState extends State<CadastroPage> {
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
   final _confirmarSenhaController = TextEditingController();
+  final _authValidationService = const AuthValidationService();
 
   bool _carregando = false;
+  bool _carregandoGoogle = false;
   bool _mostrarSenha = false;
+
+  AuthService get _authService => widget.authService ?? AuthService.instance;
 
   Future<void> _cadastrar() async {
     if (!_formKey.currentState!.validate()) {
@@ -31,7 +54,7 @@ class _CadastroPageState extends State<CadastroPage> {
     });
 
     try {
-      final sucesso = await UsuarioRepository.instance.cadastrarUsuario(
+      final sucesso = await _authService.cadastrarUsuario(
         nome: _nomeController.text,
         email: _emailController.text,
         senha: _senhaController.text,
@@ -47,18 +70,25 @@ class _CadastroPageState extends State<CadastroPage> {
 
       if (!sucesso) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Este e-mail já está cadastrado.')),
+          const SnackBar(content: Text('Este e-mail ja esta cadastrado.')),
         );
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cadastro realizado com sucesso.')),
+        const SnackBar(
+          content: Text(
+            'Cadastro criado. Para verificar a conta, entre com Google.',
+          ),
+        ),
       );
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginPage()),
+        MaterialPageRoute(
+          builder: (_) =>
+              widget.loginBuilder?.call(context) ?? const LoginPage(),
+        ),
       );
     } catch (e) {
       if (!mounted) {
@@ -72,6 +102,60 @@ class _CadastroPageState extends State<CadastroPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Erro ao cadastrar: $e')));
+    }
+  }
+
+  Future<void> _cadastrarComGoogle() async {
+    setState(() {
+      _carregandoGoogle = true;
+    });
+
+    try {
+      final usuario = await _authService.entrarComGoogle();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      if (usuario == null) {
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              widget.homeBuilder?.call(usuario) ?? HomePage(usuario: usuario),
+        ),
+      );
+    } on GoogleAuthException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregandoGoogle = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao cadastrar com Google: $e')),
+      );
     }
   }
 
@@ -95,11 +179,7 @@ class _CadastroPageState extends State<CadastroPage> {
             key: _formKey,
             child: Column(
               children: [
-                const Icon(
-                  Icons.music_note,
-                  size: 72,
-                  color: Colors.deepPurple,
-                ),
+                widget.logoBuilder?.call(context) ?? const AppLogo(height: 96),
 
                 const SizedBox(height: 16),
 
@@ -108,31 +188,39 @@ class _CadastroPageState extends State<CadastroPage> {
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 8),
+
+                const Text(
+                  'Use Google para criar uma conta verificada.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 15),
+                ),
+
+                const SizedBox(height: 24),
+
+                GoogleSignInButton(
+                  key: const Key('cadastro_google_button'),
+                  onPressed: _carregando ? null : _cadastrarComGoogle,
+                  loading: _carregandoGoogle,
+                ),
+
+                const SizedBox(height: 24),
 
                 TextFormField(
+                  key: const Key('cadastro_nome_field'),
                   controller: _nomeController,
                   decoration: const InputDecoration(
                     labelText: 'Nome',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.person),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Informe seu nome.';
-                    }
-
-                    if (value.trim().length < 3) {
-                      return 'O nome deve ter pelo menos 3 caracteres.';
-                    }
-
-                    return null;
-                  },
+                  validator: _authValidationService.validarNome,
                 ),
 
                 const SizedBox(height: 16),
 
                 TextFormField(
+                  key: const Key('cadastro_email_field'),
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
@@ -140,22 +228,13 @@ class _CadastroPageState extends State<CadastroPage> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.email),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Informe seu e-mail.';
-                    }
-
-                    if (!value.contains('@') || !value.contains('.')) {
-                      return 'Informe um e-mail válido.';
-                    }
-
-                    return null;
-                  },
+                  validator: _authValidationService.validarEmail,
                 ),
 
                 const SizedBox(height: 16),
 
                 TextFormField(
+                  key: const Key('cadastro_password_field'),
                   controller: _senhaController,
                   obscureText: !_mostrarSenha,
                   decoration: InputDecoration(
@@ -173,22 +252,13 @@ class _CadastroPageState extends State<CadastroPage> {
                       },
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Informe uma senha.';
-                    }
-
-                    if (value.length < 6) {
-                      return 'A senha deve ter pelo menos 6 caracteres.';
-                    }
-
-                    return null;
-                  },
+                  validator: _authValidationService.validarSenhaCadastro,
                 ),
 
                 const SizedBox(height: 16),
 
                 TextFormField(
+                  key: const Key('cadastro_confirm_password_field'),
                   controller: _confirmarSenhaController,
                   obscureText: !_mostrarSenha,
                   decoration: const InputDecoration(
@@ -196,23 +266,17 @@ class _CadastroPageState extends State<CadastroPage> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.lock_outline),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Confirme sua senha.';
-                    }
-
-                    if (value != _senhaController.text) {
-                      return 'As senhas não conferem.';
-                    }
-
-                    return null;
-                  },
+                  validator: (value) => _authValidationService
+                      .validarConfirmacaoSenha(value, _senhaController.text),
                 ),
 
                 const SizedBox(height: 24),
 
                 ElevatedButton(
-                  onPressed: _carregando ? null : _cadastrar,
+                  key: const Key('cadastro_submit_button'),
+                  onPressed: _carregando || _carregandoGoogle
+                      ? null
+                      : _cadastrar,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 56),
                   ),
@@ -222,23 +286,25 @@ class _CadastroPageState extends State<CadastroPage> {
                           height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Cadastrar'),
+                      : const Text('Cadastrar com e-mail'),
                 ),
 
                 const SizedBox(height: 16),
 
                 TextButton(
-                  onPressed: _carregando
+                  onPressed: _carregando || _carregandoGoogle
                       ? null
                       : () {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const LoginPage(),
+                              builder: (_) =>
+                                  widget.loginBuilder?.call(context) ??
+                                  const LoginPage(),
                             ),
                           );
                         },
-                  child: const Text('Já tenho uma conta'),
+                  child: const Text('Ja tenho uma conta'),
                 ),
               ],
             ),

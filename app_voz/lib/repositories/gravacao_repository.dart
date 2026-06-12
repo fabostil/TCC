@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
+import '../core/search/sql_search.dart';
 import '../database/app_database.dart';
 import '../database/tables/gravacao_table.dart';
 import '../models/gravacao.dart';
@@ -20,19 +21,69 @@ class GravacaoRepository {
     );
   }
 
-  Future<List<Gravacao>> listarGravacoesPorUsuario(int usuarioId) async {
+  Future<List<Gravacao>> listarGravacoesPorUsuario(
+    int usuarioId, {
+    String? termoBusca,
+    String? status,
+  }) async {
     final db = await _database;
+    final where = <String>['usuario_id = ?', 'status != ?'];
+    final whereArgs = <Object?>[usuarioId, GravacaoStatus.excluida];
+
+    if (SqlSearch.hasTerm(termoBusca)) {
+      where.add('(nome LIKE ? ESCAPE ? OR formato_audio LIKE ? ESCAPE ?)');
+      final pattern = SqlSearch.containsPattern(termoBusca!);
+      whereArgs.addAll([pattern, r'\', pattern, r'\']);
+    }
+
+    if (status != null) {
+      where.add('status = ?');
+      whereArgs.add(status);
+    }
 
     final resultado = await db.query(
       GravacaoTable.tableName,
-      where: 'usuario_id = ?',
-      whereArgs: [usuarioId],
+      where: where.join(' AND '),
+      whereArgs: whereArgs,
       orderBy: 'data_criacao DESC',
     );
 
     return resultado.map(Gravacao.fromMap).toList();
   }
 
+<<<<<<< HEAD
+=======
+  Future<List<Gravacao>> listarGravacoesPorProjeto(
+    int projetoId, {
+    String? termoBusca,
+    String? status,
+  }) async {
+    final db = await _database;
+    final where = <String>['projeto_id = ?', 'status != ?'];
+    final whereArgs = <Object?>[projetoId, GravacaoStatus.excluida];
+
+    if (SqlSearch.hasTerm(termoBusca)) {
+      where.add('(nome LIKE ? ESCAPE ? OR formato_audio LIKE ? ESCAPE ?)');
+      final pattern = SqlSearch.containsPattern(termoBusca!);
+      whereArgs.addAll([pattern, r'\', pattern, r'\']);
+    }
+
+    if (status != null) {
+      where.add('status = ?');
+      whereArgs.add(status);
+    }
+
+    final resultado = await db.query(
+      GravacaoTable.tableName,
+      where: where.join(' AND '),
+      whereArgs: whereArgs,
+      orderBy: 'data_criacao DESC',
+    );
+
+    return resultado.map(Gravacao.fromMap).toList();
+  }
+
+>>>>>>> feature/true-voice-first
   Future<Gravacao?> buscarGravacaoPorId(int id) async {
     final db = await _database;
 
@@ -48,6 +99,23 @@ class GravacaoRepository {
     }
 
     return Gravacao.fromMap(resultado.first);
+  }
+
+  Future<List<String>> listarCaminhosArquivosAtivos() async {
+    final db = await _database;
+
+    final resultado = await db.query(
+      GravacaoTable.tableName,
+      columns: ['caminho_arquivo'],
+      where: 'status != ?',
+      whereArgs: [GravacaoStatus.excluida],
+    );
+
+    return resultado
+        .map((row) => row['caminho_arquivo'])
+        .whereType<String>()
+        .where((path) => path.trim().isNotEmpty)
+        .toList();
   }
 
   Future<int> atualizarGravacao(Gravacao gravacao) async {
@@ -67,8 +135,14 @@ class GravacaoRepository {
 
   Future<int> removerGravacao(int id) async {
     final db = await _database;
-    return db.delete(
+    return db.delete(GravacaoTable.tableName, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> marcarComoExcluida(int id) async {
+    final db = await _database;
+    return db.update(
       GravacaoTable.tableName,
+      {'status': GravacaoStatus.excluida},
       where: 'id = ?',
       whereArgs: [id],
     );

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../models/usuario.dart';
 import 'login_page.dart';
 import '../services/speech_service.dart';
+import '../coordination/voice_listening_coordinator.dart';
 
 class VoicePage extends StatefulWidget {
   final Usuario usuario;
@@ -14,10 +15,16 @@ class VoicePage extends StatefulWidget {
 }
 
 class _VoicePageState extends State<VoicePage> {
-  final SpeechService speech = SpeechService();
+  // Chamando as instâncias globais (Singletons) da sua nova arquitetura
+  final SpeechService _speechService = SpeechService.instance;
+  final VoiceListeningCoordinator _coordinator =
+      VoiceListeningCoordinator.instance;
+
+  // Identificador desta tela para o Coordenador saber quem está usando o microfone
+  final String _ownerId = 'voice_page_legacy';
 
   bool listening = false;
-  bool _isContinuousListening = false; // Flag para controlar o loop infinito
+  bool _isContinuousListening = false;
 
   String text = 'Pressione o microfone para iniciar a escuta contínua';
   String ultimoComando = 'Nenhum comando executado ainda.';
@@ -25,10 +32,13 @@ class _VoicePageState extends State<VoicePage> {
   Future<void> toggleListening() async {
     if (!_isContinuousListening) {
       _isContinuousListening = true;
+      // Avisa a arquitetura do TCC que esta página assumiu o controle do microfone
+      _coordinator.claimListening(_ownerId);
       _iniciarEscutaContinua();
     } else {
       _isContinuousListening = false;
-      await speech.stopListening();
+      // Libera o microfone no coordenador
+      await _coordinator.releaseAndStop(_ownerId);
 
       if (mounted) {
         setState(() {
@@ -41,10 +51,10 @@ class _VoicePageState extends State<VoicePage> {
   }
 
   Future<void> _iniciarEscutaContinua() async {
-    // Trava de segurança: se o usuário desligou ou a tela fechou, cancela o loop
+    // Trava de segurança: se o usuário desligou ou a tela fechou
     if (!_isContinuousListening || !mounted) return;
 
-    await speech.startListening(
+    final started = await _speechService.startListening(
       onResult: (result) {
         setState(() {
           text = result;
@@ -61,11 +71,13 @@ class _VoicePageState extends State<VoicePage> {
           });
         }
 
-        // O sistema cortou a escuta por silêncio ('done' ou 'notListening')
+        // O sistema cortou a escuta por silêncio
         if (status == 'done' || status == 'notListening') {
           if (_isContinuousListening) {
-            // Aplicamos um delay de 700ms para o microfone ser liberado pelo sistema e religamos
-            await Future.delayed(const Duration(milliseconds: 700));
+            // Usamos o delay padrão definido na sua arquitetura (700ms)
+            await Future.delayed(
+              _coordinator.restartDelayFor(VoiceRestartReason.normal),
+            );
             _iniciarEscutaContinua();
           } else {
             setState(() {
@@ -77,27 +89,41 @@ class _VoicePageState extends State<VoicePage> {
       onError: (error) async {
         if (!mounted) return;
 
-        // O timeout de silêncio do plugin vem como um erro. Apenas reiniciamos.
+        // Timeout de silêncio (revezamento)
         if (error == 'error_speech_timeout') {
           if (_isContinuousListening) {
-            await Future.delayed(const Duration(milliseconds: 700));
+            await Future.delayed(
+              _coordinator.restartDelayFor(VoiceRestartReason.normal),
+            );
             _iniciarEscutaContinua();
           }
           return;
         }
 
-        // Para outros erros (ex: falha de áudio), avisamos na UI e tentamos de novo com delay maior
         setState(() {
           listening = false;
           ultimoComando = 'Tentando reconectar (Erro: $error)...';
         });
 
         if (_isContinuousListening) {
-          await Future.delayed(const Duration(seconds: 2));
+          // Usamos o delay de erro definido na sua arquitetura (geralmente 2s)
+          await Future.delayed(
+            _coordinator.restartDelayFor(VoiceRestartReason.afterError),
+          );
           _iniciarEscutaContinua();
         }
       },
     );
+
+    // Se o serviço falhou ao iniciar (ex: negou permissão de microfone)
+    if (!started && mounted && _isContinuousListening) {
+      setState(() {
+        listening = false;
+        _isContinuousListening = false;
+        ultimoComando = 'Falha ao iniciar microfone. Verifique as permissões.';
+      });
+      _coordinator.releaseOwner(_ownerId);
+    }
   }
 
   void clearText() {
@@ -179,8 +205,10 @@ class _VoicePageState extends State<VoicePage> {
 
   @override
   void dispose() {
-    _isContinuousListening = false; // Garante que o loop morra ao sair da tela
-    speech.stopListening();
+    _isContinuousListening = false;
+    _coordinator.releaseAndStop(
+      _ownerId,
+    ); // Libera o Singleton ao destruir a página
     super.dispose();
   }
 

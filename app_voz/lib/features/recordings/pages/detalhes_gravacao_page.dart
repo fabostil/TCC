@@ -1,0 +1,907 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../../../core/ui/app_empty_state.dart';
+import '../../../core/ui/app_feedback.dart';
+import '../../../core/ui/app_loading_view.dart';
+import '../../../core/ui/app_spacing.dart';
+import '../../../core/ui/voice_status_bar.dart';
+import '../../../models/gravacao.dart';
+import '../../../models/historico_acao.dart';
+import '../../../models/usuario.dart';
+import '../../../repositories/historico_repository.dart';
+import '../../editor/services/audio_player_service.dart';
+import '../../voices/coordination/contextual_voice_listening_mixin.dart';
+import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_page_owners.dart';
+import '../../voices/services/command_service.dart';
+import '../services/recording_management_service.dart';
+import '../widgets/recording_status_chip.dart';
+
+const int _minRecordingNameLength = 2;
+const int _maxRecordingNameLength = 80;
+
+String? _validateRecordingName(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return 'Informe o nome da gravação.';
+  }
+  if (trimmed.length < _minRecordingNameLength) {
+    return 'O nome deve ter pelo menos 2 caracteres.';
+  }
+  if (trimmed.length > _maxRecordingNameLength) {
+    return 'O nome deve ter no máximo 80 caracteres.';
+  }
+  return null;
+}
+
+class DetalhesGravacaoPage extends StatefulWidget {
+  const DetalhesGravacaoPage({
+    super.key,
+    required this.usuario,
+    required this.gravacaoId,
+  });
+
+  final Usuario usuario;
+  final int gravacaoId;
+
+  @override
+  State<DetalhesGravacaoPage> createState() => _DetalhesGravacaoPageState();
+}
+
+class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
+    with ContextualVoiceListeningMixin<DetalhesGravacaoPage> {
+  final RecordingManagementService _recordingService =
+      RecordingManagementService();
+  final AudioPlayerService _playerService = AudioPlayerService();
+
+  RecordingDetails? _details;
+  List<HistoricoAcao> _historico = [];
+  List<Gravacao> _gravacoesRelacionadas = [];
+  bool _carregando = true;
+  bool _reproduzindo = false;
+  bool _alternandoReproducao = false;
+  bool _salvandoNome = false;
+  bool _excluindo = false;
+  String? _erro;
+  StreamSubscription? _playerStateSubscription;
+
+  @override
+  String get voiceOwnerId => VoicePageOwners.detalhesGravacao;
+
+  @override
+  int? get voiceUsuarioId => widget.usuario.id;
+
+  @override
+  String get voiceListeningPrompt => 'Ouvindo comando da gravacao...';
+
+  @override
+  late final VoiceCommandDispatcher voiceCommandDispatcher;
+
+  @override
+  void initState() {
+    super.initState();
+    voiceCommandDispatcher = VoiceCommandDispatcher(
+      onFallback: _dispatchContextualVoice,
+    );
+    _playerStateSubscription = _playerService.playerStateStream.listen((state) {
+      if (!mounted || state.playing) {
+        return;
+      }
+
+      setState(() {
+        _reproduzindo = false;
+      });
+    });
+    _carregarDados();
+    scheduleVoiceListeningOnFirstFrame();
+  }
+
+  @override
+  void dispose() {
+    disposeContextualVoiceListening();
+    _playerStateSubscription?.cancel();
+    _playerService.dispose();
+    super.dispose();
+  }
+
+  Future<void> _carregarDados() async {
+    setState(() {
+      _carregando = true;
+      _erro = null;
+    });
+
+    try {
+      final details = await _recordingService.loadDetails(widget.gravacaoId);
+      if (details == null) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _details = null;
+          _historico = [];
+          _gravacoesRelacionadas = [];
+          _carregando = false;
+        });
+        return;
+      }
+
+      final historico = details.gravacao.id == null
+          ? <HistoricoAcao>[]
+          : await HistoricoRepository.instance.listarPorGravacao(
+              details.gravacao.id!,
+            );
+      final relacionadas = await _carregarGravacoesRelacionadas(
+        details.gravacao,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _details = details;
+        _historico = historico;
+        _gravacoesRelacionadas = relacionadas;
+        _carregando = false;
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _erro = 'Erro ao carregar detalhes da gravacao: $e';
+        _carregando = false;
+      });
+    }
+  }
+
+  Future<List<Gravacao>> _carregarGravacoesRelacionadas(
+    Gravacao gravacao,
+  ) async {
+    final projetoId = gravacao.projetoId;
+    if (projetoId != null) {
+      return _recordingService.listByProjectWithFileState(projetoId);
+    }
+
+    return _recordingService.listByUserWithFileState(gravacao.usuarioId);
+  }
+
+  Future<void> _alternarReproducao() async {
+    final gravacao = _details?.gravacao;
+    if (gravacao == null) {
+      return;
+    }
+
+    if (gravacao.status == GravacaoStatus.arquivoAusente ||
+        gravacao.tamanhoBytes <= 0) {
+      AppFeedback.showMessage(
+        context,
+        'Arquivo de audio indisponivel para reproducao.',
+      );
+      return;
+    }
+
+    setState(() {
+      _alternandoReproducao = true;
+    });
+
+    try {
+      if (_reproduzindo && _playerService.isPlaying) {
+        await _playerService.stop();
+        if (mounted) {
+          setState(() {
+            _reproduzindo = false;
+          });
+          voiceSetState(() {
+            voiceStatusMessage = 'Reproducao parada.';
+          });
+        }
+        return;
+      }
+
+      await _playerService.play(gravacao.caminhoArquivo);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _reproduzindo = true;
+      });
+      voiceSetState(() {
+        voiceStatusMessage = 'Reproduzindo ${gravacao.nome}.';
+      });
+
+      unawaited(
+        _registrarHistorico(
+          tipo: 'gravacao_reproduzida',
+          descricao: 'Reproduziu a gravacao "${gravacao.nome}" nos detalhes',
+          gravacaoId: gravacao.id,
+          projetoId: gravacao.projetoId,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      AppFeedback.showMessage(context, 'Nao foi possivel reproduzir: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _alternandoReproducao = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _renomearGravacao() async {
+    final gravacao = _details?.gravacao;
+    if (gravacao == null) {
+      return;
+    }
+
+    final novoNome = await showDialog<String>(
+      context: context,
+      builder: (context) => _RenomearGravacaoDialog(nomeInicial: gravacao.nome),
+    );
+
+    if (novoNome == null || novoNome.trim().isEmpty) {
+      return;
+    }
+
+    await _salvarNovoNome(novoNome.trim(), origemVoz: false);
+  }
+
+  Future<void> _salvarNovoNome(
+    String novoNome, {
+    required bool origemVoz,
+  }) async {
+    final gravacao = _details?.gravacao;
+    if (gravacao == null) {
+      return;
+    }
+
+    setState(() {
+      _salvandoNome = true;
+    });
+
+    try {
+      final atualizada = await _recordingService.renameRecording(
+        gravacao: gravacao,
+        novoNome: novoNome,
+        gravacoesRelacionadas: _gravacoesRelacionadas,
+      );
+
+      await _carregarDados();
+
+      if (!mounted) {
+        return;
+      }
+
+      voiceSetState(() {
+        voiceStatusMessage = 'Gravacao renomeada para ${atualizada.nome}.';
+      });
+
+      unawaited(
+        _registrarHistorico(
+          tipo: 'gravacao_renomeada',
+          descricao:
+              'Renomeou "${gravacao.nome}" para "${atualizada.nome}"${origemVoz ? ' por voz' : ''}',
+          gravacaoId: gravacao.id,
+          projetoId: gravacao.projetoId,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      AppFeedback.showMessage(context, 'Nao foi possivel renomear: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _salvandoNome = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _excluirGravacao() async {
+    final gravacao = _details?.gravacao;
+    if (gravacao == null) {
+      return;
+    }
+
+    final confirmar = await AppFeedback.confirm(
+      context,
+      title: 'Excluir gravacao',
+      message:
+          'Deseja excluir "${gravacao.nome}" do banco de dados e do arquivo fisico?',
+      confirmLabel: 'Excluir',
+      destructive: true,
+    );
+
+    if (confirmar != true) {
+      return;
+    }
+
+    await _excluirConfirmada(origemVoz: false);
+  }
+
+  Future<void> _excluirConfirmada({required bool origemVoz}) async {
+    final gravacao = _details?.gravacao;
+    if (gravacao == null) {
+      return;
+    }
+
+    var navegouAposExcluir = false;
+    setState(() {
+      _excluindo = true;
+    });
+
+    try {
+      await _playerService.stop();
+      await _recordingService.deleteRecording(gravacao);
+
+      unawaited(
+        _registrarHistorico(
+          tipo: 'gravacao_excluida',
+          descricao:
+              'Excluiu a gravacao "${gravacao.nome}"${origemVoz ? ' por voz' : ''}',
+          projetoId: gravacao.projetoId,
+        ),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      navegouAposExcluir = true;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted || navegouAposExcluir) {
+        return;
+      }
+
+      AppFeedback.showMessage(context, 'Nao foi possivel excluir: $e');
+    } finally {
+      if (mounted && !navegouAposExcluir) {
+        setState(() {
+          _excluindo = false;
+        });
+      }
+    }
+  }
+
+  Future<VoiceCommandPageResult> _dispatchContextualVoice(
+    CommandResult resultado,
+  ) async {
+    switch (resultado.type) {
+      case VoiceCommandType.reproduzirGravacao:
+        await _alternarReproducao();
+        return VoiceCommandPageResult.handled();
+      case VoiceCommandType.pararReproducao:
+        await _playerService.stop();
+        if (mounted) {
+          setState(() {
+            _reproduzindo = false;
+          });
+        }
+        return VoiceCommandPageResult.handled(message: 'Reproducao parada.');
+      case VoiceCommandType.renomearGravacao:
+        final novoNome = resultado.parametroSecundario;
+        if (novoNome == null || novoNome.trim().isEmpty) {
+          return VoiceCommandPageResult.handled(
+            message: 'Diga: renomear gravacao nome atual para novo nome.',
+          );
+        }
+        await _salvarNovoNome(novoNome.trim(), origemVoz: true);
+        return VoiceCommandPageResult.handled();
+      case VoiceCommandType.excluirGravacao:
+        return VoiceCommandPageResult.handled(
+          message: 'Para excluir esta gravacao, diga confirmar exclusao.',
+        );
+      case VoiceCommandType.confirmarAcao:
+        await _excluirConfirmada(origemVoz: true);
+        return VoiceCommandPageResult.handled(restartListening: false);
+      case VoiceCommandType.cancelarAcao:
+        return VoiceCommandPageResult.handled(message: 'Acao cancelada.');
+      case VoiceCommandType.voltar:
+        await suspendContextualVoiceListening();
+        if (mounted) {
+          Navigator.maybePop(context);
+        }
+        return VoiceCommandPageResult.handled(restartListening: false);
+      case VoiceCommandType.iniciarGravacao:
+      case VoiceCommandType.pausarGravacao:
+      case VoiceCommandType.retomarGravacao:
+      case VoiceCommandType.encerrarGravacao:
+      case VoiceCommandType.listarGravacoes:
+      case VoiceCommandType.buscarGravacoes:
+      case VoiceCommandType.criarMarcador:
+      case VoiceCommandType.limparTexto:
+      case VoiceCommandType.definirNomeProjeto:
+      case VoiceCommandType.definirDescricaoProjeto:
+      case VoiceCommandType.substituirNomeProjeto:
+      case VoiceCommandType.substituirDescricaoProjeto:
+      case VoiceCommandType.abrirProjetoPorNome:
+      case VoiceCommandType.buscarProjetos:
+      case VoiceCommandType.limparBusca:
+      case VoiceCommandType.renomearProjeto:
+      case VoiceCommandType.excluirProjeto:
+      case VoiceCommandType.abrirNovoProjeto:
+      case VoiceCommandType.criarProjeto:
+      case VoiceCommandType.cancelarProjeto:
+      case VoiceCommandType.abrirDashboard:
+      case VoiceCommandType.abrirProjetos:
+      case VoiceCommandType.abrirGravacoes:
+      case VoiceCommandType.abrirConfiguracoes:
+      case VoiceCommandType.abrirAssistente:
+      case VoiceCommandType.abrirHistorico:
+      case VoiceCommandType.abrirEditor:
+      case VoiceCommandType.abrirDetalhesGravacao:
+      case VoiceCommandType.ativarControleVoz:
+      case VoiceCommandType.desativarControleVoz:
+      case VoiceCommandType.ativarEscutaContinua:
+      case VoiceCommandType.desativarEscutaContinua:
+      case VoiceCommandType.ativarFeedbackSonoro:
+      case VoiceCommandType.desativarFeedbackSonoro:
+      case VoiceCommandType.ativarTemaEscuro:
+      case VoiceCommandType.desativarTemaEscuro:
+      case VoiceCommandType.ativarParadaSilencio:
+      case VoiceCommandType.desativarParadaSilencio:
+      case VoiceCommandType.definirTempoSilencio:
+      case VoiceCommandType.sair:
+      case VoiceCommandType.desconhecido:
+        return VoiceCommandPageResult.unavailable(
+          recognized: resultado.recognized,
+        );
+    }
+  }
+
+  Future<void> _registrarHistorico({
+    required String tipo,
+    required String descricao,
+    int? gravacaoId,
+    int? projetoId,
+  }) async {
+    final usuarioId = widget.usuario.id;
+    if (usuarioId == null) {
+      return;
+    }
+
+    try {
+      await HistoricoRepository.instance.registrar(
+        usuarioId: usuarioId,
+        tipo: tipo,
+        descricao: descricao,
+        gravacaoId: gravacaoId,
+        projetoId: projetoId,
+      );
+    } catch (e) {
+      debugPrint('Erro ao registrar historico persistente: $e');
+    }
+  }
+
+  String _formatarData(String dataIso) {
+    final data = DateTime.tryParse(dataIso);
+    if (data == null) {
+      return 'Data invalida';
+    }
+
+    final dia = data.day.toString().padLeft(2, '0');
+    final mes = data.month.toString().padLeft(2, '0');
+    final ano = data.year.toString();
+    final hora = data.hour.toString().padLeft(2, '0');
+    final minuto = data.minute.toString().padLeft(2, '0');
+
+    return '$dia/$mes/$ano as $hora:$minuto';
+  }
+
+  String _formatarDuracao(int segundos) {
+    final horas = segundos ~/ 3600;
+    final minutos = (segundos % 3600) ~/ 60;
+    final segundosRestantes = segundos % 60;
+
+    if (horas > 0) {
+      return '${horas.toString().padLeft(2, '0')}:'
+          '${minutos.toString().padLeft(2, '0')}:'
+          '${segundosRestantes.toString().padLeft(2, '0')}';
+    }
+
+    return '${minutos.toString().padLeft(2, '0')}:'
+        '${segundosRestantes.toString().padLeft(2, '0')}';
+  }
+
+  String _formatarTamanho(int bytes) {
+    if (bytes <= 0) {
+      return '0 KB';
+    }
+
+    final kb = bytes / 1024;
+    if (kb < 1024) {
+      return '${kb.toStringAsFixed(1)} KB';
+    }
+
+    return '${(kb / 1024).toStringAsFixed(1)} MB';
+  }
+
+  String _formatarStatus(String status) {
+    switch (status) {
+      case GravacaoStatus.concluida:
+        return 'Concluida';
+      case GravacaoStatus.interrompida:
+        return 'Interrompida';
+      case GravacaoStatus.arquivoAusente:
+        return 'Arquivo ausente';
+      case GravacaoStatus.excluida:
+        return 'Excluida';
+      default:
+        return 'Indefinida';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final details = _details;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Detalhes da gravacao'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: voiceOuvindo ? 'Parar escuta' : 'Comando de voz',
+            onPressed: toggleContextualVoiceListening,
+            icon: Icon(voiceOuvindo ? Icons.mic : Icons.mic_none),
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _carregarDados,
+        child: Builder(
+          builder: (context) {
+            if (_carregando) {
+              return const AppLoadingView(
+                message: 'Carregando detalhes da gravacao...',
+              );
+            }
+
+            if (_erro != null) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                children: [
+                  Text(
+                    _erro!,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  ElevatedButton(
+                    onPressed: _carregarDados,
+                    child: const Text('Tentar novamente'),
+                  ),
+                ],
+              );
+            }
+
+            if (details == null) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                children: [
+                  const SizedBox(height: 80),
+                  const AppEmptyState(
+                    icon: Icons.music_off_outlined,
+                    title: 'Gravacao nao encontrada',
+                    subtitle:
+                        'Esta gravacao pode ter sido excluida ou nao pertence mais ao banco local.',
+                  ),
+                ],
+              );
+            }
+
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          details.gravacao.nome,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        RecordingStatusChip(status: details.gravacao.status),
+                        const SizedBox(height: AppSpacing.md),
+                        Wrap(
+                          spacing: AppSpacing.sm,
+                          runSpacing: AppSpacing.sm,
+                          children: [
+                            FilledButton.icon(
+                              onPressed:
+                                  _alternandoReproducao ||
+                                      _salvandoNome ||
+                                      _excluindo
+                                  ? null
+                                  : _alternarReproducao,
+                              icon: _alternandoReproducao
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(
+                                      _reproduzindo
+                                          ? Icons.stop_circle_outlined
+                                          : Icons.play_circle_outline,
+                                    ),
+                              label: Text(_reproduzindo ? 'Parar' : 'Tocar'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed:
+                                  _alternandoReproducao ||
+                                      _salvandoNome ||
+                                      _excluindo
+                                  ? null
+                                  : _renomearGravacao,
+                              icon: _salvandoNome
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.edit_outlined),
+                              label: const Text('Renomear'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed:
+                                  _alternandoReproducao ||
+                                      _salvandoNome ||
+                                      _excluindo
+                                  ? null
+                                  : _excluirGravacao,
+                              icon: _excluindo
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.delete_outline),
+                              label: const Text('Excluir'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                _InfoSection(
+                  title: 'Arquivo',
+                  children: [
+                    _InfoRow(
+                      label: 'Arquivo',
+                      value: details.fileInfo.exists
+                          ? 'Arquivo encontrado'
+                          : 'Arquivo ausente',
+                    ),
+                    _InfoRow(
+                      label: 'Status',
+                      value: _formatarStatus(details.gravacao.status),
+                    ),
+                    _InfoRow(
+                      label: 'Tamanho',
+                      value: _formatarTamanho(details.gravacao.tamanhoBytes),
+                    ),
+                    _InfoRow(
+                      label: 'Formato',
+                      value: details.gravacao.formatoAudio.toUpperCase(),
+                    ),
+                    _InfoRow(label: 'Caminho', value: details.fileInfo.path),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                _InfoSection(
+                  title: 'Metadados',
+                  children: [
+                    _InfoRow(
+                      label: 'Data',
+                      value: _formatarData(details.gravacao.dataCriacao),
+                    ),
+                    _InfoRow(
+                      label: 'Duracao',
+                      value: _formatarDuracao(details.gravacao.duracaoSegundos),
+                    ),
+                    _InfoRow(
+                      label: 'Projeto',
+                      value: details.projeto?.nome ?? 'Sem projeto vinculado',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  'Historico relacionado',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                if (_historico.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: Text(
+                        'Nenhuma atividade registrada para esta gravacao.',
+                      ),
+                    ),
+                  )
+                else
+                  ..._historico
+                      .take(8)
+                      .map(
+                        (item) => Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.history),
+                            title: Text(item.descricao),
+                            subtitle: Text(_formatarData(item.dataHora)),
+                          ),
+                        ),
+                      ),
+              ],
+            );
+          },
+        ),
+      ),
+      bottomNavigationBar: voiceStatusMessage == null
+          ? null
+          : VoiceStatusBar(
+              message: voiceStatusMessage!,
+              listening: voiceOuvindo,
+              thinking: voiceIaPensando,
+            ),
+    );
+  }
+}
+
+class _InfoSection extends StatelessWidget {
+  const _InfoSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 88,
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+}
+
+class _RenomearGravacaoDialog extends StatefulWidget {
+  const _RenomearGravacaoDialog({required this.nomeInicial});
+
+  final String nomeInicial;
+
+  @override
+  State<_RenomearGravacaoDialog> createState() =>
+      _RenomearGravacaoDialogState();
+}
+
+class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.nomeInicial);
+    _focusNode = FocusNode();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      _focusNode.requestFocus();
+      _controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _controller.text.length,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _salvar() {
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    Navigator.pop(context, _controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Renomear gravacao'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          focusNode: _focusNode,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _salvar(),
+          decoration: const InputDecoration(labelText: 'Novo nome'),
+          validator: _validateRecordingName,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(onPressed: _salvar, child: const Text('Salvar')),
+      ],
+    );
+  }
+}
