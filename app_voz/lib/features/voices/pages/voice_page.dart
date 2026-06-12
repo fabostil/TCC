@@ -17,73 +17,87 @@ class _VoicePageState extends State<VoicePage> {
   final SpeechService speech = SpeechService();
 
   bool listening = false;
-  String text = 'Pressione o microfone e fale';
+  bool _isContinuousListening = false; // Flag para controlar o loop infinito
+
+  String text = 'Pressione o microfone para iniciar a escuta contínua';
   String ultimoComando = 'Nenhum comando executado ainda.';
 
   Future<void> toggleListening() async {
-    if (!listening) {
-      setState(() {
-        listening = true;
-        text = 'Ouvindo... fale um comando.';
-        ultimoComando = 'Aguardando comando de voz...';
-      });
-
-      await speech.startListening(
-        onResult: (result) {
-          setState(() {
-            text = result;
-          });
-
-          handleVoiceCommand(result);
-        },
-        onStatus: (status) {
-          if (!mounted) {
-            return;
-          }
-
-          if (status == 'listening') {
-            setState(() {
-              listening = true;
-              ultimoComando = 'Estou ouvindo...';
-            });
-          }
-
-          if (status == 'done' || status == 'notListening') {
-            setState(() {
-              listening = false;
-            });
-          }
-        },
-        onError: (error) {
-          if (!mounted) {
-            return;
-          }
-
-          if (error == 'error_speech_timeout') {
-            setState(() {
-              listening = false;
-              text = 'Nenhuma fala detectada. Tente novamente.';
-              ultimoComando = 'Tempo de escuta encerrado sem comando.';
-            });
-            return;
-          }
-
-          setState(() {
-            listening = false;
-            text = 'Não foi possível reconhecer a fala.';
-            ultimoComando = 'Erro no reconhecimento de voz: $error';
-          });
-        },
-      );
+    if (!_isContinuousListening) {
+      _isContinuousListening = true;
+      _iniciarEscutaContinua();
     } else {
+      _isContinuousListening = false;
       await speech.stopListening();
 
-      setState(() {
-        listening = false;
-        text = 'Pressione o microfone e fale';
-        ultimoComando = 'Escuta encerrada.';
-      });
+      if (mounted) {
+        setState(() {
+          listening = false;
+          text = 'Pressione o microfone e fale';
+          ultimoComando = 'Escuta contínua encerrada manualmente.';
+        });
+      }
     }
+  }
+
+  Future<void> _iniciarEscutaContinua() async {
+    // Trava de segurança: se o usuário desligou ou a tela fechou, cancela o loop
+    if (!_isContinuousListening || !mounted) return;
+
+    await speech.startListening(
+      onResult: (result) {
+        setState(() {
+          text = result;
+        });
+        handleVoiceCommand(result);
+      },
+      onStatus: (status) async {
+        if (!mounted) return;
+
+        if (status == 'listening') {
+          setState(() {
+            listening = true;
+            ultimoComando = 'Estou ouvindo ativamente...';
+          });
+        }
+
+        // O sistema cortou a escuta por silêncio ('done' ou 'notListening')
+        if (status == 'done' || status == 'notListening') {
+          if (_isContinuousListening) {
+            // Aplicamos um delay de 700ms para o microfone ser liberado pelo sistema e religamos
+            await Future.delayed(const Duration(milliseconds: 700));
+            _iniciarEscutaContinua();
+          } else {
+            setState(() {
+              listening = false;
+            });
+          }
+        }
+      },
+      onError: (error) async {
+        if (!mounted) return;
+
+        // O timeout de silêncio do plugin vem como um erro. Apenas reiniciamos.
+        if (error == 'error_speech_timeout') {
+          if (_isContinuousListening) {
+            await Future.delayed(const Duration(milliseconds: 700));
+            _iniciarEscutaContinua();
+          }
+          return;
+        }
+
+        // Para outros erros (ex: falha de áudio), avisamos na UI e tentamos de novo com delay maior
+        setState(() {
+          listening = false;
+          ultimoComando = 'Tentando reconectar (Erro: $error)...';
+        });
+
+        if (_isContinuousListening) {
+          await Future.delayed(const Duration(seconds: 2));
+          _iniciarEscutaContinua();
+        }
+      },
+    );
   }
 
   void clearText() {
@@ -96,9 +110,7 @@ class _VoicePageState extends State<VoicePage> {
   void handleVoiceCommand(String command) {
     final cmd = command.toLowerCase().trim();
 
-    if (cmd.isEmpty) {
-      return;
-    }
+    if (cmd.isEmpty) return;
 
     if (cmd.contains('limpar')) {
       clearText();
@@ -153,14 +165,8 @@ class _VoicePageState extends State<VoicePage> {
     }
 
     setState(() {
-      ultimoComando = 'Comando não reconhecido.';
+      ultimoComando = 'Comando não mapeado na interface.';
     });
-  }
-
-  @override
-  void dispose() {
-    speech.stopListening();
-    super.dispose();
   }
 
   void sair() {
@@ -169,6 +175,13 @@ class _VoicePageState extends State<VoicePage> {
       MaterialPageRoute(builder: (_) => const LoginPage()),
       (route) => false,
     );
+  }
+
+  @override
+  void dispose() {
+    _isContinuousListening = false; // Garante que o loop morra ao sair da tela
+    speech.stopListening();
+    super.dispose();
   }
 
   @override
@@ -232,8 +245,12 @@ class _VoicePageState extends State<VoicePage> {
                 FloatingActionButton(
                   heroTag: 'micButtonVoicePage',
                   onPressed: toggleListening,
-                  backgroundColor: listening ? Colors.red : Colors.blue,
-                  child: Icon(listening ? Icons.mic : Icons.mic_none),
+                  backgroundColor: _isContinuousListening
+                      ? Colors.red
+                      : Colors.blue,
+                  child: Icon(
+                    _isContinuousListening ? Icons.mic : Icons.mic_none,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 FloatingActionButton(
