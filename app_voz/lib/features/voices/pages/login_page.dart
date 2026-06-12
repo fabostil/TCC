@@ -31,6 +31,13 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  static const _passwordRecoveryMessage =
+      'Este protótipo usa autenticação local no dispositivo. Por segurança, '
+      'a recuperação automática por e-mail não está disponível nesta versão. '
+      'Se você usa uma conta Google, entre com o botão ‘Entrar com Google’. '
+      'Para uma conta local, crie uma nova conta ou solicite redefinição ao '
+      'responsável pelo app.';
+
   final _formKey = GlobalKey<FormState>();
 
   final _emailController = TextEditingController();
@@ -181,6 +188,23 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Future<void> _mostrarRecuperacaoSenha() {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Recuperação de senha'),
+        content: const Text(_passwordRecoveryMessage),
+        actions: [
+          TextButton(
+            key: const Key('password_recovery_dismiss_button'),
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Entendi'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -246,7 +270,18 @@ class _LoginPageState extends State<LoginPage> {
                   validator: _authValidationService.validarSenhaLogin,
                 ),
 
-                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    key: const Key('forgot_password_button'),
+                    onPressed: _carregando || _carregandoGoogle
+                        ? null
+                        : _mostrarRecuperacaoSenha,
+                    child: const Text('Esqueci minha senha'),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
 
                 ElevatedButton(
                   key: const Key('login_submit_button'),

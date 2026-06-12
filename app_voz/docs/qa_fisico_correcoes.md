@@ -1222,3 +1222,50 @@ Testes criados/alterados:
 ### Critério de aprovação manual
 
 A etapa só passa se a UI estiver em português correto, sem mojibake visível, e se comandos sem acento continuarem funcionando.
+
+## F.15 — Esqueci minha senha
+
+### Problema observado
+
+A tela de Login não oferecia orientação ao usuário que esqueceu a senha.
+
+### Diagnóstico
+
+O app usa autenticação local no dispositivo e também permite entrar com uma conta Google. Como o protótipo não possui backend de recuperação por e-mail, envio de mensagens ou redefinição autenticada de senha, não seria seguro nem correto simular uma recuperação automática.
+
+### Correção realizada
+
+* Adicionado o link `Esqueci minha senha` na tela de Login.
+* Criado um diálogo curto com a limitação real da recuperação nesta versão.
+* Usuários de conta Google são orientados a usar o botão `Entrar com Google`.
+* Usuários de conta local são orientados a criar uma nova conta ou solicitar redefinição ao responsável pelo app.
+* O fluxo não solicita e-mail, não promete envio, não altera credenciais e não expõe informações sensíveis ou detalhes técnicos.
+
+### Testes automatizados
+
+Testes criados/alterados em `test/features/voices/pages/login_page_test.dart`:
+
+* o link `Esqueci minha senha` aparece na LoginPage;
+* o toque abre o diálogo `Recuperação de senha`;
+* a mensagem orienta contas Google e locais sem prometer envio de e-mail;
+* a mensagem não contém `SQLite`, `hash`, `salt` ou `banco de dados`;
+* o botão `Entendi` fecha o diálogo;
+* o fluxo não chama autenticação local ou Google e não navega para a Home;
+* os testes existentes de login local, Google Login e navegação permanecem ativos.
+
+### Teste manual recomendado
+
+1. Rodar o app no Android físico.
+2. Abrir a tela de Login.
+3. Tocar em `Esqueci minha senha`.
+4. Confirmar que aparece o diálogo de recuperação.
+5. Confirmar que ele não promete envio de e-mail.
+6. Confirmar que não mostra termos técnicos como SQLite, hash, salt ou banco de dados.
+7. Fechar com `Entendi`.
+8. Confirmar que continua na tela de Login.
+9. Testar o Login local normal.
+10. Testar o botão Google, se configurado.
+
+### Critério de aprovação manual
+
+A etapa só passa se o usuário tiver uma orientação clara e honesta sobre senha esquecida, sem promessa falsa de recuperação automática.

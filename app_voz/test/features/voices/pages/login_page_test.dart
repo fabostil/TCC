@@ -22,9 +22,55 @@ void main() {
       expect(find.byKey(const Key('login_password_field')), findsOneWidget);
       expect(find.byKey(const Key('login_submit_button')), findsOneWidget);
       expect(find.byKey(const Key('login_google_button')), findsOneWidget);
+      expect(find.text('Esqueci minha senha'), findsOneWidget);
       expect(find.text('Criar nova conta'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
+
+    testWidgets('mostra orientação honesta para recuperação de senha', (
+      tester,
+    ) async {
+      final auth = _LoginAuthFake();
+
+      await _pumpLogin(tester, auth: auth.service);
+      await tester.tap(find.byKey(const Key('forgot_password_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recuperação de senha'), findsOneWidget);
+      expect(find.text('Entendi'), findsOneWidget);
+
+      final dialog = tester.widget<AlertDialog>(find.byType(AlertDialog));
+      final message = (dialog.content! as Text).data!.toLowerCase();
+      expect(message, contains('recuperação automática por e-mail'));
+      expect(message, contains('entrar com google'));
+      expect(message, contains('crie uma nova conta'));
+      expect(message, isNot(contains('e-mail enviado')));
+      expect(message, isNot(contains('sqlite')));
+      expect(message, isNot(contains('hash')));
+      expect(message, isNot(contains('salt')));
+      expect(message, isNot(contains('banco de dados')));
+    });
+
+    testWidgets(
+      'fecha orientação sem autenticar, alterar conta ou abrir Home',
+      (tester) async {
+        final auth = _LoginAuthFake();
+
+        await _pumpLogin(tester, auth: auth.service);
+        await tester.tap(find.byKey(const Key('forgot_password_button')));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('password_recovery_dismiss_button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Recuperação de senha'), findsNothing);
+        expect(find.byType(LoginPage), findsOneWidget);
+        expect(find.text('Home destino'), findsNothing);
+        expect(auth.localCalls, 0);
+        expect(auth.googleCalls, 0);
+      },
+    );
 
     testWidgets('valida campos obrigatorios antes de autenticar', (
       tester,
@@ -148,6 +194,7 @@ void main() {
         final auth = _LoginAuthFake(googleResult: _usuario);
 
         await _pumpLoginWithCadastro(tester, auth: auth.service);
+        await tester.ensureVisible(find.text('Criar nova conta'));
         await tester.tap(find.text('Criar nova conta'));
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('cadastro_google_button')));
