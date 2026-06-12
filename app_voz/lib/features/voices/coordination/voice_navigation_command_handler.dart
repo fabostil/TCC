@@ -103,6 +103,7 @@ class VoiceNavigationCommandHandler {
     final normalized = result.normalizedText;
     final wantsHome =
         normalized == 'inicio' ||
+        normalized == 'home' ||
         normalized == 'tela inicial' ||
         normalized.contains('tela inicial') ||
         normalized.contains('para home') ||

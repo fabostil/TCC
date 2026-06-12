@@ -16,6 +16,25 @@ void main() {
       );
     });
 
+    test('normalizacao permite matching com caixa alta e pontuacao', () {
+      expect(
+        service.interpret('Configura\u00e7\u00f5es!!!').type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
+        service.interpret('  Abrir   Hist\u00f3rico  ').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(
+        service.interpret('INICIAR GRAVA\u00c7\u00c3O').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+      expect(
+        service.interpret('come\u00e7ar a gravar').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+    });
+
     test('reconhece comandos de gravacao', () {
       expect(
         service.interpret('iniciar grava\u00e7\u00e3o').type,
@@ -29,13 +48,34 @@ void main() {
         service.interpret('come\u00e7ar grava\u00e7\u00e3o').type,
         VoiceCommandType.iniciarGravacao,
       );
+      expect(
+        service.interpret('come\u00e7ar a gravar').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+      expect(
+        service.interpret('registrar \u00e1udio').type,
+        VoiceCommandType.iniciarGravacao,
+      );
       expect(service.interpret('pausar').type, VoiceCommandType.pausarGravacao);
+      expect(service.interpret('pausa').type, VoiceCommandType.pausarGravacao);
+      expect(
+        service.interpret('dar pausa').type,
+        VoiceCommandType.pausarGravacao,
+      );
       expect(
         service.interpret('pausar grava\u00e7\u00e3o').type,
         VoiceCommandType.pausarGravacao,
       );
       expect(
         service.interpret('retomar grava\u00e7\u00e3o').type,
+        VoiceCommandType.retomarGravacao,
+      );
+      expect(
+        service.interpret('continuar grava\u00e7\u00e3o').type,
+        VoiceCommandType.retomarGravacao,
+      );
+      expect(
+        service.interpret('voltar a gravar').type,
         VoiceCommandType.retomarGravacao,
       );
       expect(
@@ -50,6 +90,10 @@ void main() {
         service.interpret('finalizar grava\u00e7\u00e3o').type,
         VoiceCommandType.encerrarGravacao,
       );
+      expect(
+        service.interpret('salvar grava\u00e7\u00e3o').type,
+        VoiceCommandType.encerrarGravacao,
+      );
     });
 
     test('reconhece comandos de reproducao, lista e marcador', () {
@@ -59,6 +103,14 @@ void main() {
       );
       expect(
         service.interpret('tocar').type,
+        VoiceCommandType.reproduzirGravacao,
+      );
+      expect(
+        service.interpret('dar play').type,
+        VoiceCommandType.reproduzirGravacao,
+      );
+      expect(
+        service.interpret('ouvir grava\u00e7\u00e3o').type,
         VoiceCommandType.reproduzirGravacao,
       );
       expect(
@@ -81,11 +133,23 @@ void main() {
         VoiceCommandType.abrirDashboard,
       );
       expect(
+        service.interpret('ver indicadores').type,
+        VoiceCommandType.abrirDashboard,
+      );
+      expect(
+        service.interpret('meu painel').type,
+        VoiceCommandType.abrirDashboard,
+      );
+      expect(
         service.interpret('projetos').type,
         VoiceCommandType.abrirProjetos,
       );
       expect(
         service.interpret('meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('vai para projetos').type,
         VoiceCommandType.abrirProjetos,
       );
       expect(
@@ -97,11 +161,19 @@ void main() {
         VoiceCommandType.abrirGravacoes,
       );
       expect(
+        service.interpret('abre grava\u00e7\u00f5es').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
         service.interpret('configura\u00e7\u00f5es').type,
         VoiceCommandType.abrirConfiguracoes,
       );
       expect(
         service.interpret('abrir configura\u00e7\u00f5es').type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
+        service.interpret('prefer\u00eancias').type,
         VoiceCommandType.abrirConfiguracoes,
       );
       expect(
@@ -117,6 +189,14 @@ void main() {
         VoiceCommandType.abrirNovoProjeto,
       );
       expect(
+        service.interpret('adicionar projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+      expect(
+        service.interpret('nova m\u00fasica').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+      expect(
         service.interpret('criar projeto').type,
         VoiceCommandType.criarProjeto,
       );
@@ -125,8 +205,13 @@ void main() {
         VoiceCommandType.abrirEditor,
       );
       expect(service.interpret('voltar').type, VoiceCommandType.voltar);
+      expect(service.interpret('volta').type, VoiceCommandType.voltar);
       expect(
         service.interpret('voltar para tela inicial').type,
+        VoiceCommandType.voltar,
+      );
+      expect(
+        service.interpret('ir para o in\u00edcio').type,
         VoiceCommandType.voltar,
       );
       expect(service.interpret('in\u00edcio').type, VoiceCommandType.voltar);
@@ -169,6 +254,10 @@ void main() {
       expect(abrirProjeto.type, VoiceCommandType.abrirProjetoPorNome);
       expect(abrirProjeto.parametro, 'demo acustica');
 
+      final abrirProjetoSemNome = service.interpret('abrir projeto');
+      expect(abrirProjetoSemNome.type, VoiceCommandType.abrirProjetoPorNome);
+      expect(abrirProjetoSemNome.parametro, isNull);
+
       final renomearProjeto = service.interpret(
         'renomear projeto tomate para alface',
       );
@@ -180,6 +269,14 @@ void main() {
       expect(excluirProjeto.type, VoiceCommandType.excluirProjeto);
       expect(excluirProjeto.parametro, 'demo acustica');
 
+      final excluirProjetoSemNome = service.interpret('apagar projeto');
+      expect(excluirProjetoSemNome.type, VoiceCommandType.excluirProjeto);
+      expect(excluirProjetoSemNome.parametro, isNull);
+
+      final renomearProjetoSemNome = service.interpret('renomear projeto');
+      expect(renomearProjetoSemNome.type, VoiceCommandType.renomearProjeto);
+      expect(renomearProjetoSemNome.parametro, isNull);
+
       final reproduzir = service.interpret('reproduzir gravacao ideia um');
       expect(reproduzir.type, VoiceCommandType.reproduzirGravacao);
       expect(reproduzir.parametro, 'ideia um');
@@ -187,6 +284,14 @@ void main() {
       final detalhes = service.interpret('abrir detalhes da gravacao ideia um');
       expect(detalhes.type, VoiceCommandType.abrirDetalhesGravacao);
       expect(detalhes.parametro, 'ideia um');
+
+      final detalhesSemNome = service.interpret('ver detalhes');
+      expect(detalhesSemNome.type, VoiceCommandType.abrirDetalhesGravacao);
+      expect(detalhesSemNome.parametro, isNull);
+
+      final excluirGravacao = service.interpret('apagar gravacao');
+      expect(excluirGravacao.type, VoiceCommandType.excluirGravacao);
+      expect(excluirGravacao.parametro, isNull);
 
       final renomear = service.interpret(
         'renomear gravacao ideia um para refrao final',
@@ -246,9 +351,38 @@ void main() {
         VoiceCommandType.ativarTemaEscuro,
       );
       expect(
+        service.interpret('modo escuro').type,
+        VoiceCommandType.ativarTemaEscuro,
+      );
+      expect(
         service.interpret('ativar tema claro').type,
         VoiceCommandType.desativarTemaEscuro,
       );
+      expect(
+        service.interpret('tema claro').type,
+        VoiceCommandType.desativarTemaEscuro,
+      );
+      expect(
+        service.interpret('ligar controle por voz').type,
+        VoiceCommandType.ativarControleVoz,
+      );
+      expect(
+        service.interpret('desligar escuta cont\u00ednua').type,
+        VoiceCommandType.desativarEscutaContinua,
+      );
+      expect(
+        service.interpret('ativar feedback sonoro').type,
+        VoiceCommandType.ativarFeedbackSonoro,
+      );
+      expect(service.interpret('sim').type, VoiceCommandType.confirmarAcao);
+      expect(service.interpret('desistir').type, VoiceCommandType.cancelarAcao);
+    });
+
+    test('mantem comandos destrutivos ambiguos sem acao direta', () {
+      final apagar = service.interpret('apagar');
+
+      expect(apagar.type, VoiceCommandType.desconhecido);
+      expect(apagar.recognized, isFalse);
     });
 
     test('retorna desconhecido para comando nao mapeado', () {

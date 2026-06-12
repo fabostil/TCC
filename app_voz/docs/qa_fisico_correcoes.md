@@ -578,3 +578,79 @@ Built build\app\outputs\flutter-apk\app-debug.apk
 ### Critério de aprovação manual
 
 A etapa só passa manualmente se comandos globais principais funcionarem fora da Home e não levarem o usuário para Login.
+
+## F.6 - Aliases de comandos por contexto
+
+### Problema observado
+
+No teste fisico Android, varios comandos ainda dependiam de formulacoes muito exatas. Isso prejudicava a experiencia voice-first porque comandos naturais como "gravar", "vai para projetos", "meu painel", "dar play" ou "tema claro" podiam nao ser reconhecidos localmente e ficavam dependentes de NLU externo.
+
+### Diagnostico
+
+O `CommandService` ja normalizava minusculas, acentos, cedilha, pontuacao simples e espacos duplicados, e o `VoiceCommandController` ja preservava a ordem segura: parser local, comandos personalizados e Gemini apenas quando configurado. A limitacao estava na cobertura de aliases locais: navegacao, gravacao, reproducao, projetos e configuracoes tinham algumas frases principais, mas ainda faltavam variacoes naturais usadas no teste fisico.
+
+Os handlers das telas ja tinham execucao real para as intencoes existentes:
+
+* navegacao global via `VoiceNavigationCommandHandler`;
+* gravacao no `EditorPage`;
+* reproducao, detalhes e exclusao protegida nas telas de gravacoes;
+* criacao, abertura, renomeacao e exclusao protegida em projetos;
+* toggles existentes em configuracoes.
+
+Por isso a correcao ficou concentrada em aliases locais e testes, sem alterar ciclo de vida da escuta, banco, auth, player, modais ou arquitetura das paginas.
+
+### Correcao realizada
+
+* Ampliados aliases globais de navegacao para Home/inicio, projetos, gravacoes, dashboard/painel/indicadores, historico, configuracoes/ajustes/preferencias, novo projeto e voltar.
+* Ampliados aliases de gravacao para iniciar, pausar, retomar e encerrar usando variacoes como "gravar", "comecar a gravar", "dar pausa", "voltar a gravar" e "salvar gravacao".
+* Ampliados aliases de reproducao e gravacoes para "tocar", "dar play", "ouvir gravacao", "ver detalhes" e verbos seguros de exclusao com alvo ou confirmacao posterior.
+* Ampliados aliases de projetos para abrir, criar, excluir e renomear/editar quando a tela ja possui suporte.
+* Ampliados aliases de configuracoes para tema escuro/claro, controle por voz, escuta continua e feedback sonoro.
+* `home` isolado passou a ser tratado como retorno para a tela inicial no handler global.
+* Mantida a protecao contra falsos positivos destrutivos: "apagar" sozinho continua desconhecido, e exclusao de projeto/gravacao continua exigindo alvo ou confirmacao existente na tela.
+* Mantida a mensagem amigavel para comando desconhecido sem expor `GEMINI_API_KEY`.
+
+### Testes automatizados
+
+Testes criados/alterados:
+
+* `test/features/voices/services/command_service_test.dart`
+  * normalizacao com caixa alta, acentos, pontuacao e espacos;
+  * aliases de navegacao, gravacao, reproducao, projetos e configuracoes;
+  * aliases sem parametro que apenas disparam a intencao segura e deixam a tela pedir complemento;
+  * comando destrutivo ambiguo "apagar" permanece desconhecido.
+* `test/features/voices/coordination/voice_navigation_command_handler_test.dart`
+  * aliases naturais de navegacao global chamam os callbacks corretos;
+  * `home` isolado navega para a tela inicial;
+  * `volta` executa retorno simples.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Fazer login.
+3. Testar na Home:
+   * "abre configuracoes"
+   * "vai para projetos"
+   * "ver indicadores"
+   * "mostrar gravacoes"
+4. Testar no Editor:
+   * "gravar"
+   * "comecar a gravar"
+   * "pausa"
+   * "continuar gravacao"
+   * "finalizar gravacao"
+5. Testar em Detalhes da Gravacao:
+   * "tocar"
+   * "dar play"
+   * "ouvir gravacao"
+6. Testar em Configuracoes:
+   * "modo escuro"
+   * "tema claro"
+   * "ligar controle por voz"
+   * "desligar feedback sonoro"
+7. Confirmar que comandos desconhecidos continuam com mensagem amigavel.
+8. Confirmar que acoes destrutivas ainda pedem confirmacao.
+
+### Criterio de aprovacao manual
+
+A etapa so passa se o app aceitar variacoes naturais dos comandos principais sem exigir frase exata e sem executar acoes destrutivas sem confirmacao.

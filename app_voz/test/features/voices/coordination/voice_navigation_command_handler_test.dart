@@ -42,6 +42,43 @@ void main() {
       ]);
     });
 
+    test('trata aliases naturais de navegacao global', () async {
+      final calls = <String>[];
+      final handler = VoiceNavigationCommandHandler(
+        currentDestination: VoiceNavigationDestination.other,
+        goHome: _record(calls, 'home'),
+        openProjects: _record(calls, 'projects'),
+        openRecordings: _record(calls, 'recordings'),
+        openDashboard: _record(calls, 'dashboard'),
+        openSettings: _record(calls, 'settings'),
+        goBack: _record(calls, 'back'),
+      );
+
+      await handler.handle(
+        commandService.interpret('abre configura\u00e7\u00f5es'),
+      );
+      await handler.handle(commandService.interpret('vai para projetos'));
+      await handler.handle(
+        commandService.interpret('mostrar grava\u00e7\u00f5es'),
+      );
+      await handler.handle(commandService.interpret('ver indicadores'));
+      await handler.handle(commandService.interpret('meu painel'));
+      await handler.handle(commandService.interpret('prefer\u00eancias'));
+      await handler.handle(commandService.interpret('home'));
+      await handler.handle(commandService.interpret('volta'));
+
+      expect(calls, [
+        'settings',
+        'projects',
+        'recordings',
+        'dashboard',
+        'dashboard',
+        'settings',
+        'home',
+        'back',
+      ]);
+    });
+
     test('nao duplica rota quando destino atual ja esta aberto', () async {
       final calls = <String>[];
       final handler = VoiceNavigationCommandHandler(
