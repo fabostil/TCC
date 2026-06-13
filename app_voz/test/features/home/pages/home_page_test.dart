@@ -47,9 +47,8 @@ void main() {
 
       expect(find.text('Comandos de voz'), findsOneWidget);
       expect(find.text('Meus projetos'), findsAtLeastNWidgets(1));
-      expect(find.text('Gravar'), findsOneWidget);
-      expect(find.text('Descer'), findsOneWidget);
-      expect(find.text('Confirmar'), findsOneWidget);
+      expect(find.text('Minhas gravações'), findsAtLeastNWidgets(1));
+      expect(find.text('Tela inicial'), findsOneWidget);
 
       await tester.tap(
         find.byKey(const Key('voice_command_help_close_button')),

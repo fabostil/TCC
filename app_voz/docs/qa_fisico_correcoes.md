@@ -1700,3 +1700,54 @@ Testes criados ou alterados:
 8. Confirmar que o comando funciona.
 9. Abrir Configurações e confirmar que comandos personalizados continuam disponíveis.
 10. Confirmar que não aparecem termos técnicos.
+
+## G.2 — Ajuda contextual de comandos por tela
+
+### Objetivo
+
+Evoluir a ajuda de comandos por voz para mostrar exemplos úteis conforme a tela atual, deixando a orientação mais clara para o usuário e para a banca sem alterar o reconhecimento real dos comandos.
+
+### Implementação
+
+* O `VoiceCommandHelpDialog` passou a aceitar contextos de ajuda.
+* Foram criados contextos para:
+  * Home;
+  * Projetos;
+  * Gravações;
+  * Editor;
+  * Configurações;
+  * ajuda geral.
+* A Home continua com o botão `Ver comandos de voz`, agora focado em navegação.
+* O Editor ganhou um botão de ajuda no AppBar com comandos de gravação, reprodução e navegação.
+* Configurações ganhou um botão de ajuda no AppBar com comandos de tema, controle por voz e comandos personalizados.
+* O Editor exibe o aviso: durante uma gravação, alguns comandos podem ficar indisponíveis porque o microfone está sendo usado para gravar.
+* A ajuda continua sem executar comandos, sem acessar microfone, sem depender de Gemini e sem alterar parser, aliases ou lógica de voz.
+* Os textos evitam termos técnicos como parser, intent, CommandService, NLU, Gemini, API, fallback e handler.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/widgets/voice_command_help_dialog_test.dart`
+  * valida o contexto Home com comandos de navegação;
+  * valida o contexto Projetos com `Novo projeto` e comandos de lista;
+  * valida o contexto Gravações com `Tocar` e `Excluir gravação`;
+  * valida o contexto Editor com `Gravar` e o aviso sobre microfone;
+  * valida o contexto Configurações com `Modo escuro` e `Controle por voz`;
+  * confirma que os contextos não exibem termos técnicos.
+* `test/features/home/pages/home_page_test.dart`
+  * valida que o botão da Home continua abrindo e fechando a ajuda.
+
+### Teste manual recomendado
+
+1. Rodar o app no Android físico.
+2. Fazer login.
+3. Na Home, abrir ajuda de comandos.
+4. Confirmar comandos gerais de navegação.
+5. Abrir Meus Projetos e validar os comandos de projeto e lista na ajuda, se o botão for adicionado em etapa posterior.
+6. Abrir Minhas Gravações e validar comandos de reprodução e lista na ajuda, se o botão for adicionado em etapa posterior.
+7. Abrir Editor e abrir ajuda.
+8. Confirmar comandos de gravação e aviso sobre microfone.
+9. Abrir Configurações e abrir ajuda.
+10. Confirmar comandos de tema, voz e comandos personalizados.
+11. Confirmar que nenhum diálogo mostra termos técnicos.

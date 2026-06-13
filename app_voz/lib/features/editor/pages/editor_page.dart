@@ -30,6 +30,7 @@ import '../../voices/realtime/voice_realtime_event_bus.dart';
 import '../../voices/realtime/voice_realtime_events.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/voice_global_command_service.dart';
+import '../../voices/widgets/voice_command_help_dialog.dart';
 import '../controllers/recording_realtime_coordinator.dart';
 
 enum EditorInteractionMode { normal, recording }
@@ -1503,6 +1504,13 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  Future<void> _abrirAjudaComandosEditor() {
+    return showVoiceCommandHelpDialog(
+      context,
+      contextType: VoiceCommandHelpContext.editor,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = _EditorThemeColors.of(context);
@@ -1538,6 +1546,14 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
             elevation: 0,
             backgroundColor: Colors.transparent,
             foregroundColor: colors.textPrimary,
+            actions: [
+              IconButton(
+                key: const Key('editor_voice_command_help_button'),
+                tooltip: 'Comandos do editor',
+                onPressed: _abrirAjudaComandosEditor,
+                icon: const Icon(Icons.help_outline),
+              ),
+            ],
           ),
           body: DecoratedBox(
             decoration: BoxDecoration(

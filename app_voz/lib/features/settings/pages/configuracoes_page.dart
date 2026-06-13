@@ -21,6 +21,7 @@ import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/custom_command_service.dart';
 import '../../voices/services/voice_permission_service.dart';
+import '../../voices/widgets/voice_command_help_dialog.dart';
 import '../controllers/settings_controller.dart';
 
 const int _minCommandPhraseLength = 3;
@@ -255,6 +256,13 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     }
 
     await _settingsController.setDarkTheme(ativo);
+  }
+
+  Future<void> _abrirAjudaComandosConfiguracoes() {
+    return showVoiceCommandHelpDialog(
+      context,
+      contextType: VoiceCommandHelpContext.settings,
+    );
   }
 
   Future<void> _alterarControleVoz(bool ativo) async {
@@ -626,6 +634,12 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       appBar: AppBar(
         title: const Text('Configurações'),
         actions: [
+          IconButton(
+            key: const Key('settings_voice_command_help_button'),
+            tooltip: 'Comandos desta tela',
+            onPressed: _abrirAjudaComandosConfiguracoes,
+            icon: const Icon(Icons.help_outline),
+          ),
           IconButton(
             tooltip: voiceOuvindo ? 'Parar escuta' : 'Comando de voz',
             onPressed: toggleContextualVoiceListening,

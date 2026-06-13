@@ -472,7 +472,10 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _abrirAjudaComandosVoz() {
-    return showVoiceCommandHelpDialog(context);
+    return showVoiceCommandHelpDialog(
+      context,
+      contextType: VoiceCommandHelpContext.home,
+    );
   }
 
   Future<void> _retomarEscutaAposNavegacao() async {
