@@ -1451,3 +1451,206 @@ Validar automaticamente as correções F.1 a F.17 antes da geração do APK fina
 ### Próximo passo
 
 F.19 — APK debug final e teste físico 2.
+
+## F.19 — APK debug final e teste físico 2
+
+### APK gerado
+
+* Branch: `fix/qa-fisico-correcoes`.
+* Commit usado no APK: `be94291`.
+* Comando usado: `flutter build apk --debug`.
+* Caminho do APK: `build\app\outputs\flutter-apk\app-debug.apk`.
+* Resultado do build: concluído com sucesso.
+* Tamanho do APK: 175.873.196 bytes.
+* Data/hora de geração: 13/06/2026 01:35:54.
+* O APK fica em `build/`, que é ignorado pelo Git, e não deve ser commitado.
+
+### Roteiro de Teste Físico 2
+
+#### 1. Abertura e autenticação
+
+* Abrir o app no Android físico.
+* Testar login local com credenciais válidas.
+* Testar erro de login com senha errada.
+* Tocar em `Esqueci minha senha` e validar a orientação honesta.
+* Testar Google Login se o SHA-1/SHA-256 debug estiver configurado.
+* Confirmar que Login e Cadastro não aparecem ao voltar da Home, exceto após logout.
+
+#### 2. Navegação autenticada
+
+* Navegar da Home para Meus projetos.
+* Navegar da Home para Minhas gravações.
+* Navegar da Home para Dashboard.
+* Navegar da Home para Histórico.
+* Navegar da Home para Configurações.
+* Voltar por AppBar.
+* Voltar pelo botão Android.
+* Confirmar que o app não cai no Login durante a navegação autenticada.
+
+#### 3. Comandos globais por voz
+
+Testar:
+
+* `meus projetos`;
+* `minhas gravações`;
+* `dashboard`;
+* `histórico`;
+* `configurações`;
+* `tela inicial`;
+* `voltar`;
+* `voltar para tela inicial`.
+
+Confirmar:
+
+* comandos funcionam fora da Home;
+* `voltar` volta uma tela;
+* `tela inicial` vai direto para Home;
+* nenhum comando mostra `GEMINI_API_KEY`.
+
+#### 4. Aliases naturais
+
+Testar:
+
+* `abre configurações`;
+* `vai para projetos`;
+* `mostrar gravações`;
+* `ver indicadores`;
+* `meu painel`;
+* `preferências`;
+* `home`;
+* `início`.
+
+Confirmar que todos funcionam conforme esperado.
+
+#### 5. Projetos
+
+* Criar projeto.
+* Abrir projeto.
+* Editar ou renomear, se a ação estiver disponível.
+* Excluir projeto.
+* Cancelar exclusão por voz.
+* Confirmar exclusão por voz.
+* Validar mensagens amigáveis.
+
+#### 6. Editor Musical
+
+* Abrir o editor.
+* Iniciar gravação por toque.
+* Iniciar gravação por voz, se disponível antes da gravação.
+* Pausar e retomar, se disponível.
+* Encerrar e salvar gravação.
+* Tentar sair durante gravação.
+* Cancelar a saída.
+* Confirmar saída segura.
+* Confirmar que o app não perde áudio sem confirmação.
+
+Observação: durante gravação ativa, comandos por voz podem estar limitados por disputa real do microfone no Android. Validar que o app informa ou bloqueia com segurança.
+
+#### 7. Player e gravações
+
+* Abrir Minhas gravações.
+* Reproduzir uma gravação.
+* Esperar a reprodução terminar.
+* Reproduzir novamente a mesma gravação.
+* Repetir a reprodução 3 vezes.
+* Testar parar e reproduzir novamente.
+* Excluir gravação com cancelamento.
+* Excluir gravação com confirmação.
+* Confirmar que o app não trava.
+
+#### 8. Scroll por voz
+
+Em listas com itens suficientes, testar:
+
+* `descer`;
+* `subir`;
+* `ir para o fim`;
+* `ir para o topo`;
+* confirmar que `voltar` não rola;
+* confirmar que `tela inicial` não vai para o topo da lista, e sim para Home.
+
+#### 9. Comandos personalizados
+
+* Criar comando personalizado válido.
+* Tentar criar comando vazio.
+* Tentar criar comando reservado, como `voltar`.
+* Tentar duplicado com variação de acento ou espaço.
+* Falar o comando personalizado.
+* Desativar ou remover o comando.
+* Confirmar que ele não é reconhecido após desativar ou remover.
+
+#### 10. Confirmações por voz
+
+Testar em modais:
+
+* dizer `cancelar`;
+* dizer `não`;
+* dizer `confirmar`;
+* dizer `confirmar exclusão`;
+* dizer `sim` fora de modal e confirmar que nada destrutivo acontece.
+
+#### 11. Textos, microcopy e ortografia
+
+Conferir:
+
+* sem `GEMINI_API_KEY` na UI;
+* sem `PlatformException`;
+* sem paths completos;
+* sem `sleeping` ou `listeningCommand`;
+* sem `Gravacao`, `Configuracoes`, `Historico` ou `Nao` na UI;
+* sem caracteres quebrados como `Ã` ou `�`;
+* mensagens úteis e claras.
+
+#### 12. Acessibilidade mínima
+
+* Conferir tooltips e labels principais.
+* Se possível, ativar TalkBack.
+* Conferir status de voz.
+* Conferir botão mostrar ou ocultar senha.
+* Conferir botões de play, excluir e menu.
+
+#### 13. Estabilidade geral
+
+* Fechar e abrir o app.
+* Navegar por várias telas.
+* Alternar entre voz e toque.
+* Testar sem internet, exceto Google Login.
+* Verificar se o app não fecha inesperadamente.
+
+### Comandos úteis para instalação
+
+* Ver dispositivos Flutter: `flutter devices`.
+* Ver dispositivos ADB: `adb devices`.
+* Rodar direto no aparelho: `flutter run -d <androidDeviceId>`.
+* Instalar APK manualmente: `adb install -r build\app\outputs\flutter-apk\app-debug.apk`.
+
+Se houver mais de um dispositivo, registrar o `deviceId` usado. Se o Google Login falhar no aparelho, verificar se os SHA-1 e SHA-256 debug do ambiente atual estão cadastrados no Firebase ou Google Cloud, sem expor chaves no relatório.
+
+### Evidências para salvar
+
+O testador deve guardar:
+
+* prints das telas principais;
+* print do APK ou terminal de build;
+* print dos testes passando, se necessário;
+* lista de bugs encontrados;
+* vídeos curtos dos fluxos críticos:
+  * Login;
+  * comandos por voz;
+  * gravação;
+  * replay da gravação;
+  * confirmação por voz;
+  * scroll por voz.
+
+### Resultado do teste físico
+
+* Data:
+* Aparelho:
+* Android:
+* APK/commit:
+* Testador:
+* Resultado geral:
+* Bugs encontrados:
+* Bugs bloqueantes:
+* Observações:
+* Aprovado para banca? Sim/Não
