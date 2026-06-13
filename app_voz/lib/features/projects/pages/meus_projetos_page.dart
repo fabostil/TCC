@@ -19,6 +19,7 @@ import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
+import '../../voices/widgets/voice_command_help_dialog.dart';
 import '../../editor/pages/editor_page.dart';
 import '../controllers/projects_list_controller.dart';
 import 'projeto_detalhes_page.dart';
@@ -43,11 +44,15 @@ String? _validateProjectName(String? value) {
 class MeusProjetosPage extends StatefulWidget {
   final Usuario usuario;
   final bool abrirCriacaoAoEntrar;
+  final ProjectsListController? projectsController;
+  final bool enableVoiceListening;
 
   const MeusProjetosPage({
     super.key,
     required this.usuario,
     this.abrirCriacaoAoEntrar = false,
+    @visibleForTesting this.projectsController,
+    @visibleForTesting this.enableVoiceListening = true,
   });
 
   @override
@@ -56,7 +61,7 @@ class MeusProjetosPage extends StatefulWidget {
 
 class _MeusProjetosPageState extends State<MeusProjetosPage>
     with ContextualVoiceListeningMixin<MeusProjetosPage> {
-  final ProjectsListController _projectsController = ProjectsListController();
+  late final ProjectsListController _projectsController;
   final TextEditingController _nomeProjetoController = TextEditingController();
   final TextEditingController _descricaoProjetoController =
       TextEditingController();
@@ -89,6 +94,7 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
   @override
   void initState() {
     super.initState();
+    _projectsController = widget.projectsController ?? ProjectsListController();
     _projectsController.addListener(_onProjectsStateChanged);
     voiceNavigationCommandHandler = VoiceNavigationCommandHandler(
       currentDestination: VoiceNavigationDestination.projects,
@@ -110,7 +116,9 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
         _abriuCriacaoInicial = true;
         _mostrarCriacaoProjeto(limpar: true);
       }
-      scheduleVoiceListeningOnFirstFrame();
+      if (widget.enableVoiceListening) {
+        scheduleVoiceListeningOnFirstFrame();
+      }
     });
   }
 
@@ -742,6 +750,13 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
     super.dispose();
   }
 
+  Future<void> _abrirAjudaComandosProjetos() {
+    return showVoiceCommandHelpDialog(
+      context,
+      contextType: VoiceCommandHelpContext.projects,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -750,6 +765,12 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
       appBar: AppBar(
         title: const Text('Meus Projetos'),
         actions: [
+          IconButton(
+            key: const Key('projects_voice_command_help_button'),
+            tooltip: 'Comandos desta tela',
+            onPressed: _abrirAjudaComandosProjetos,
+            icon: const Icon(Icons.help_outline),
+          ),
           IconButton(
             tooltip: voiceOuvindo ? 'Parar escuta' : 'Comando de voz',
             onPressed: toggleContextualVoiceListening,

@@ -1751,3 +1751,47 @@ Testes criados ou alterados:
 9. Abrir Configurações e abrir ajuda.
 10. Confirmar comandos de tema, voz e comandos personalizados.
 11. Confirmar que nenhum diálogo mostra termos técnicos.
+
+## G.3 — Ajuda contextual em Projetos e Gravações
+
+### Objetivo
+
+Expor a ajuda contextual também nas telas de Meus Projetos e Minhas Gravações, usando o componente já criado nas etapas G.1 e G.2 sem alterar reconhecimento de comandos.
+
+### Implementação
+
+* Adicionado botão de ajuda na AppBar de Meus Projetos.
+* Adicionado botão de ajuda na AppBar de Minhas Gravações.
+* Meus Projetos abre `VoiceCommandHelpContext.projects`.
+* Minhas Gravações abre `VoiceCommandHelpContext.recordings`.
+* Os botões usam tooltip `Comandos desta tela`.
+* Nenhum parser, alias, comando, scroll, player, exclusão ou persistência foi alterado.
+
+### Testes automatizados
+
+Testes criados:
+
+* `test/features/projects/pages/meus_projetos_page_test.dart`
+  * valida que o botão aparece;
+  * abre o diálogo `Comandos em projetos`;
+  * confere `Novo projeto` e `Descer`;
+  * fecha o diálogo.
+* `test/features/recordings/pages/minhas_gravacoes_page_test.dart`
+  * valida que o botão aparece;
+  * abre o diálogo `Comandos em gravações`;
+  * confere `Tocar` e `Excluir gravação`;
+  * fecha o diálogo.
+
+### Teste manual recomendado
+
+1. Rodar app no Android físico.
+2. Fazer login.
+3. Abrir Meus Projetos.
+4. Tocar no botão de ajuda.
+5. Conferir comandos de projeto e lista.
+6. Fechar ajuda.
+7. Abrir Minhas Gravações.
+8. Tocar no botão de ajuda.
+9. Conferir comandos de reprodução, exclusão, confirmação e lista.
+10. Confirmar que não aparecem termos técnicos.
+11. Confirmar que os comandos reais continuam funcionando.

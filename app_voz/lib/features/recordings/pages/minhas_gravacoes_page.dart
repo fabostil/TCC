@@ -21,6 +21,7 @@ import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
+import '../../voices/widgets/voice_command_help_dialog.dart';
 import '../controllers/recordings_list_controller.dart';
 import '../widgets/recording_status_chip.dart';
 import 'detalhes_gravacao_page.dart';
@@ -44,8 +45,15 @@ String? _validateRecordingName(String? value) {
 
 class MinhasGravacoesPage extends StatefulWidget {
   final Usuario usuario;
+  final RecordingsListController? recordingsController;
+  final bool enableVoiceListening;
 
-  const MinhasGravacoesPage({super.key, required this.usuario});
+  const MinhasGravacoesPage({
+    super.key,
+    required this.usuario,
+    @visibleForTesting this.recordingsController,
+    @visibleForTesting this.enableVoiceListening = true,
+  });
 
   @override
   State<MinhasGravacoesPage> createState() => _MinhasGravacoesPageState();
@@ -53,8 +61,7 @@ class MinhasGravacoesPage extends StatefulWidget {
 
 class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     with ContextualVoiceListeningMixin<MinhasGravacoesPage> {
-  final RecordingsListController _recordingsController =
-      RecordingsListController();
+  late final RecordingsListController _recordingsController;
   final TextEditingController _buscaController = TextEditingController();
   final ScrollController _voiceScrollController = ScrollController();
 
@@ -84,6 +91,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   @override
   void initState() {
     super.initState();
+    _recordingsController =
+        widget.recordingsController ?? RecordingsListController();
     voiceNavigationCommandHandler = VoiceNavigationCommandHandler(
       currentDestination: VoiceNavigationDestination.recordings,
       goHome: _handleIrParaHome,
@@ -110,7 +119,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       }
     });
     _carregarGravacoes();
-    scheduleVoiceListeningOnFirstFrame();
+    if (widget.enableVoiceListening) {
+      scheduleVoiceListeningOnFirstFrame();
+    }
   }
 
   void _onRecordingsStateChanged() {
@@ -689,6 +700,13 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     return _recordingsController.findByName(nome);
   }
 
+  Future<void> _abrirAjudaComandosGravacoes() {
+    return showVoiceCommandHelpDialog(
+      context,
+      contextType: VoiceCommandHelpContext.recordings,
+    );
+  }
+
   Widget _buildBuscaGravacoes() {
     return AppSearchField(
       controller: _buscaController,
@@ -706,6 +724,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         title: const Text('Minhas Gravações'),
         centerTitle: true,
         actions: [
+          IconButton(
+            key: const Key('recordings_voice_command_help_button'),
+            tooltip: 'Comandos desta tela',
+            onPressed: _abrirAjudaComandosGravacoes,
+            icon: const Icon(Icons.help_outline),
+          ),
           IconButton(
             tooltip: voiceOuvindo ? 'Parar escuta' : 'Comando de voz',
             onPressed: toggleContextualVoiceListening,
