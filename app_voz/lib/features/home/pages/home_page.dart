@@ -20,6 +20,7 @@ import '../../voices/pages/login_page.dart';
 import '../../voices/services/auth_session_service.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/voice_permission_service.dart';
+import '../../voices/widgets/voice_command_help_dialog.dart';
 
 typedef HomeLoginBuilder = Widget Function();
 
@@ -470,6 +471,10 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  Future<void> _abrirAjudaComandosVoz() {
+    return showVoiceCommandHelpDialog(context);
+  }
+
   Future<void> _retomarEscutaAposNavegacao() async {
     final configuracao = await _buscarConfiguracao();
 
@@ -576,6 +581,16 @@ class _HomePageState extends State<HomePage>
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Tooltip(
+                    message: 'Ver comandos de voz',
+                    child: OutlinedButton.icon(
+                      key: const Key('home_voice_command_help_button'),
+                      onPressed: _abrirAjudaComandosVoz,
+                      icon: const Icon(Icons.help_outline),
+                      label: const Text('Ver comandos de voz'),
+                    ),
                   ),
                 ],
               ),

@@ -1654,3 +1654,49 @@ O testador deve guardar:
 * Bugs bloqueantes:
 * Observações:
 * Aprovado para banca? Sim/Não
+
+## G.1 — Ajuda rápida de comandos por voz
+
+### Objetivo
+
+Adicionar uma ajuda visual dentro do app para que o usuário saiba quais comandos pode falar, reduzindo dúvidas durante o teste físico e a apresentação para banca.
+
+### Correção realizada
+
+* Criado o widget reutilizável `VoiceCommandHelpDialog`.
+* Adicionado o botão `Ver comandos de voz` no bloco principal da Home.
+* O botão abre um diálogo com título claro, conteúdo rolável e ação `Fechar`.
+* A ajuda lista comandos por categoria:
+  * Navegação;
+  * Gravação;
+  * Reprodução;
+  * Listas;
+  * Confirmações;
+  * Comandos personalizados.
+* O texto informa que variações naturais também funcionam, como `abre configurações` e `vai para projetos`.
+* A ajuda não executa comandos, não usa microfone, não depende de Gemini e não altera o reconhecimento existente.
+* O conteúdo evita termos técnicos como parser, intent, NLU, API, Gemini e CommandService.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/widgets/voice_command_help_dialog_test.dart`
+  * valida título, categorias e comandos principais;
+  * confirma que termos técnicos não aparecem.
+* `test/features/home/pages/home_page_test.dart`
+  * valida que o botão `Ver comandos de voz` aparece na Home;
+  * valida abertura e fechamento do diálogo de ajuda.
+
+### Teste manual recomendado
+
+1. Rodar o app no Android físico.
+2. Fazer login.
+3. Na Home, tocar em `Ver comandos de voz`.
+4. Confirmar que a ajuda abre.
+5. Conferir comandos de navegação, gravação, reprodução, listas e confirmação.
+6. Fechar a ajuda com `Fechar`.
+7. Testar um comando exibido, como `Meus projetos`.
+8. Confirmar que o comando funciona.
+9. Abrir Configurações e confirmar que comandos personalizados continuam disponíveis.
+10. Confirmar que não aparecem termos técnicos.

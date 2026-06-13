@@ -34,6 +34,31 @@ void main() {
       },
     );
 
+    testWidgets('abre e fecha ajuda de comandos por voz pela Home', (
+      tester,
+    ) async {
+      await _pumpHome(tester);
+      await tester.pump();
+
+      expect(find.text('Ver comandos de voz'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('home_voice_command_help_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsOneWidget);
+      expect(find.text('Meus projetos'), findsAtLeastNWidgets(1));
+      expect(find.text('Gravar'), findsOneWidget);
+      expect(find.text('Descer'), findsOneWidget);
+      expect(find.text('Confirmar'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('voice_command_help_close_button')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsNothing);
+    });
+
     testWidgets('logout confirmado encerra sessao e navega para login', (
       tester,
     ) async {
