@@ -277,6 +277,9 @@ class _CadastroPageState extends State<CadastroPage> {
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
+                      tooltip: _mostrarSenha
+                          ? 'Ocultar senha'
+                          : 'Mostrar senha',
                       icon: Icon(
                         _mostrarSenha ? Icons.visibility_off : Icons.visibility,
                       ),

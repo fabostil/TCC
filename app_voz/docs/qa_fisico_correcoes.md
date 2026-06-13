@@ -1344,3 +1344,58 @@ Testes criados/alterados:
 ### Critério de aprovação manual
 
 A etapa só passa se as principais mensagens públicas forem claras, úteis e consistentes, sem parecer log técnico ou resposta genérica.
+
+## F.17 — Acessibilidade mínima e feedback visual
+
+### Problema observado
+
+Alguns controles baseados apenas em ícones e o status do controle por voz ainda precisavam de descrições mais claras para leitores de tela e para o uso com toque prolongado. Também era necessário confirmar que os estados principais de voz, gravação e reprodução estavam visíveis e compreensíveis.
+
+### Diagnóstico
+
+A auditoria das telas principais identificou:
+
+* botões de mostrar ou ocultar senha sem tooltip;
+* ícones de reproduzir ou parar gravações sem descrição contextual;
+* menus de ações de gravações sem indicar a qual item pertencem;
+* `VoiceStatusBar` com texto visual amigável, mas sem região semântica ao vivo;
+* reprodução de faixas no Editor com botão de ícone sem tooltip.
+
+Os campos de Login e Cadastro já possuíam labels, os botões com texto já tinham área de toque adequada, os switches de Configurações já tinham títulos e descrições, e o Editor já exibia estados como `Gravando`, `Pausado`, `Reproduzindo`, `Processando comando` e a pausa da escuta durante a gravação.
+
+### Correção realizada
+
+* Login e Cadastro receberam tooltips dinâmicos `Mostrar senha` e `Ocultar senha`.
+* `VoiceStatusBar` passou a expor uma região semântica ao vivo com o status amigável atual.
+* Minhas Gravações e Detalhes do Projeto receberam tooltips contextuais para reproduzir, parar e abrir ações de cada gravação.
+* O botão de reprodução de faixa no Editor passou a identificar a gravação que será reproduzida.
+* Foram preservados os feedbacks visuais existentes de voz, processamento, gravação, pausa e reprodução, sem redesign ou alteração de regra de negócio.
+
+### Testes automatizados
+
+Testes criados ou reforçados:
+
+* `test/widgets/core_ui_widget_test.dart`
+  * valida o label semântico amigável do `VoiceStatusBar`.
+* `test/features/voices/pages/login_page_test.dart`
+  * valida os tooltips `Mostrar senha` e `Ocultar senha`.
+* `test/features/voices/pages/cadastro_page_test.dart`
+  * valida os tooltips `Mostrar senha` e `Ocultar senha`.
+* A suíte existente continua cobrindo os estados visuais do Editor, os fluxos de gravação e reprodução, as configurações e os comandos sem acento.
+
+### Teste manual recomendado
+
+1. Rodar o app no Android físico.
+2. Fazer login.
+3. Conferir no Login e Cadastro os campos, o botão de mostrar ou ocultar senha e o link `Esqueci minha senha`.
+4. Na Home, conferir o status visível do controle por voz.
+5. Em Projetos, conferir as ações de criar, abrir e excluir projeto.
+6. No Editor, conferir gravar, pausar, retomar, encerrar e reproduzir, observando os estados visuais.
+7. Em Minhas Gravações, conferir reproduzir, parar, abrir detalhes e excluir.
+8. Em Configurações, conferir os switches e os comandos personalizados.
+9. Ativar o TalkBack, se possível, e navegar pelos botões principais.
+10. Confirmar que os controles têm descrições compreensíveis e que o status de voz é anunciado quando muda.
+
+### Critério de aprovação manual
+
+A etapa só passa se as ações principais tiverem labels ou tooltips claros e se os estados de voz, gravação e reprodução forem compreensíveis visualmente e por leitor de tela.

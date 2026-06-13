@@ -118,6 +118,29 @@ void main() {
       expect(find.text('listeningCommand'), findsNothing);
     });
 
+    testWidgets('anuncia o status amigavel como regiao semantica', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: VoiceStatusBar(message: 'processing', listening: false),
+          ),
+        ),
+      );
+
+      expect(
+        find.bySemanticsLabel(
+          'Status do controle por voz: Processando comando',
+        ),
+        findsOneWidget,
+      );
+
+      semantics.dispose();
+    });
+
     test('mapeia estados internos para mensagens com acentuacao correta', () {
       expect(UserFacingMessages.voiceStatus('sleeping'), 'Aguardando comando');
       expect(

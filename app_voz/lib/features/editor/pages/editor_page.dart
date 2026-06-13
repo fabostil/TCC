@@ -2062,6 +2062,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
                     overflow: TextOverflow.ellipsis,
                   ),
                   trailing: IconButton(
+                    tooltip: 'Reproduzir gravação ${faixa.nome}',
                     icon: const Icon(Icons.play_arrow),
                     onPressed: carregandoAudio
                         ? null

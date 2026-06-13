@@ -30,6 +30,20 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
+    testWidgets('botao de visibilidade da senha tem descricao acessivel', (
+      tester,
+    ) async {
+      final auth = _CadastroAuthFake();
+
+      await _pumpCadastro(tester, auth: auth.service);
+
+      expect(find.byTooltip('Mostrar senha'), findsOneWidget);
+      await tester.tap(find.byTooltip('Mostrar senha'));
+      await tester.pump();
+
+      expect(find.byTooltip('Ocultar senha'), findsOneWidget);
+    });
+
     testWidgets('valida campos obrigatorios antes de cadastrar', (
       tester,
     ) async {

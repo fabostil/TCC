@@ -27,6 +27,20 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
+    testWidgets('botao de visibilidade da senha tem descricao acessivel', (
+      tester,
+    ) async {
+      final auth = _LoginAuthFake();
+
+      await _pumpLogin(tester, auth: auth.service);
+
+      expect(find.byTooltip('Mostrar senha'), findsOneWidget);
+      await tester.tap(find.byTooltip('Mostrar senha'));
+      await tester.pump();
+
+      expect(find.byTooltip('Ocultar senha'), findsOneWidget);
+    });
+
     testWidgets('mostra orientação honesta para recuperação de senha', (
       tester,
     ) async {

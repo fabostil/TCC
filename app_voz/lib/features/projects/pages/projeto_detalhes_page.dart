@@ -751,6 +751,9 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
                               ? null
                               : () => _abrirDetalhesGravacao(gravacao),
                           leading: IconButton(
+                            tooltip: reproduzindo
+                                ? 'Parar reprodução de ${gravacao.nome}'
+                                : 'Reproduzir gravação ${gravacao.nome}',
                             onPressed: processandoItem
                                 ? null
                                 : () => _alternarReproducao(gravacao),
@@ -798,6 +801,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
                                   ),
                                 )
                               : PopupMenuButton<String>(
+                                  tooltip:
+                                      'Abrir ações da gravação ${gravacao.nome}',
                                   onSelected: (value) {
                                     if (value == 'rename') {
                                       _renomearGravacao(gravacao);
