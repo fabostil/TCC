@@ -1399,3 +1399,55 @@ Testes criados ou reforçados:
 ### Critério de aprovação manual
 
 A etapa só passa se as ações principais tiverem labels ou tooltips claros e se os estados de voz, gravação e reprodução forem compreensíveis visualmente e por leitor de tela.
+
+## F.18 — Regressão automatizada final
+
+### Objetivo
+
+Validar automaticamente as correções F.1 a F.17 antes da geração do APK final e do segundo teste físico, verificando regressões, cobertura dos fluxos críticos, testes desabilitados, arquivos gerados e possíveis dados sensíveis.
+
+### Validações executadas
+
+* `dart analyze`;
+* `flutter test --reporter compact`;
+* `flutter test --coverage`;
+* `flutter build apk --debug`;
+* busca por `skip`, `@Skip`, `only`, `solo` e marcadores de testes temporariamente desabilitados;
+* busca segura por chaves, tokens, autorizações, senhas literais, arquivos `.env`, keystores e outros arquivos sensíveis;
+* conferência de `build/`, `coverage/` e `.dart_tool/`;
+* revisão dos testes existentes para os fluxos críticos corrigidos entre F.1 e F.17.
+
+### Resultado
+
+* `dart analyze`: concluído sem issues.
+* `flutter test --reporter compact`: 473 testes aprovados.
+* `flutter test --coverage`: 473 testes aprovados e cobertura gerada apenas localmente em `coverage/`.
+* `flutter build apk --debug`: concluído com geração de `build/app/outputs/flutter-apk/app-debug.apk`.
+* Nenhum teste com `skip`, `@Skip`, `only`, `solo` ou marcador de desativação foi encontrado.
+* Nenhuma nova chave Gemini, autorização fixa, bearer token, senha em texto puro, `.env`, keystore ou arquivo `.jks` foi encontrado.
+* `build/`, `coverage/` e `.dart_tool/` permanecem ignorados pelo Git.
+* O relatório gerado `android/build/reports/problems/problems-report.html`, rastreado por commits antigos, foi removido do versionamento; a regra existente para `build/` impede que seja adicionado novamente.
+
+### Cobertura por fluxo
+
+* Login: login local, Google Login, sucesso, cancelamento, erros amigáveis, recuperação de senha e limpeza da pilha.
+* Player: conclusão natural, nova reprodução após conclusão, parada, falhas e liberação de estado.
+* Navegação: login e logout limpam a pilha, retorno seguro e Home sem duplicação.
+* Voz e comandos: fallback sem Gemini, aliases com e sem acento, comandos globais, comando desconhecido amigável, scroll e comandos personalizados.
+* Ciclo de vida: retomada em `didPopNext`, remoção de listeners no `dispose` e prevenção de assinaturas ou execuções duplicadas.
+* Confirmação: confirmação e cancelamento por voz; `sim` sem modal pendente não executa ação destrutiva.
+* Editor: bloqueio de navegação insegura durante gravação, confirmação para sair e restauração do estado de playback.
+* UI: remoção de textos técnicos, acentuação, microcopy, labels, tooltips e semântica do status de voz.
+
+### Riscos remanescentes
+
+* A validação em aparelho Android físico continua necessária.
+* Google Login ainda depende dos SHA-1 e SHA-256 corretos para o ambiente de build.
+* STT, permissões e concorrência de microfone dependem do comportamento do aparelho real.
+* TalkBack e a ordem prática de foco precisam de validação física.
+* Durante a gravação, os comandos por voz continuam limitados pela disputa de microfone no Android, conforme documentado na F.9.
+* A cobertura gerada confirma a execução instrumentada, mas não substitui os testes físicos de áudio, Google e acessibilidade.
+
+### Próximo passo
+
+F.19 — APK debug final e teste físico 2.
