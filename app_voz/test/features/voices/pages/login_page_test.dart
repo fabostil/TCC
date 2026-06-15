@@ -57,9 +57,14 @@ void main() {
       final dialog = tester.widget<AlertDialog>(find.byType(AlertDialog));
       final message = (dialog.content! as Text).data!.toLowerCase();
       expect(message, contains('recuperação automática por e-mail'));
-      expect(message, contains('entrar com google'));
+      expect(message, contains('entre com google'));
       expect(message, contains('crie uma nova conta'));
+      expect(message.length, lessThan(150));
       expect(message, isNot(contains('e-mail enviado')));
+      expect(message, isNot(contains('api')));
+      expect(message, isNot(contains('token')));
+      expect(message, isNot(contains('firebase')));
+      expect(message, isNot(contains('sha')));
       expect(message, isNot(contains('sqlite')));
       expect(message, isNot(contains('hash')));
       expect(message, isNot(contains('salt')));

@@ -383,6 +383,20 @@ class CommandService {
         parametro: _polishSentence(descricaoProjeto),
       );
     }
+    if (_matchesAny(normalizedText, const [
+      'descricao',
+      'editar descricao',
+      'campo descricao',
+      'descricao do projeto',
+    ])) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.definirDescricaoProjeto,
+        tipoComando: 'definir_descricao_projeto',
+        acaoExecutada: 'Definir descricao do projeto',
+      );
+    }
 
     final renomearProjeto = _extractRenameProject(normalizedText);
     if (renomearProjeto != null) {
@@ -978,16 +992,7 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const [
-      'confirmar exclusao',
-      'confirmar',
-      'pode confirmar',
-      'confirmo',
-      'sim',
-      'sim pode excluir',
-      'sim excluir',
-      'pode excluir',
-    ])) {
+    if (_isConfirmationCommand(normalizedText)) {
       return _recognized(
         text,
         normalizedText,
@@ -1194,6 +1199,14 @@ class CommandService {
       'defina a descricao',
       'definir a descricao',
     ]);
+  }
+
+  bool _isConfirmationCommand(String text) {
+    return text == 'confirmar' ||
+        text == 'confirmar exclusao' ||
+        text == 'pode confirmar' ||
+        text == 'confirmo' ||
+        text == 'sim';
   }
 
   String? _extractAfterAny(String text, List<String> prefixes) {

@@ -237,6 +237,19 @@ void main() {
       expect(voltar.handled, isTrue);
       expect(controller.offset, offsetAfterTelaInicial);
     });
+
+    testWidgets('descricao nao executa acao global na Home', (tester) async {
+      await _pumpHome(tester);
+      await tester.pump();
+
+      final result = await _dispatchHomeCommandAndSettle(tester, 'descricao');
+
+      expect(result.handled, isTrue);
+      expect(
+        result.statusMessage,
+        'Comando não executável nesta tela.',
+      );
+    });
   });
 }
 

@@ -133,6 +133,26 @@ void main() {
       expect(key.currentState!.resumeAttempts, 1);
     });
 
+    testWidgets('modal destrutivo aceita excluir como confirmacao por voz', (
+      tester,
+    ) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      const commandService = CommandService();
+
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+      await tester.tap(find.byKey(_TestVoicePage.openDialogButtonKey));
+      await tester.pumpAndSettle();
+
+      await key.currentState!.voiceConfirmationController.handle(
+        commandService.interpret('excluir'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Confirmar exclusao'), findsNothing);
+      expect(key.currentState!.confirmedDialogs, 1);
+      expect(key.currentState!.cancelledDialogs, 0);
+    });
+
     testWidgets('modal cancela por voz e limpa pendencia', (tester) async {
       final key = GlobalKey<_TestVoicePageState>();
       const commandService = CommandService();

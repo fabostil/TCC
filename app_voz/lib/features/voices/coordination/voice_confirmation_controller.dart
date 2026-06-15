@@ -10,12 +10,14 @@ class VoiceConfirmationRequest {
     required this.description,
     required this.onConfirm,
     this.onCancel,
+    this.destructive = false,
   });
 
   final String id;
   final String description;
   final VoiceConfirmationCallback onConfirm;
   final VoiceConfirmationCallback? onCancel;
+  final bool destructive;
 }
 
 enum VoiceConfirmationAction { confirmed, cancelled, blocked, notHandled }
@@ -50,6 +52,15 @@ class VoiceConfirmationController {
       return const VoiceConfirmationResult(
         action: VoiceConfirmationAction.notHandled,
         message: '',
+      );
+    }
+
+    if (pending.destructive && _isDestructiveConfirmationAlias(command)) {
+      _pending = null;
+      await pending.onConfirm();
+      return VoiceConfirmationResult(
+        action: VoiceConfirmationAction.confirmed,
+        message: '${pending.description} confirmada.',
       );
     }
 
@@ -123,5 +134,13 @@ class VoiceConfirmationController {
           message: 'Confirme ou cancele a acao pendente antes de continuar.',
         );
     }
+  }
+
+  bool _isDestructiveConfirmationAlias(CommandResult command) {
+    final text = command.normalizedText;
+    return text == 'excluir' ||
+        text == 'pode excluir' ||
+        text == 'excluir agora' ||
+        text == 'sim excluir';
   }
 }

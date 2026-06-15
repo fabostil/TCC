@@ -2311,3 +2311,96 @@ Testes criados ou alterados:
 15. Confirmar que chega ao final real da lista.
 16. Dizer `voltar`.
 17. Confirmar que volta tela e nao rola.
+
+## H.7 — Ajustes menores finais do Teste Fisico 2
+
+### Bugs/Ajustes corrigidos
+
+* Texto de recuperacao de senha melhorado para uma mensagem curta, honesta e
+  adequada para apresentacao.
+* `descricao` aceito como atalho contextual para o campo de descricao em
+  projeto/formulario de projeto.
+* `excluir` aceito como confirmacao somente quando existe modal destrutivo
+  aguardando resposta por voz.
+
+### Diagnostico tecnico
+
+* O dialogo `Esqueci minha senha` ficava em `LoginPage` com texto hardcoded
+  longo. A mensagem era correta, mas extensa para demonstracao.
+* `CommandService` ja entendia frases como `descricao do projeto ...`, mas
+  dependia de texto apos o prefixo e nao reconhecia `descricao`, `editar
+  descricao` ou `campo descricao` como intencao contextual.
+* As telas de projeto ja tratavam `definirDescricaoProjeto` e
+  `substituirDescricaoProjeto`; telas sem campo de descricao retornavam o
+  comando como indisponivel, sem acao destrutiva.
+* A confirmacao por voz era centralizada em `VoiceConfirmationController` e
+  consumida por `showVoiceConfirmationDialog`. Como `excluir` sozinho era
+  comando desconhecido, o modal destrutivo nao o aceitava como confirmacao.
+* Havia risco de tratar palavras de exclusao como confirmacao global. Por isso
+  a confirmacao por `excluir`, `pode excluir`, `excluir agora` e `sim, excluir`
+  ficou restrita a pendencias marcadas como destrutivas.
+
+### Correcao realizada
+
+* A microcopy de recuperacao de senha passou a informar apenas que o prototipo
+  nao possui recuperacao automatica por e-mail e orienta entrar com Google ou
+  criar uma nova conta local.
+* `CommandService` passou a reconhecer `descricao`, `editar descricao`, `campo
+  descricao` e `descricao do projeto` como `definirDescricaoProjeto` sem
+  parametro, permitindo que telas de projeto abram/usem o campo correto.
+* `pode excluir` e `sim excluir` deixaram de ser confirmacao global no parser.
+* `VoiceConfirmationRequest` recebeu o marcador `destructive`.
+* `showVoiceConfirmationDialog` repassa esse marcador para o controller.
+* `VoiceConfirmationController` confirma `excluir`, `pode excluir`, `excluir
+  agora` e `sim excluir` apenas quando ha confirmacao destrutiva pendente.
+* Fora de modal, `excluir` continua desconhecido e nao apaga nada diretamente.
+* Em modais nao destrutivos, `excluir` fica bloqueado e nao confirma logout ou
+  outra acao comum.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/pages/login_page_test.dart`
+  * valida o novo texto curto do dialogo;
+  * garante ausencia de termos tecnicos;
+  * confirma que `Entendi` fecha o dialogo.
+* `test/features/voices/services/command_service_test.dart`
+  * valida `descricao`, `editar descricao`, `campo descricao` e `descricao do
+    projeto`;
+  * valida que `descricao do projeto ...` continua preenchendo parametro;
+  * valida que `excluir`, `pode excluir`, `excluir agora` e `sim excluir` nao
+    viram confirmacao global.
+* `test/features/home/pages/home_page_test.dart`
+  * valida que `descricao` nao executa acao global na Home.
+* `test/features/projects/pages/meus_projetos_page_test.dart`
+  * valida `descricao` e `descricao do projeto ...` no formulario de projeto;
+  * valida que excluir projeto continua abrindo confirmacao.
+* `test/features/recordings/pages/minhas_gravacoes_page_test.dart`
+  * valida que excluir gravacao continua abrindo confirmacao.
+* `test/features/voices/coordination/voice_confirmation_controller_test.dart`
+  * valida `excluir`, `pode excluir`, `excluir agora` e `sim, excluir` em
+    modal destrutivo;
+  * valida que `excluir` nao confirma modal nao destrutivo;
+  * preserva `confirmar`, `cancelar` e `nao`.
+* `test/features/voices/coordination/contextual_voice_listening_mixin_test.dart`
+  * valida que o dialogo destrutivo compartilhado aceita `excluir` por voz.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Abrir Login.
+3. Tocar em `Esqueci minha senha`.
+4. Conferir texto curto e claro.
+5. Fazer login.
+6. Abrir Meus Projetos.
+7. Criar ou editar projeto.
+8. Dizer `descricao`.
+9. Confirmar que o app entende o campo/acao correta.
+10. Abrir exclusao de projeto ou gravacao.
+11. Com o modal aberto, dizer `excluir`.
+12. Confirmar que a acao e confirmada.
+13. Repetir e dizer `cancelar`.
+14. Confirmar que cancela.
+15. Fora de modal, dizer `excluir`.
+16. Confirmar que nada e apagado diretamente.

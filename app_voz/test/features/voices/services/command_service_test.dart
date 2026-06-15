@@ -302,6 +302,17 @@ void main() {
       expect(descricao.type, VoiceCommandType.definirDescricaoProjeto);
       expect(descricao.parametro, 'Ideia simples para tocar na rua.');
 
+      for (final text in [
+        'descricao',
+        'editar descricao',
+        'campo descricao',
+        'descricao do projeto',
+      ]) {
+        final result = service.interpret(text);
+        expect(result.type, VoiceCommandType.definirDescricaoProjeto);
+        expect(result.parametro, isNull);
+      }
+
       final substituirNome = service.interpret(
         'apague o nome abacate e coloque alface',
       );
@@ -448,9 +459,21 @@ void main() {
 
     test('mantem comandos destrutivos ambiguos sem acao direta', () {
       final apagar = service.interpret('apagar');
+      final excluir = service.interpret('excluir');
+      final excluirAgora = service.interpret('excluir agora');
+      final podeExcluir = service.interpret('pode excluir');
+      final simExcluir = service.interpret('sim excluir');
 
       expect(apagar.type, VoiceCommandType.desconhecido);
       expect(apagar.recognized, isFalse);
+      expect(excluir.type, VoiceCommandType.desconhecido);
+      expect(excluir.recognized, isFalse);
+      expect(excluirAgora.type, VoiceCommandType.desconhecido);
+      expect(excluirAgora.recognized, isFalse);
+      expect(podeExcluir.type, VoiceCommandType.desconhecido);
+      expect(podeExcluir.recognized, isFalse);
+      expect(simExcluir.type, VoiceCommandType.desconhecido);
+      expect(simExcluir.recognized, isFalse);
     });
 
     test('retorna desconhecido para comando nao mapeado', () {

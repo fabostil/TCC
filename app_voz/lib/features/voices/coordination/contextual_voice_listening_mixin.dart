@@ -645,6 +645,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
               completedByVoice = true;
               Navigator.pop(dialogContext, false);
             },
+            destructive: destructive,
           ),
         );
 

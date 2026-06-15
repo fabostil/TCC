@@ -59,6 +59,63 @@ void main() {
       expect(controller.hasPendingConfirmation, isFalse);
     });
 
+    test(
+      'excluir confirma somente quando modal destrutivo esta pendente',
+      () async {
+        for (final text in [
+          'excluir',
+          'pode excluir',
+          'excluir agora',
+          'sim, excluir',
+        ]) {
+          final controller = VoiceConfirmationController();
+          var confirmed = 0;
+
+          controller.register(
+            VoiceConfirmationRequest(
+              id: 'delete',
+              description: 'Exclusao',
+              destructive: true,
+              onConfirm: () {
+                confirmed++;
+              },
+            ),
+          );
+
+          final result = await controller.handle(
+            commandService.interpret(text),
+          );
+
+          expect(result.action, VoiceConfirmationAction.confirmed);
+          expect(confirmed, 1);
+          expect(controller.hasPendingConfirmation, isFalse);
+        }
+      },
+    );
+
+    test('excluir nao confirma modal nao destrutivo', () async {
+      final controller = VoiceConfirmationController();
+      var confirmed = false;
+
+      controller.register(
+        VoiceConfirmationRequest(
+          id: 'logout',
+          description: 'Sair',
+          onConfirm: () {
+            confirmed = true;
+          },
+        ),
+      );
+
+      final result = await controller.handle(
+        commandService.interpret('excluir'),
+      );
+
+      expect(result.action, VoiceConfirmationAction.blocked);
+      expect(confirmed, isFalse);
+      expect(controller.hasPendingConfirmation, isTrue);
+    });
+
     test('cancelar e nao cancelam e limpam estado', () async {
       for (final text in ['cancelar', 'nao']) {
         final controller = VoiceConfirmationController();

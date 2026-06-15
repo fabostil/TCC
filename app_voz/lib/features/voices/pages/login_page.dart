@@ -32,11 +32,8 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   static const _passwordRecoveryMessage =
-      'Este protótipo usa autenticação local no dispositivo. Por segurança, '
-      'a recuperação automática por e-mail não está disponível nesta versão. '
-      'Se você usa uma conta Google, entre com o botão ‘Entrar com Google’. '
-      'Para uma conta local, crie uma nova conta ou solicite redefinição ao '
-      'responsável pelo app.';
+      'Esta versão do protótipo não possui recuperação automática por e-mail. '
+      'Para continuar, entre com Google ou crie uma nova conta local.';
 
   final _formKey = GlobalKey<FormState>();
 
