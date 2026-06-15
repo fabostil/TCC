@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:app_voz/features/home/pages/home_page.dart';
 import 'package:app_voz/features/voices/services/auth_session_service.dart';
 import 'package:app_voz/features/voices/services/voice_permission_service.dart';
@@ -62,20 +64,27 @@ void main() {
       tester,
     ) async {
       var logoutCalls = 0;
+      var confirmationCalls = 0;
       final authSession = _authSessionService(
         googleSignOut: () async {
           logoutCalls++;
         },
       );
 
-      await _pumpHome(tester, authSession: authSession);
+      await _pumpHome(
+        tester,
+        authSession: authSession,
+        confirmarLogout: () async {
+          confirmationCalls++;
+          return true;
+        },
+      );
       await tester.pump();
 
-      await tester.tap(find.byKey(const Key('home_logout_button')));
-      await tester.pump();
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Sair'));
+      await _triggerLogout(tester);
       await tester.pumpAndSettle();
 
+      expect(confirmationCalls, 1);
       expect(logoutCalls, 1);
       expect(find.byKey(const Key('login_destination')), findsOneWidget);
     });
@@ -88,9 +97,7 @@ void main() {
       await _pumpHome(tester, authSession: authSession);
       await tester.pump();
 
-      await tester.tap(find.byKey(const Key('home_logout_button')));
-      await tester.pump();
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Sair'));
+      await _triggerLogout(tester);
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('login_destination')), findsOneWidget);
@@ -116,9 +123,7 @@ void main() {
       await _pumpHome(tester, authSession: authSession);
       await tester.pump();
 
-      await tester.tap(find.byKey(const Key('home_logout_button')));
-      await tester.pump();
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Sair'));
+      await _triggerLogout(tester);
       await tester.pump();
 
       expect(logoutCalls, 1);
@@ -153,6 +158,7 @@ Future<void> _pumpHome(
   WidgetTester tester, {
   AuthSessionService? authSession,
   _FakePermissionClient? permissionClient,
+  HomeLogoutConfirmation? confirmarLogout,
 }) async {
   final client = permissionClient ?? _FakePermissionClient();
 
@@ -168,9 +174,26 @@ Future<void> _pumpHome(
           key: Key('login_destination'),
           label: 'Login destino',
         ),
+        confirmarLogout: confirmarLogout ?? () async => true,
       ),
     ),
   );
+}
+
+Future<void> _triggerLogout(WidgetTester tester) async {
+  final button = tester.widget<IconButton>(
+    find.byKey(const Key('home_logout_button')),
+  );
+  expect(button.tooltip, 'Sair');
+  await tester.runAsync(() async {
+    final result = Function.apply(button.onPressed!, const []);
+    if (result is Future<void>) {
+      await result;
+    } else {
+      await Future<void>.delayed(Duration.zero);
+    }
+  });
+  await tester.pump();
 }
 
 AuthSessionService _authSessionService({
@@ -180,6 +203,8 @@ AuthSessionService _authSessionService({
     stopActiveVoiceSession: () async {},
     clearActiveVoiceContext: () {},
     clearRuntimeVoiceSession: () {},
+    sessionDirectoryPathProvider: () async =>
+        Directory.systemTemp.createTempSync('home_auth_session_test').path,
     googleSignOut: googleSignOut ?? () async {},
   );
 }

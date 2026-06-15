@@ -1,4 +1,5 @@
 import 'package:app_voz/features/voices/services/auth_service.dart';
+import 'package:app_voz/features/voices/services/auth_session_service.dart';
 import 'package:app_voz/features/voices/services/google_auth_service.dart';
 import 'package:app_voz/models/google_identity.dart';
 import 'package:app_voz/models/usuario.dart';
@@ -7,15 +8,25 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('AuthService', () {
     test('entrarComGoogle retorna null quando provedor retorna null', () async {
-      final service = AuthService(googleIdentityProvider: () async => null);
+      var sessionSaved = false;
+      final service = AuthService(
+        googleIdentityProvider: () async => null,
+        sessionService: _sessionService(
+          onSave: (_) async {
+            sessionSaved = true;
+          },
+        ),
+      );
 
       final usuario = await service.entrarComGoogle();
 
       expect(usuario, isNull);
+      expect(sessionSaved, isFalse);
     });
 
     test('entrarComGoogle chama resolver com dados da identidade', () async {
       final chamadas = <Map<String, Object?>>[];
+      final savedSessions = <Usuario>[];
       final esperado = _usuario();
       final service = AuthService(
         googleIdentityProvider: () async => const GoogleIdentity(
@@ -40,6 +51,11 @@ void main() {
               });
               return esperado;
             },
+        sessionService: _sessionService(
+          onSave: (usuario) async {
+            savedSessions.add(usuario);
+          },
+        ),
       );
 
       final usuario = await service.entrarComGoogle();
@@ -53,16 +69,23 @@ void main() {
           'fotoUrl': 'https://example.com/foto.png',
         },
       ]);
+      expect(savedSessions, [esperado]);
     });
 
     test('autenticarUsuario delega para localAuthenticator', () async {
       final esperado = _usuario(email: 'local@example.com');
       final chamadas = <Map<String, String>>[];
+      final savedSessions = <Usuario>[];
       final service = AuthService(
         localAuthenticator: ({required email, required senha}) async {
           chamadas.add({'email': email, 'senha': senha});
           return esperado;
         },
+        sessionService: _sessionService(
+          onSave: (usuario) async {
+            savedSessions.add(usuario);
+          },
+        ),
       );
 
       final usuario = await service.autenticarUsuario(
@@ -74,7 +97,31 @@ void main() {
       expect(chamadas, [
         {'email': 'local@example.com', 'senha': 'senha123'},
       ]);
+      expect(savedSessions, [esperado]);
     });
+
+    test(
+      'autenticarUsuario nao salva sessao quando credencial falha',
+      () async {
+        var sessionSaved = false;
+        final service = AuthService(
+          localAuthenticator: ({required email, required senha}) async => null,
+          sessionService: _sessionService(
+            onSave: (_) async {
+              sessionSaved = true;
+            },
+          ),
+        );
+
+        final usuario = await service.autenticarUsuario(
+          email: 'local@example.com',
+          senha: 'errada',
+        );
+
+        expect(usuario, isNull);
+        expect(sessionSaved, isFalse);
+      },
+    );
 
     test('cadastrarUsuario delega para localRegister', () async {
       final chamadas = <Map<String, String>>[];
@@ -138,6 +185,29 @@ void main() {
       );
     });
   });
+}
+
+AuthSessionService _sessionService({
+  required Future<void> Function(Usuario usuario) onSave,
+}) {
+  return _FakeAuthSessionService(onSave);
+}
+
+class _FakeAuthSessionService extends AuthSessionService {
+  _FakeAuthSessionService(this._onSave)
+    : super(
+        googleSignOut: () async {},
+        stopActiveVoiceSession: () async {},
+        clearActiveVoiceContext: () {},
+        clearRuntimeVoiceSession: () {},
+      );
+
+  final Future<void> Function(Usuario usuario) _onSave;
+
+  @override
+  Future<void> saveAuthenticatedUser(Usuario usuario) {
+    return _onSave(usuario);
+  }
 }
 
 Usuario _usuario({String email = 'alex@example.com'}) {

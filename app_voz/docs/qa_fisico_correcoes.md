@@ -2044,3 +2044,107 @@ Testes criados ou alterados:
 12. Falar novamente e confirmar que não executa.
 13. Confirmar que comandos locais como `voltar` e `tela inicial` continuam
     funcionando.
+
+## H.4 - Persistencia de sessao local
+
+### Bug corrigido
+
+* A sessao autenticada nao era restaurada ao reiniciar o app. Mesmo com usuario
+  local valido no SQLite, a inicializacao abria diretamente o Login.
+
+### Diagnostico tecnico
+
+* O app iniciava em `LoginPage` a cada execucao, sem uma etapa de bootstrap de
+  autenticacao.
+* O login local e o login Google retornavam um `Usuario`, mas nao havia um
+  marcador persistido da sessao atual.
+* O logout ja centralizava limpeza de voz, runtime e Google Sign-In em
+  `AuthSessionService`, mas nao limpava nenhuma sessao local persistida.
+* Persistir o objeto `Usuario` inteiro seria incorreto, porque poderia gravar
+  `senha_hash`, salt, metadados de credencial ou dados externos desnecessarios.
+
+### Correcao realizada
+
+* Criado `AuthGate` para decidir a tela inicial entre Login e Home.
+* Criado `AuthStartupService` para restaurar a sessao persistida antes de abrir
+  a interface autenticada.
+* `main.dart` passou a iniciar em `AuthGate`.
+* `AuthSessionService` passou a persistir somente o `usuario_id` local em
+  `auth_session_user_id.txt`, no diretorio de suporte da aplicacao.
+* `AuthSessionService.restoreAuthenticatedUser()` valida o id persistido usando
+  `UsuarioRepository.buscarPorId`.
+* Sessao ausente, id invalido, id menor ou igual a zero e usuario inexistente
+  sao tratados como nao autenticados; quando ha arquivo invalido, ele e limpo.
+* `AuthService.autenticarUsuario()` salva a sessao local apos login local valido.
+* `AuthService.entrarComGoogle()` tambem salva a sessao local apos resolver o
+  usuario local.
+* `AuthSessionService.logout()` passou a limpar a sessao persistida antes de
+  sair do Google.
+
+### Dados persistidos
+
+* Somente o `usuario_id` local, em texto simples, no arquivo
+  `auth_session_user_id.txt`.
+
+### Dados nao persistidos na sessao
+
+* Senha em texto claro.
+* `senha_hash`.
+* `senha_salt`.
+* Token Google.
+* API key do Gemini.
+* Dados completos do usuario.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/services/auth_session_service_test.dart`
+  * salva sessao com `usuario_id`;
+  * restaura usuario valido;
+  * remove sessao invalida;
+  * nao cria sessao para usuario sem id;
+  * logout limpa sessao persistida;
+  * logout continua tentando Google Sign-Out mesmo se a limpeza local falhar.
+* `test/features/voices/services/auth_startup_service_test.dart`
+  * sem sessao abre fluxo nao autenticado;
+  * sessao valida abre fluxo autenticado;
+  * sessao para usuario inexistente e limpa e volta ao Login.
+* `test/features/voices/services/auth_service_test.dart`
+  * login local valido salva sessao;
+  * credencial local invalida nao salva sessao;
+  * login Google valido salva sessao.
+* `test/features/voices/pages/login_page_test.dart`
+  * login local e Google continuam navegando para Home e salvando sessao.
+* `test/features/home/pages/home_page_test.dart`
+  * logout confirmado limpa sessao e remove Home da pilha.
+* `test/repositories/usuario_repository_test.dart`
+  * busca por id restaura usuario local valido e retorna null para inexistente.
+
+### Validacoes executadas
+
+```text
+dart analyze
+No issues found!
+
+flutter test --reporter compact
+00:25 +521: All tests passed!
+
+flutter build apk --debug
+Built build\app\outputs\flutter-apk\app-debug.apk
+
+git diff --check
+Sem erros; apenas avisos esperados de LF/CRLF no Windows.
+```
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Fazer login local.
+3. Fechar totalmente o app.
+4. Abrir novamente.
+5. Confirmar que a Home abre sem pedir novo login.
+6. Fazer logout.
+7. Fechar e abrir novamente.
+8. Confirmar que o Login abre.
+9. Repetir com Google Login, se configurado.

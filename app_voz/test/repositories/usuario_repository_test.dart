@@ -77,6 +77,22 @@ void main() {
       expect(duplicado, isFalse);
     });
 
+    test('busca usuario por id para restaurar sessao', () async {
+      await repository.cadastrarUsuario(
+        nome: 'Alex',
+        email: 'alex@example.com',
+        senha: 'abc12345',
+      );
+      final porEmail = await repository.buscarPorEmail('alex@example.com');
+
+      final porId = await repository.buscarPorId(porEmail!.id!);
+      final inexistente = await repository.buscarPorId(9999);
+
+      expect(porId, isNotNull);
+      expect(porId!.email, 'alex@example.com');
+      expect(inexistente, isNull);
+    });
+
     test('cria usuario local a partir de conta Google verificada', () async {
       final usuario = await repository.autenticarComGoogle(
         nome: 'Alex Google',

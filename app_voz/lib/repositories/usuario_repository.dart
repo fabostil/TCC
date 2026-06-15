@@ -123,6 +123,22 @@ class UsuarioRepository {
     return Usuario.fromMap(resultado.first);
   }
 
+  Future<Usuario?> buscarPorId(int id) async {
+    final db = await _database;
+    final resultado = await db.query(
+      'usuario',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+
+    if (resultado.isEmpty) {
+      return null;
+    }
+
+    return Usuario.fromMap(resultado.first);
+  }
+
   Future<Usuario?> buscarPorGoogleId(String googleId) async {
     final db = await _database;
     final resultado = await db.query(

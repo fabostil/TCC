@@ -1,10 +1,14 @@
+import 'dart:io';
+
 import 'package:app_voz/features/voices/services/auth_session_service.dart';
+import 'package:app_voz/models/usuario.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const stopStep = 'stopActiveVoiceSession';
   const clearContextStep = 'clearActiveVoiceContext';
   const clearRuntimeStep = 'clearRuntimeVoiceSession';
+  const clearPersistedStep = 'clearPersistedSession';
   const googleStep = 'googleSignOut';
 
   AuthSessionService serviceWithOrder(
@@ -26,10 +30,21 @@ void main() {
       }
     }
 
+    Future<String> sessionDirectoryPathProvider() async {
+      calls.add(clearPersistedStep);
+      if (failingStep == clearPersistedStep) {
+        throw failingStepError ?? StateError('$clearPersistedStep failed');
+      }
+      return Directory.systemTemp
+          .createTempSync('auth_session_logout_test')
+          .path;
+    }
+
     return AuthSessionService(
       stopActiveVoiceSession: () => runAsyncStep(stopStep),
       clearActiveVoiceContext: () => runSyncStep(clearContextStep),
       clearRuntimeVoiceSession: () => runSyncStep(clearRuntimeStep),
+      sessionDirectoryPathProvider: sessionDirectoryPathProvider,
       googleSignOut: () => runAsyncStep(googleStep),
     );
   }
@@ -40,7 +55,13 @@ void main() {
 
       await serviceWithOrder(calls).logout();
 
-      expect(calls, [stopStep, clearContextStep, clearRuntimeStep, googleStep]);
+      expect(calls, [
+        stopStep,
+        clearContextStep,
+        clearRuntimeStep,
+        clearPersistedStep,
+        googleStep,
+      ]);
     });
 
     test('logout sem falhas completa sem lancar excecao', () async {
@@ -63,6 +84,7 @@ void main() {
           stopStep,
           clearContextStep,
           clearRuntimeStep,
+          clearPersistedStep,
           googleStep,
         ]);
       },
@@ -82,6 +104,7 @@ void main() {
           stopStep,
           clearContextStep,
           clearRuntimeStep,
+          clearPersistedStep,
           googleStep,
         ]);
       },
@@ -101,6 +124,7 @@ void main() {
           stopStep,
           clearContextStep,
           clearRuntimeStep,
+          clearPersistedStep,
           googleStep,
         ]);
       },
@@ -120,6 +144,27 @@ void main() {
           stopStep,
           clearContextStep,
           clearRuntimeStep,
+          clearPersistedStep,
+          googleStep,
+        ]);
+      },
+    );
+
+    test(
+      'logout continua executando googleSignOut quando limpar sessao falha',
+      () async {
+        final calls = <String>[];
+
+        await expectLater(
+          serviceWithOrder(calls, failingStep: clearPersistedStep).logout(),
+          throwsA(isA<AuthSessionLogoutException>()),
+        );
+
+        expect(calls, [
+          stopStep,
+          clearContextStep,
+          clearRuntimeStep,
+          clearPersistedStep,
           googleStep,
         ]);
       },
@@ -159,6 +204,9 @@ void main() {
           calls.add(clearRuntimeStep);
           throw secondError;
         },
+        sessionDirectoryPathProvider: () async => Directory.systemTemp
+            .createTempSync('auth_session_failure_test')
+            .path,
         googleSignOut: () async {
           calls.add(googleStep);
         },
@@ -175,6 +223,92 @@ void main() {
       expect(calls, [stopStep, clearContextStep, clearRuntimeStep, googleStep]);
     });
 
+    test('salva sessao com usuario_id e restaura usuario valido', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'auth_session_restore_valid',
+      );
+      final usuario = _usuario(id: 7);
+      final service = AuthSessionService(
+        sessionDirectoryPathProvider: () async => directory.path,
+        userById: (id) async => id == 7 ? usuario : null,
+      );
+
+      await service.saveAuthenticatedUser(usuario);
+      final restored = await service.restoreAuthenticatedUser();
+
+      expect(restored, same(usuario));
+      final files = directory.listSync().whereType<File>().toList();
+      expect(files, hasLength(1));
+      final persisted = await files.single.readAsString();
+      expect(persisted, '7');
+      expect(persisted, isNot(contains('senha')));
+      expect(persisted, isNot(contains('token')));
+      expect(persisted, isNot(contains('hash')));
+    });
+
+    test('limpa sessao persistida', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'auth_session_clear',
+      );
+      final service = AuthSessionService(
+        sessionDirectoryPathProvider: () async => directory.path,
+      );
+
+      await service.saveAuthenticatedUser(_usuario(id: 3));
+      await service.clearPersistedSession();
+
+      expect(await service.restoreAuthenticatedUser(), isNull);
+      expect(directory.listSync().whereType<File>(), isEmpty);
+    });
+
+    test('logout limpa sessao persistida', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'auth_session_logout_clear',
+      );
+      final service = AuthSessionService(
+        stopActiveVoiceSession: () async {},
+        clearActiveVoiceContext: () {},
+        clearRuntimeVoiceSession: () {},
+        googleSignOut: () async {},
+        sessionDirectoryPathProvider: () async => directory.path,
+      );
+
+      await service.saveAuthenticatedUser(_usuario(id: 3));
+      await service.logout();
+
+      expect(await service.restoreAuthenticatedUser(), isNull);
+      expect(directory.listSync().whereType<File>(), isEmpty);
+    });
+
+    test('sessao invalida e tratada como ausente e removida', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'auth_session_invalid',
+      );
+      final service = AuthSessionService(
+        sessionDirectoryPathProvider: () async => directory.path,
+        userById: (_) async => null,
+      );
+
+      await service.saveAuthenticatedUser(_usuario(id: 99));
+      final restored = await service.restoreAuthenticatedUser();
+
+      expect(restored, isNull);
+      expect(directory.listSync().whereType<File>(), isEmpty);
+    });
+
+    test('usuario sem id nao cria sessao persistida', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'auth_session_no_id',
+      );
+      final service = AuthSessionService(
+        sessionDirectoryPathProvider: () async => directory.path,
+      );
+
+      await service.saveAuthenticatedUser(_usuario(id: null));
+
+      expect(directory.listSync().whereType<File>(), isEmpty);
+    });
+
     test('AuthSessionLogoutException possui toString tecnico em ingles', () {
       final originalError = StateError('google failed');
       final exception = AuthSessionLogoutException(
@@ -189,4 +323,13 @@ void main() {
       );
     });
   });
+}
+
+Usuario _usuario({required int? id}) {
+  return Usuario(
+    id: id,
+    nome: 'Ana',
+    email: 'ana@example.com',
+    senhaHash: 'hash-nao-persistido',
+  );
 }

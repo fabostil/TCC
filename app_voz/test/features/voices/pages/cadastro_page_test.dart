@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_voz/features/voices/pages/cadastro_page.dart';
 import 'package:app_voz/features/voices/services/auth_service.dart';
+import 'package:app_voz/features/voices/services/auth_session_service.dart';
 import 'package:app_voz/features/voices/services/google_auth_service.dart';
 import 'package:app_voz/models/google_identity.dart';
 import 'package:app_voz/models/usuario.dart';
@@ -379,6 +380,7 @@ class _CadastroAuthFake {
 
   int registerCalls = 0;
   int googleCalls = 0;
+  final savedSessions = <Usuario>[];
 
   late final AuthService service = AuthService(
     localRegister: ({required nome, required email, required senha}) {
@@ -408,7 +410,25 @@ class _CadastroAuthFake {
         ({required nome, required email, required googleId, fotoUrl}) async {
           return googleResult ?? _usuario;
         },
+    sessionService: _FakeAuthSessionService(savedSessions.add),
   );
+}
+
+class _FakeAuthSessionService extends AuthSessionService {
+  _FakeAuthSessionService(this._onSave)
+    : super(
+        googleSignOut: () async {},
+        stopActiveVoiceSession: () async {},
+        clearActiveVoiceContext: () {},
+        clearRuntimeVoiceSession: () {},
+      );
+
+  final void Function(Usuario usuario) _onSave;
+
+  @override
+  Future<void> saveAuthenticatedUser(Usuario usuario) async {
+    _onSave(usuario);
+  }
 }
 
 class _DestinationPage extends StatelessWidget {

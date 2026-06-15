@@ -1,6 +1,7 @@
 import '../../../models/google_identity.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/usuario_repository.dart';
+import 'auth_session_service.dart';
 import 'google_auth_service.dart';
 
 class AuthGoogleLoginException implements Exception {
@@ -37,10 +38,12 @@ class AuthService {
       required String senha,
     })?
     localRegister,
+    AuthSessionService? sessionService,
   }) : _googleIdentityProvider = googleIdentityProvider,
        _googleUserResolver = googleUserResolver,
        _localAuthenticator = localAuthenticator,
-       _localRegister = localRegister;
+       _localRegister = localRegister,
+       _sessionService = sessionService;
 
   static final AuthService instance = AuthService();
 
@@ -63,6 +66,7 @@ class AuthService {
     required String senha,
   })?
   _localRegister;
+  final AuthSessionService? _sessionService;
 
   /// Entra com Google e resolve a identidade externa para um usuario local.
   ///
@@ -80,12 +84,14 @@ class AuthService {
     final resolver =
         _googleUserResolver ?? UsuarioRepository.instance.autenticarComGoogle;
     try {
-      return await resolver(
+      final usuario = await resolver(
         nome: identity.nome,
         email: identity.email,
         googleId: identity.googleId,
         fotoUrl: identity.fotoUrl,
       );
+      await _saveSession(usuario);
+      return usuario;
     } on GoogleAuthException {
       rethrow;
     } catch (_) {
@@ -96,10 +102,14 @@ class AuthService {
   Future<Usuario?> autenticarUsuario({
     required String email,
     required String senha,
-  }) {
+  }) async {
     final authenticator =
         _localAuthenticator ?? UsuarioRepository.instance.autenticarUsuario;
-    return authenticator(email: email, senha: senha);
+    final usuario = await authenticator(email: email, senha: senha);
+    if (usuario != null) {
+      await _saveSession(usuario);
+    }
+    return usuario;
   }
 
   Future<bool> cadastrarUsuario({
@@ -110,5 +120,10 @@ class AuthService {
     final register =
         _localRegister ?? UsuarioRepository.instance.cadastrarUsuario;
     return register(nome: nome, email: email, senha: senha);
+  }
+
+  Future<void> _saveSession(Usuario usuario) {
+    final sessionService = _sessionService ?? AuthSessionService.instance;
+    return sessionService.saveAuthenticatedUser(usuario);
   }
 }

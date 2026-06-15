@@ -23,6 +23,7 @@ import '../../voices/services/voice_permission_service.dart';
 import '../../voices/widgets/voice_command_help_dialog.dart';
 
 typedef HomeLoginBuilder = Widget Function();
+typedef HomeLogoutConfirmation = Future<bool> Function();
 
 class HomePage extends StatefulWidget {
   final Usuario usuario;
@@ -35,6 +36,7 @@ class HomePage extends StatefulWidget {
     this.buscarConfiguracao,
     this.concluirPrimeiraExecucao,
     this.loginBuilder,
+    this.confirmarLogout,
   });
 
   final AuthSessionService? authSessionService;
@@ -43,6 +45,7 @@ class HomePage extends StatefulWidget {
   final Future<void> Function({required bool comandosVozAtivos})?
   concluirPrimeiraExecucao;
   final HomeLoginBuilder? loginBuilder;
+  final HomeLogoutConfirmation? confirmarLogout;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -249,12 +252,14 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _sairDaConta() async {
-    final confirmar = await showVoiceConfirmationDialog(
-      id: 'logout',
-      title: 'Sair do app?',
-      message: 'Deseja encerrar a sessao e voltar para o login?',
-      confirmLabel: 'Sair',
-    );
+    final confirmar =
+        await widget.confirmarLogout?.call() ??
+        await showVoiceConfirmationDialog(
+          id: 'logout',
+          title: 'Sair do app?',
+          message: 'Deseja encerrar a sessao e voltar para o login?',
+          confirmLabel: 'Sair',
+        );
 
     if (confirmar != true || !mounted) {
       return;

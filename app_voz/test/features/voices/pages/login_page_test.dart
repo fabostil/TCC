@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_voz/features/voices/pages/cadastro_page.dart';
 import 'package:app_voz/features/voices/pages/login_page.dart';
 import 'package:app_voz/features/voices/services/auth_service.dart';
+import 'package:app_voz/features/voices/services/auth_session_service.dart';
 import 'package:app_voz/features/voices/services/google_auth_service.dart';
 import 'package:app_voz/models/google_identity.dart';
 import 'package:app_voz/models/usuario.dart';
@@ -132,6 +133,18 @@ void main() {
       expect(find.text('Home destino'), findsOneWidget);
       expect(auth.localCalls, 1);
       expect(auth.googleCalls, 0);
+      expect(auth.savedSessions, [_usuario]);
+    });
+
+    testWidgets('login local com erro nao persiste sessao', (tester) async {
+      final auth = _LoginAuthFake(localResult: null);
+
+      await _pumpLogin(tester, auth: auth.service);
+      await _preencherLogin(tester);
+      await tester.tap(find.byKey(const Key('login_submit_button')));
+      await tester.pump();
+
+      expect(auth.savedSessions, isEmpty);
     });
 
     testWidgets('login local com sucesso remove rotas anteriores da pilha', (
@@ -185,6 +198,7 @@ void main() {
       expect(find.text('Home destino'), findsOneWidget);
       expect(auth.localCalls, 0);
       expect(auth.googleCalls, 1);
+      expect(auth.savedSessions, [_usuario]);
     });
 
     testWidgets('Google Login com sucesso remove Login da pilha', (
@@ -428,6 +442,7 @@ class _LoginAuthFake {
 
   int localCalls = 0;
   int googleCalls = 0;
+  final savedSessions = <Usuario>[];
 
   late final AuthService service = AuthService(
     localAuthenticator: ({required email, required senha}) {
@@ -457,7 +472,25 @@ class _LoginAuthFake {
         ({required nome, required email, required googleId, fotoUrl}) async {
           return googleResult ?? _usuario;
         },
+    sessionService: _FakeAuthSessionService(savedSessions.add),
   );
+}
+
+class _FakeAuthSessionService extends AuthSessionService {
+  _FakeAuthSessionService(this._onSave)
+    : super(
+        googleSignOut: () async {},
+        stopActiveVoiceSession: () async {},
+        clearActiveVoiceContext: () {},
+        clearRuntimeVoiceSession: () {},
+      );
+
+  final void Function(Usuario usuario) _onSave;
+
+  @override
+  Future<void> saveAuthenticatedUser(Usuario usuario) async {
+    _onSave(usuario);
+  }
 }
 
 class _DestinationPage extends StatelessWidget {
