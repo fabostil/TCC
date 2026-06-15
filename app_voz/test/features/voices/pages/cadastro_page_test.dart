@@ -150,9 +150,11 @@ void main() {
       await tester.pump();
 
       expect(find.byType(CadastroPage), findsOneWidget);
+      expect(find.text(googleLoginCanceledMessage), findsOneWidget);
       expect(find.text('Home destino'), findsNothing);
       expect(auth.registerCalls, 0);
       expect(auth.googleCalls, 1);
+      expect(auth.savedSessions, isEmpty);
     });
 
     testWidgets('navega para home quando Google retorna usuario', (
@@ -202,8 +204,10 @@ void main() {
       await tester.pump();
 
       expect(find.text(googleLoginConfigurationMessage), findsOneWidget);
+      expect(_visibleTexts(tester), _hasNoTechnicalGoogleTerms);
       expect(find.text('Home destino'), findsNothing);
       expect(auth.googleCalls, 1);
+      expect(auth.savedSessions, isEmpty);
     });
 
     testWidgets('exibe mensagem amigavel quando conta local falha', (
@@ -219,9 +223,11 @@ void main() {
       await tester.tap(find.byKey(const Key('cadastro_google_button')));
       await tester.pump();
 
-      expect(find.text(authGoogleAccountPreparationMessage), findsOneWidget);
+      expect(find.text(authGoogleSignupPreparationMessage), findsOneWidget);
+      expect(_visibleTexts(tester), _hasNoTechnicalGoogleTerms);
       expect(find.text('Home destino'), findsNothing);
       expect(auth.googleCalls, 1);
+      expect(auth.savedSessions, isEmpty);
     });
 
     testWidgets('desabilita botao local e mostra loading durante cadastro', (
@@ -473,6 +479,31 @@ final _usuario = Usuario(
   email: 'ana@example.com',
   senhaHash: 'hash',
 );
+
+Matcher get _hasNoTechnicalGoogleTerms => predicate<Iterable<String>>((texts) {
+  final joined = texts.join(' ').toLowerCase();
+  const blockedTerms = [
+    'sha-1',
+    'sha-256',
+    'api key',
+    'firebase',
+    'platformexception',
+    'stacktrace',
+    'token',
+    'client_id',
+  ];
+  return blockedTerms.every((term) => !joined.contains(term));
+});
+
+Iterable<String> _visibleTexts(WidgetTester tester) {
+  return tester.widgetList<Text>(find.byType(Text)).map((text) {
+    final data = text.data;
+    if (data != null) {
+      return data;
+    }
+    return text.textSpan?.toPlainText() ?? '';
+  });
+}
 
 const _googleIdentity = GoogleIdentity(
   googleId: 'google-1',

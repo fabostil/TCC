@@ -14,11 +14,13 @@ class GoogleAuthException implements Exception {
 }
 
 const String googleLoginGenericMessage =
-    'Não foi possível concluir o login com Google neste dispositivo.';
+    'Nao foi possivel entrar com Google agora. Verifique a conexao e tente novamente.';
 
 const String googleLoginConfigurationMessage =
-    'Não foi possível concluir o login com Google neste dispositivo. '
-    'Verifique a configuração do app.';
+    'Nao foi possivel entrar com Google neste dispositivo. '
+    'A configuracao do app pode precisar ser revisada.';
+
+const String googleLoginCanceledMessage = 'Entrada com Google cancelada.';
 
 abstract class GoogleSignInClient {
   Future<void> initialize({String? serverClientId});
@@ -132,7 +134,8 @@ class GoogleAuthService {
 
       if (!_client.supportsAuthenticate()) {
         throw const GoogleAuthException(
-          'Login Google interativo nao esta disponivel nesta plataforma.',
+          googleLoginConfigurationMessage,
+          isConfigurationError: true,
         );
       }
 

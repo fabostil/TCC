@@ -170,6 +170,14 @@ void main() {
         ),
         UserFacingMessages.genericActionError,
       );
+      expect(
+        UserFacingMessages.error(Exception('GoogleSignInException SHA-1')),
+        UserFacingMessages.genericActionError,
+      );
+      expect(
+        UserFacingMessages.error(Exception('Firebase client_id token')),
+        UserFacingMessages.genericActionError,
+      );
     });
 
     test('preserva mensagem amigavel de validacao', () {

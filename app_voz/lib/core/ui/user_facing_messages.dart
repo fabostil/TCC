@@ -96,9 +96,15 @@ class UserFacingMessages {
     final lower = text.toLowerCase();
     return lower.contains('gemini_api_key') ||
         lower.contains('platformexception') ||
+        lower.contains('googlesigninexception') ||
         lower.contains('exception:') ||
         lower.contains('stacktrace') ||
         lower.contains('stack trace') ||
+        lower.contains('sha-1') ||
+        lower.contains('sha-256') ||
+        lower.contains('firebase') ||
+        lower.contains('client_id') ||
+        lower.contains('package name') ||
         lower.contains('sqflite') ||
         lower.contains('sqlite') ||
         lower.contains('database') ||

@@ -199,13 +199,38 @@ void main() {
             isA<GoogleAuthException>().having(
               (error) => error.message,
               'message',
-              'Login Google interativo nao esta disponivel nesta plataforma.',
+              googleLoginConfigurationMessage,
             ),
           ),
         );
         expect(client.authenticateCalls, 0);
       },
     );
+
+    test('mensagens publicas de erro nao vazam termos tecnicos', () {
+      const messages = [
+        googleLoginGenericMessage,
+        googleLoginConfigurationMessage,
+        googleLoginCanceledMessage,
+      ];
+      const blockedTerms = [
+        'SHA-1',
+        'SHA-256',
+        'API key',
+        'Firebase',
+        'PlatformException',
+        'stacktrace',
+        'token',
+        'client_id',
+      ];
+
+      for (final message in messages) {
+        final lower = message.toLowerCase();
+        for (final term in blockedTerms) {
+          expect(lower, isNot(contains(term.toLowerCase())));
+        }
+      }
+    });
 
     test('sair inicializa cliente e chama signOut', () async {
       final client = _FakeGoogleSignInClient();

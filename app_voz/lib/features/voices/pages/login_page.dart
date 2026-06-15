@@ -129,6 +129,7 @@ class _LoginPageState extends State<LoginPage> {
       });
 
       if (usuario == null) {
+        _mostrarMensagem(googleLoginCanceledMessage);
         return;
       }
 
@@ -142,9 +143,7 @@ class _LoginPageState extends State<LoginPage> {
         _carregandoGoogle = false;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      _mostrarMensagem(e.message);
     } on AuthGoogleLoginException catch (e) {
       if (!mounted) {
         return;
@@ -154,9 +153,7 @@ class _LoginPageState extends State<LoginPage> {
         _carregandoGoogle = false;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      _mostrarMensagem(e.message);
     } catch (e) {
       if (!mounted) {
         return;
@@ -166,12 +163,14 @@ class _LoginPageState extends State<LoginPage> {
         _carregandoGoogle = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Não consegui preparar sua conta. Tente novamente.'),
-        ),
-      );
+      _mostrarMensagem(googleLoginGenericMessage);
     }
+  }
+
+  void _mostrarMensagem(String mensagem) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(mensagem)));
   }
 
   @override

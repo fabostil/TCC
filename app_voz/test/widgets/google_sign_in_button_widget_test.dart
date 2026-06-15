@@ -41,6 +41,8 @@ void main() {
     );
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('Entrando com Google...'), findsOneWidget);
+    expect(find.text('Entrar com Google'), findsNothing);
     expect(find.byIcon(Icons.verified_user_outlined), findsNothing);
 
     await tester.tap(find.byType(OutlinedButton));

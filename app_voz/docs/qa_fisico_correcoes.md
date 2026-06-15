@@ -2148,3 +2148,90 @@ Sem erros; apenas avisos esperados de LF/CRLF no Windows.
 7. Fechar e abrir novamente.
 8. Confirmar que o Login abre.
 9. Repetir com Google Login, se configurado.
+
+## H.5 - Feedback e seguranca no Google Login
+
+### Bug corrigido
+
+* No teste fisico, ao tentar entrar ou cadastrar com Google, o app podia voltar
+  para a tela sem feedback claro. O usuario nao sabia se cancelou, se houve
+  falha de conexao, problema de configuracao do app ou erro interno ao preparar
+  a conta local.
+
+### Diagnostico tecnico
+
+* `LoginPage` e `CadastroPage` ja bloqueavam clique duplicado e exibiam loading
+  durante a tentativa com Google.
+* `GoogleAuthService` ja convertia erros do plugin em `GoogleAuthException` e
+  `AuthService` ja salvava sessao local no sucesso.
+* A lacuna confirmada era o cancelamento silencioso: quando o provedor retornava
+  `null`, as telas apenas paravam o loading e nao mostravam nenhum feedback.
+* As mensagens de falha tambem nao estavam padronizadas para o roteiro do teste
+  fisico 2, e o Cadastro nao diferenciava falha ao preparar conta Google.
+* A persistencia da H.4 permanecia correta: somente o `usuario_id` local deve
+  ser salvo apos sucesso; falha ou cancelamento nao devem criar sessao.
+
+### Correcao realizada
+
+* Cancelamento do Google Login agora mostra `Entrada com Google cancelada.`
+  sem erro assustador e sem navegar.
+* Falha geral mostra mensagem amigavel orientando verificar conexao e tentar
+  novamente.
+* Falha provavel de configuracao mostra mensagem segura informando que a
+  configuracao do app pode precisar ser revisada, sem expor SHA, chaves,
+  stacktrace ou detalhes do plugin.
+* Cadastro usa mensagem especifica quando nao consegue criar/preparar a conta
+  com Google.
+* O botao `GoogleSignInButton` continua desabilitado durante loading e agora
+  exibe `Entrando com Google...`.
+* Sucesso continua passando por `AuthService`, criando/recuperando o usuario
+  local e salvando a sessao local via `AuthSessionService`.
+* Falha e cancelamento nao salvam sessao e nao navegam para Home.
+* O token Google continua restrito a `GoogleIdentity` em memoria e nao e
+  persistido como sessao.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/services/google_auth_service_test.dart`
+  * mensagem para plataforma sem suporte agora e segura/configuracao;
+  * mensagens publicas nao vazam termos tecnicos.
+* `test/features/voices/services/auth_service_test.dart`
+  * falha ao resolver usuario local nao salva sessao;
+  * sucesso com Google persiste somente `usuario_id` e startup restaura a
+    sessao;
+  * token Google nao e persistido.
+* `test/features/voices/pages/login_page_test.dart`
+  * cancelamento mostra feedback;
+  * falhas mostram mensagens amigaveis;
+  * falhas nao salvam sessao;
+  * mensagens visiveis nao contem termos tecnicos.
+* `test/features/voices/pages/cadastro_page_test.dart`
+  * cancelamento mostra feedback;
+  * falha de preparacao da conta Google mostra mensagem especifica de cadastro;
+  * falhas nao salvam sessao;
+  * mensagens visiveis nao contem termos tecnicos.
+* `test/widgets/google_sign_in_button_widget_test.dart`
+  * loading exibe `Entrando com Google...` e desabilita o botao.
+* `test/widgets/core_ui_widget_test.dart`
+  * filtros publicos removem termos como `GoogleSignInException`, SHA,
+    Firebase, `client_id` e token.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Abrir Login.
+3. Tocar em `Entrar com Google`.
+4. Confirmar que aparece estado de carregamento.
+5. Cancelar selecao de conta, se possivel.
+6. Confirmar que o app nao trava e mostra feedback adequado.
+7. Tentar novamente.
+8. Se Google Login funcionar, confirmar que entra na Home.
+9. Fechar e abrir o app.
+10. Confirmar que a sessao foi restaurada.
+11. Fazer logout.
+12. Tentar Google Login sem internet.
+13. Confirmar mensagem amigavel.
+14. Confirmar que nao aparecem termos tecnicos como SHA, Firebase,
+    PlatformException, stacktrace, token ou API key.

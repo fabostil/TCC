@@ -21,7 +21,7 @@ class GoogleSignInButton extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : const Icon(Icons.verified_user_outlined),
-      label: const Text('Entrar com Google'),
+      label: Text(loading ? 'Entrando com Google...' : 'Entrar com Google'),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(double.infinity, 52),
       ),

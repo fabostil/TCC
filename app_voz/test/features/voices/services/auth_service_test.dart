@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:app_voz/features/voices/services/auth_service.dart';
 import 'package:app_voz/features/voices/services/auth_session_service.dart';
+import 'package:app_voz/features/voices/services/auth_startup_service.dart';
 import 'package:app_voz/features/voices/services/google_auth_service.dart';
 import 'package:app_voz/models/google_identity.dart';
 import 'package:app_voz/models/usuario.dart';
@@ -71,6 +74,54 @@ void main() {
       ]);
       expect(savedSessions, [esperado]);
     });
+
+    test(
+      'entrarComGoogle persiste usuario_id e startup restaura sessao sem token',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'auth_google_session_restore',
+        );
+        final esperado = _usuario();
+        final sessionService = AuthSessionService(
+          sessionDirectoryPathProvider: () async => directory.path,
+          userById: (id) async => id == esperado.id ? esperado : null,
+        );
+        final service = AuthService(
+          googleIdentityProvider: () async => const GoogleIdentity(
+            nome: 'Alex Google',
+            email: 'alex@example.com',
+            googleId: 'google-123',
+            idToken: 'id-token-nao-persistido',
+          ),
+          googleUserResolver:
+              ({
+                required nome,
+                required email,
+                required googleId,
+                fotoUrl,
+              }) async {
+                return esperado;
+              },
+          sessionService: sessionService,
+        );
+
+        final usuario = await service.entrarComGoogle();
+        final startup = await AuthStartupService(
+          sessionService: sessionService,
+        ).resolve();
+
+        expect(usuario, same(esperado));
+        expect(startup.authenticated, isTrue);
+        expect(startup.usuario, same(esperado));
+
+        final files = directory.listSync().whereType<File>().toList();
+        expect(files, hasLength(1));
+        final persisted = await files.single.readAsString();
+        expect(persisted, '${esperado.id}');
+        expect(persisted.toLowerCase(), isNot(contains('token')));
+        expect(persisted, isNot(contains('id-token-nao-persistido')));
+      },
+    );
 
     test('autenticarUsuario delega para localAuthenticator', () async {
       final esperado = _usuario(email: 'local@example.com');
@@ -155,6 +206,7 @@ void main() {
 
     test('erro do googleUserResolver vira falha controlada de conta', () async {
       final erro = StateError('resolver failed');
+      var sessionSaved = false;
       final service = AuthService(
         googleIdentityProvider: () async => const GoogleIdentity(
           nome: 'Alex',
@@ -171,6 +223,11 @@ void main() {
             }) async {
               throw erro;
             },
+        sessionService: _sessionService(
+          onSave: (_) async {
+            sessionSaved = true;
+          },
+        ),
       );
 
       expect(
@@ -183,6 +240,31 @@ void main() {
           ),
         ),
       );
+      expect(sessionSaved, isFalse);
+    });
+
+    test('mensagens publicas de Google nao vazam termos tecnicos', () {
+      const messages = [
+        authGoogleAccountPreparationMessage,
+        authGoogleSignupPreparationMessage,
+      ];
+      const blockedTerms = [
+        'SHA-1',
+        'SHA-256',
+        'API key',
+        'Firebase',
+        'PlatformException',
+        'stacktrace',
+        'token',
+        'client_id',
+      ];
+
+      for (final message in messages) {
+        final lower = message.toLowerCase();
+        for (final term in blockedTerms) {
+          expect(lower, isNot(contains(term.toLowerCase())));
+        }
+      }
     });
   });
 }
