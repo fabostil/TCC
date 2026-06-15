@@ -10,6 +10,7 @@ import '../../../repositories/configuracao_app_repository.dart';
 import '../controllers/voice_command_controller.dart';
 import '../services/command_service.dart';
 import '../services/voice_global_command_service.dart';
+import '../services/voice_recognition_error_guard.dart';
 import 'voice_command_dispatcher.dart';
 import 'voice_confirmation_controller.dart';
 import 'voice_listening_coordinator.dart';
@@ -31,6 +32,8 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   final VoiceConfirmationController voiceConfirmationController =
       VoiceConfirmationController();
   final VoiceSessionManager voiceSessionManager = VoiceSessionManager.instance;
+  final VoiceRecognitionErrorGuard voiceRecognitionErrorGuard =
+      VoiceRecognitionErrorGuard();
 
   bool voiceOuvindo = false;
   bool voiceEscutaContinuaAtiva = false;
@@ -40,6 +43,8 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   bool _voiceLifecycleObserverRegistered = false;
   bool _voiceRouteObserverRegistered = false;
   bool _voiceRouteActive = true;
+  bool _voiceStartInProgress = false;
+  Future<void> _voiceRoutePausePending = Future<void>.value();
   AppLifecycleListener? _voiceLifecycleListener;
   PageRoute<dynamic>? _voiceRoute;
   String? voiceStatusMessage;
@@ -93,13 +98,13 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   @override
   void didPushNext() {
     _voiceRouteActive = false;
-    unawaited(_pauseContextualVoiceForCoveredRoute());
+    _voiceRoutePausePending = pauseContextualVoiceForCoveredRoute();
   }
 
   @override
   void didPopNext() {
     _voiceRouteActive = true;
-    unawaited(startContinuousVoiceListeningIfActive());
+    unawaited(_resumeContextualVoiceAfterRouteReturn());
   }
 
   @override
@@ -194,7 +199,8 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
     _voiceRouteActive = route.isCurrent;
   }
 
-  Future<void> _pauseContextualVoiceForCoveredRoute() async {
+  @visibleForTesting
+  Future<void> pauseContextualVoiceForCoveredRoute() async {
     if (voiceSessionManager.activeOwnerId == voiceOwnerId ||
         voiceSessionManager.isSpeechListening) {
       await voiceSessionManager.cancelListening(
@@ -216,6 +222,14 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         thinking: false,
       );
     });
+  }
+
+  Future<void> _resumeContextualVoiceAfterRouteReturn() async {
+    await _voiceRoutePausePending;
+    if (!mounted || !_voiceRouteActive) {
+      return;
+    }
+    await startContinuousVoiceListeningIfActive();
   }
 
   Future<void> toggleContextualVoiceListening() async {
@@ -242,21 +256,26 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
 
   Future<void> startContinuousVoiceListeningIfActive() async {
     _ensureVoiceLifecycleObserver();
-    if (!_voiceRouteActive) {
+    if (!_voiceRouteActive || _voiceStartInProgress) {
       return;
     }
 
-    final configuracao = await ConfiguracaoAppRepository.instance
-        .buscarConfiguracao();
+    _voiceStartInProgress = true;
+    try {
+      final configuracao = await ConfiguracaoAppRepository.instance
+          .buscarConfiguracao();
 
-    if (!mounted || !_voiceRouteActive) {
-      return;
-    }
+      if (!mounted || !_voiceRouteActive) {
+        return;
+      }
 
-    syncVoiceConfigFlags(configuracao);
+      syncVoiceConfigFlags(configuracao);
 
-    if (voiceEscutaContinuaAtiva && !voiceOuvindo && !voiceParadaManual) {
-      await startContextualVoiceListening();
+      if (voiceEscutaContinuaAtiva && !voiceOuvindo && !voiceParadaManual) {
+        await startContextualVoiceListening();
+      }
+    } finally {
+      _voiceStartInProgress = false;
     }
   }
 
@@ -311,6 +330,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         if (!_voiceRouteActive) {
           return;
         }
+        voiceRecognitionErrorGuard.reset();
         unawaited(processContextualVoiceInput(texto));
       },
       onStatus: (status) {
@@ -330,20 +350,27 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
           scheduleVoiceContinuousRestart();
         }
       },
-      onError: (_) {
+      onError: (error) {
         if (!mounted || !_voiceRouteActive) {
+          return;
+        }
+
+        final decision = voiceRecognitionErrorGuard.evaluate(error);
+        if (!decision.shouldPresent) {
           return;
         }
 
         voiceSetState(() {
           setVoiceSession(
             VoiceSessionPhase.error,
-            message: voiceErrorPrompt,
+            message: VoiceRecognitionErrorGuard.friendlyMessage,
             listening: false,
             thinking: false,
           );
         });
-        scheduleVoiceContinuousRestart(reason: VoiceRestartReason.afterError);
+        if (decision.shouldRecover) {
+          scheduleVoiceContinuousRestart(reason: VoiceRestartReason.afterError);
+        }
       },
     );
 
@@ -352,15 +379,20 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         return;
       }
 
-      voiceSetState(() {
-        setVoiceSession(
-          VoiceSessionPhase.error,
-          message: voiceErrorPrompt,
-          listening: false,
-          thinking: false,
-        );
-      });
-      scheduleVoiceContinuousRestart(reason: VoiceRestartReason.afterError);
+      final decision = voiceRecognitionErrorGuard.evaluate('start_failed');
+      if (decision.shouldPresent) {
+        voiceSetState(() {
+          setVoiceSession(
+            VoiceSessionPhase.error,
+            message: VoiceRecognitionErrorGuard.friendlyMessage,
+            listening: false,
+            thinking: false,
+          );
+        });
+      }
+      if (decision.shouldRecover) {
+        scheduleVoiceContinuousRestart(reason: VoiceRestartReason.afterError);
+      }
     }
   }
 

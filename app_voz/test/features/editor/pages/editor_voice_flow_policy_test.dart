@@ -60,5 +60,17 @@ void main() {
         'Gravação em andamento. Use os controles da tela para pausar ou encerrar.',
       );
     });
+
+    test('prioriza comandos de gravacao antes da navegacao global', () {
+      const commandService = CommandService();
+      final iniciar = commandService.interpret('iniciar gravação');
+
+      expect(iniciar.type, VoiceCommandType.iniciarGravacao);
+      expect(policy.isRecordingCommand(iniciar.type), isTrue);
+      expect(
+        policy.isRecordingCommand(commandService.interpret('voltar').type),
+        isFalse,
+      );
+    });
   });
 }

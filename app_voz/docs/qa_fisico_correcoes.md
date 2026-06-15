@@ -1795,3 +1795,90 @@ Testes criados:
 9. Conferir comandos de reprodução, exclusão, confirmação e lista.
 10. Confirmar que não aparecem termos técnicos.
 11. Confirmar que os comandos reais continuam funcionando.
+
+## H.1 — Correção da estabilidade da escuta por voz após navegação
+
+### Bugs corrigidos
+
+* Escuta desabilitada após voltar por AppBar.
+* Escuta desabilitada após usar o botão Android para voltar.
+* Comando executado antes de a frase terminar.
+* `iniciar gravação` podendo virar navegação incorreta.
+* Erro repetitivo de reconhecimento de voz.
+
+### Diagnóstico técnico
+
+* A tela anterior recebia `didPopNext`, mas podia tentar retomar a escuta antes
+  de a pausa assíncrona iniciada em `didPushNext` terminar. Nesse caso, o estado
+  ainda indicava escuta ativa, a retomada era ignorada e a pausa concluía logo
+  depois, deixando a tela sem voz.
+* O `SpeechService` aceitava resultados parciais após um debounce de 450 ms.
+  Uma pausa natural entre `reproduzir` e `gravação 2` era suficiente para
+  executar o texto incompleto.
+* O Editor tinha coordenação própria de microfone, mas não era `RouteAware`.
+  Ao abrir outra tela, a escuta era cancelada pelo observador global e não havia
+  retomada equivalente ao voltar.
+* O parser já reconhecia `iniciar gravação` corretamente. A navegação incorreta
+  ocorria porque o parcial `início` podia ser entregue antes da frase completa
+  e era interpretado como retorno à tela inicial.
+* Cada falha do STT atualizava novamente o estado de erro e podia agendar outra
+  recuperação, fazendo a mesma mensagem reaparecer em sequência.
+
+### Correção realizada
+
+* A retomada contextual agora aguarda a pausa da rota coberta terminar antes de
+  solicitar nova escuta.
+* Foi adicionado um guarda contra solicitações simultâneas de retomada.
+* O Editor passou a observar o ciclo de rotas, pausar ao ser coberto e retomar
+  ao voltar somente quando voz contínua está ativa e não há gravação usando o
+  microfone.
+* Resultados parciais continuam sendo acumulados, mas só são despachados quando
+  o STT informa resultado final. Como fallback de plataforma, o último parcial
+  só é aceito quando a sessão termina com `done` ou `notListening`.
+* Comandos finais repetidos em intervalo curto são executados uma única vez.
+* Comandos de gravar, pausar, retomar e encerrar são priorizados no Editor antes
+  da navegação global.
+* Erros de reconhecimento usam cooldown, fazem uma única tentativa segura de
+  recuperação por ciclo e exibem a mensagem amigável:
+  `Não consegui ouvir o comando agora. Tente novamente em alguns segundos.`
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/services/speech_service_test.dart`
+  * parcial `reproduzir` não executa;
+  * final `reproduzir gravação 2` executa uma vez;
+  * duplicidade próxima é ignorada;
+  * término da sessão estabiliza o último parcial quando necessário.
+* `test/features/voices/services/voice_recognition_error_guard_test.dart`
+  * erros dentro do cooldown não repetem mensagem nem recuperação;
+  * erro pode ser informado novamente depois do cooldown;
+  * mensagem pública não contém termo técnico.
+* `test/features/voices/coordination/contextual_voice_listening_mixin_test.dart`
+  * retorno aguarda a pausa assíncrona;
+  * retorno por navegação e botão Android solicita retomada uma vez;
+  * assinatura de rota não duplica;
+  * `dispose` libera o owner.
+* `test/features/editor/pages/editor_voice_flow_policy_test.dart`
+  * `iniciar gravação` é classificado como gravação e não como voltar;
+  * `voltar` continua separado e sujeito à política segura do Editor.
+
+### Teste manual recomendado
+
+1. Rodar app no Android físico.
+2. Fazer login.
+3. Abrir Meus Projetos.
+4. Voltar pela AppBar.
+5. Confirmar que a Home ainda escuta comandos.
+6. Abrir Minhas Gravações.
+7. Voltar pelo botão Android.
+8. Confirmar que a Home ainda escuta comandos.
+9. Abrir Minhas Gravações.
+10. Falar `reproduzir gravação 2`.
+11. Confirmar que o app não executa antes da frase terminar.
+12. Abrir Editor.
+13. Falar `iniciar gravação`.
+14. Confirmar que grava em vez de voltar tela.
+15. Verificar se a mensagem de erro de reconhecimento não fica repetindo em
+    loop.

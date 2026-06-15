@@ -21,6 +21,7 @@ import '../../voices/controllers/voice_command_controller.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
+import '../../voices/coordination/voice_route_observer.dart';
 import '../../voices/coordination/voice_session_manager.dart';
 import '../../voices/coordination/voice_session_state.dart';
 import '../../voices/coordination/voice_state_machine.dart';
@@ -30,6 +31,7 @@ import '../../voices/realtime/voice_realtime_event_bus.dart';
 import '../../voices/realtime/voice_realtime_events.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/voice_global_command_service.dart';
+import '../../voices/services/voice_recognition_error_guard.dart';
 import '../../voices/widgets/voice_command_help_dialog.dart';
 import '../controllers/recording_realtime_coordinator.dart';
 
@@ -52,7 +54,9 @@ class EditorPage extends StatefulWidget {
   State<EditorPage> createState() => _EditorPageState();
 }
 
-class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
+class _EditorPageState extends State<EditorPage>
+    with WidgetsBindingObserver
+    implements RouteAware {
   final VoiceSessionManager _voiceSessionManager = VoiceSessionManager.instance;
   static const String _voiceOwnerId = VoicePageOwners.editor;
   static const bool _useStreamFirstMode = bool.fromEnvironment(
@@ -64,6 +68,8 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   final VoiceCommandController commandController = VoiceCommandController();
   final VoiceGlobalCommandService _globalCommandService =
       VoiceGlobalCommandService();
+  final VoiceRecognitionErrorGuard _voiceErrorGuard =
+      VoiceRecognitionErrorGuard();
   late final VoiceNavigationCommandHandler _navigationCommandHandler;
   final RecordingRealtimeCoordinator _recordingCoordinator =
       RecordingRealtimeCoordinator(ownerId: _voiceOwnerId);
@@ -86,6 +92,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   bool _retomarEscutaAposPlayback = false;
   bool _recuperacaoPlaybackAgendada = false;
   bool _playbackAtivoNaUltimaAtualizacao = false;
+  bool _routeObserverRegistered = false;
+  bool _routeActive = true;
+  Future<void> _routePausePending = Future<void>.value();
+  PageRoute<dynamic>? _route;
   EditorInteractionMode _interactionMode = EditorInteractionMode.normal;
   VoiceSessionState _voiceSessionState = const VoiceSessionState.idle();
   final EditorVoiceFlowPolicy _voiceFlowPolicy = const EditorVoiceFlowPolicy();
@@ -179,6 +189,81 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is! PageRoute<dynamic>) {
+      return;
+    }
+    if (_routeObserverRegistered && identical(_route, route)) {
+      return;
+    }
+    if (_routeObserverRegistered) {
+      voiceRouteObserver.unsubscribe(this);
+    }
+    _route = route;
+    _routeActive = route.isCurrent;
+    voiceRouteObserver.subscribe(this, route);
+    _routeObserverRegistered = true;
+  }
+
+  @override
+  void didPush() {
+    _routeActive = true;
+  }
+
+  @override
+  void didPushNext() {
+    _routeActive = false;
+    _routePausePending = _pauseVoiceForCoveredRoute();
+  }
+
+  @override
+  void didPopNext() {
+    _routeActive = true;
+    unawaited(_resumeVoiceAfterRouteReturn());
+  }
+
+  @override
+  void didPop() {
+    _routeActive = false;
+  }
+
+  Future<void> _pauseVoiceForCoveredRoute() async {
+    if (_voiceSessionManager.activeOwnerId == _voiceOwnerId ||
+        _voiceSessionManager.isSpeechListening) {
+      await _voiceSessionManager.cancelListening(
+        ownerId: _voiceOwnerId,
+        reason: 'editor_route_covered',
+      );
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _setVoiceSession(
+        VoiceSessionPhase.idle,
+        message: statusProjeto,
+        listening: false,
+      );
+    });
+  }
+
+  Future<void> _resumeVoiceAfterRouteReturn() async {
+    await _routePausePending;
+    if (!mounted ||
+        !_routeActive ||
+        _paradaManualEscuta ||
+        gravando ||
+        carregandoAudio ||
+        ouvindo) {
+      return;
+    }
+    await _carregarConfiguracoes();
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _publishRealtimeContext();
@@ -249,7 +334,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       final configuracao = await ConfiguracaoAppRepository.instance
           .buscarConfiguracao();
 
-      if (!mounted) {
+      if (!mounted || !_routeActive) {
         return;
       }
 
@@ -317,7 +402,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
     final configuracao = await ConfiguracaoAppRepository.instance
         .buscarConfiguracao();
 
-    if (!mounted) {
+    if (!mounted || !_routeActive) {
       return;
     }
 
@@ -369,6 +454,10 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       final started = await _voiceSessionManager.startListening(
         ownerId: _voiceOwnerId,
         onResult: (resultado) {
+          if (!mounted || !_routeActive) {
+            return;
+          }
+          _voiceErrorGuard.reset();
           setState(() {
             _setVoiceSession(
               VoiceSessionPhase.processingCommand,
@@ -382,7 +471,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
           unawaited(interpretarComando(resultado));
         },
         onStatus: (status) {
-          if (!mounted) {
+          if (!mounted || !_routeActive) {
             return;
           }
 
@@ -408,34 +497,28 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
           }
         },
         onError: (error) {
-          if (!mounted) {
+          if (!mounted || !_routeActive) {
             return;
           }
 
-          if (error == 'error_speech_timeout') {
-            setState(() {
-              _setVoiceSession(
-                VoiceSessionPhase.error,
-                message: 'Tempo de escuta encerrado sem comando.',
-              );
-              textoReconhecido =
-                  'Nenhuma fala detectada. Tente falar mais perto do microfone.';
-              statusProjeto = 'Tempo de escuta encerrado sem comando.';
-            });
-            _reiniciarEscutaContinuaSeNecessario(
-              reason: VoiceRecoveryReason.afterError,
-            );
+          final decision = _voiceErrorGuard.evaluate(error);
+          if (!decision.shouldPresent) {
             return;
           }
 
           setState(() {
             _setVoiceSession(
               VoiceSessionPhase.error,
-              message: 'Erro no reconhecimento de voz.',
+              message: VoiceRecognitionErrorGuard.friendlyMessage,
             );
-            statusProjeto = 'Não foi possível reconhecer a fala.';
-            textoReconhecido = 'Não foi possível reconhecer a fala.';
+            statusProjeto = VoiceRecognitionErrorGuard.friendlyMessage;
+            textoReconhecido = VoiceRecognitionErrorGuard.friendlyMessage;
           });
+          if (decision.shouldRecover) {
+            _reiniciarEscutaContinuaSeNecessario(
+              reason: VoiceRecoveryReason.afterError,
+            );
+          }
         },
       );
 
@@ -444,17 +527,22 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
           return;
         }
 
-        setState(() {
-          _setVoiceSession(
-            VoiceSessionPhase.error,
-            message: 'Falha ao iniciar escuta de voz.',
+        final decision = _voiceErrorGuard.evaluate('start_failed');
+        if (decision.shouldPresent) {
+          setState(() {
+            _setVoiceSession(
+              VoiceSessionPhase.error,
+              message: VoiceRecognitionErrorGuard.friendlyMessage,
+            );
+            textoReconhecido = VoiceRecognitionErrorGuard.friendlyMessage;
+            statusProjeto = VoiceRecognitionErrorGuard.friendlyMessage;
+          });
+        }
+        if (decision.shouldRecover) {
+          _reiniciarEscutaContinuaSeNecessario(
+            reason: VoiceRecoveryReason.afterError,
           );
-          textoReconhecido = 'Não foi possível iniciar a escuta de voz.';
-          statusProjeto = 'Verifique a permissão de microfone do app.';
-        });
-        _reiniciarEscutaContinuaSeNecessario(
-          reason: VoiceRecoveryReason.afterError,
-        );
+        }
       }
     } else {
       _paradaManualEscuta = true;
@@ -483,6 +571,7 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
       reason: reason,
       shouldRecover: () =>
           mounted &&
+          _routeActive &&
           escutaContinuaAtiva &&
           !_paradaManualEscuta &&
           !gravando &&
@@ -663,6 +752,11 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
         return;
       }
 
+      if (_voiceFlowPolicy.isRecordingCommand(resultado.type)) {
+        await _executeEditorRecordingCommand(resultado.type, comando);
+        return;
+      }
+
       final globalResult = await _globalCommandService.execute(resultado);
       if (globalResult.handled) {
         if (!mounted) {
@@ -836,6 +930,28 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
           _interpretandoComando = false;
         });
       }
+    }
+  }
+
+  Future<void> _executeEditorRecordingCommand(
+    VoiceCommandType type,
+    String command,
+  ) async {
+    switch (type) {
+      case VoiceCommandType.iniciarGravacao:
+        await iniciarGravacao(command);
+        return;
+      case VoiceCommandType.pausarGravacao:
+        await pausarGravacao(command);
+        return;
+      case VoiceCommandType.retomarGravacao:
+        await retomarGravacao(command);
+        return;
+      case VoiceCommandType.encerrarGravacao:
+        await encerrarGravacao(command);
+        return;
+      default:
+        return;
     }
   }
 
@@ -1491,6 +1607,11 @@ class _EditorPageState extends State<EditorPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    if (_routeObserverRegistered) {
+      voiceRouteObserver.unsubscribe(this);
+      _routeObserverRegistered = false;
+      _route = null;
+    }
     WidgetsBinding.instance.removeObserver(this);
     _recordingCoordinator.removeListener(_onRecordingStateChanged);
     unawaited(_realtimeCommandSubscription?.cancel());
@@ -2453,6 +2574,13 @@ class EditorVoiceFlowPolicy {
 
   String get recordingNavigationBlockedMessage =>
       'Há uma gravação em andamento. Encerre ou cancele antes de sair.';
+
+  bool isRecordingCommand(VoiceCommandType commandType) {
+    return commandType == VoiceCommandType.iniciarGravacao ||
+        commandType == VoiceCommandType.pausarGravacao ||
+        commandType == VoiceCommandType.retomarGravacao ||
+        commandType == VoiceCommandType.encerrarGravacao;
+  }
 
   EditorVoiceNavigationDecision navigationDecision({
     required bool recording,

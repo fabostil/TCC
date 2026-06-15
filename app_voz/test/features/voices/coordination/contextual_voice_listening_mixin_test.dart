@@ -60,6 +60,43 @@ void main() {
       expect(key.currentState!.voiceRouteObserverRegisteredForTesting, isTrue);
     });
 
+    testWidgets('didPopNext aguarda pausa da rota antes de retomar', (
+      tester,
+    ) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      final pauseCompleter = Completer<void>();
+
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+      key.currentState!.routePauseCompleter = pauseCompleter;
+
+      await tester.tap(find.byKey(_TestVoicePage.openRouteButtonKey));
+      await tester.pumpAndSettle();
+      Navigator.of(key.currentContext!).pop();
+      await tester.pump();
+
+      expect(key.currentState!.resumeAttempts, 0);
+
+      pauseCompleter.complete();
+      await tester.pumpAndSettle();
+
+      expect(key.currentState!.resumeAttempts, 1);
+    });
+
+    testWidgets('botao Android retoma escuta da rota anterior', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+      await tester.tap(find.byKey(_TestVoicePage.openRouteButtonKey));
+      await tester.pumpAndSettle();
+
+      final handled = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(handled, isTrue);
+      expect(key.currentState!.voiceRouteActiveForTesting, isTrue);
+      expect(key.currentState!.resumeAttempts, 1);
+    });
+
     testWidgets('dispose remove registro de rota e libera owner', (
       tester,
     ) async {
@@ -150,6 +187,7 @@ class _TestVoicePageState extends State<_TestVoicePage>
   int resumeAttempts = 0;
   int confirmedDialogs = 0;
   int cancelledDialogs = 0;
+  Completer<void>? routePauseCompleter;
 
   @override
   String get voiceOwnerId => 'test_contextual';
@@ -182,6 +220,16 @@ class _TestVoicePageState extends State<_TestVoicePage>
   @override
   Future<void> startContextualVoiceListening() async {
     resumeAttempts++;
+  }
+
+  @override
+  Future<void> pauseContextualVoiceForCoveredRoute() async {
+    final completer = routePauseCompleter;
+    if (completer != null) {
+      await completer.future;
+      return;
+    }
+    await super.pauseContextualVoiceForCoveredRoute();
   }
 
   void processTestCommand() {

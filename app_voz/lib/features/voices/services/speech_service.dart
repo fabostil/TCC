@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
@@ -17,10 +16,8 @@ class SpeechService {
 
   bool _initialized = false;
   String? _localeId;
-  Timer? _resultDebounceTimer;
-  String? _pendingText;
-  String? _lastDeliveredText;
-  DateTime? _lastDeliveredAt;
+  final SpeechResultGate _resultGate = SpeechResultGate();
+  Function(String text)? _currentOnResult;
   Function(String status)? _currentOnStatus;
   Function(String error)? _currentOnError;
 
@@ -52,10 +49,18 @@ class SpeechService {
     _initialized = await _speech.initialize(
       onStatus: (status) {
         debugPrint('Status reconhecimento de voz: $status');
+        if (status == 'done' || status == 'notListening') {
+          final onResult = _currentOnResult;
+          if (onResult != null) {
+            _resultGate.finalizePending(onResult);
+          }
+        }
         _currentOnStatus?.call(status);
       },
       onError: (error) {
         debugPrint('Erro reconhecimento de voz: ${error.errorMsg}');
+        _resultGate.clearPending();
+        _currentOnResult = null;
         _currentOnError?.call(error.errorMsg);
       },
     );
@@ -102,6 +107,7 @@ class SpeechService {
     }
 
     _resetResultState();
+    _currentOnResult = onResult;
 
     try {
       await _speech.listen(
@@ -121,9 +127,9 @@ class SpeechService {
               "[STT_DEBUG] TEXTO RECEBIDO: '$text'",
               name: 'SpeechService',
             );
-            _handleResultText(
+            _resultGate.add(
               text,
-              finalResult: result.finalResult,
+              isFinal: result.finalResult,
               onResult: onResult,
             );
           }
@@ -144,50 +150,71 @@ class SpeechService {
   }
 
   Future<void> stopListening() async {
-    _clearResultDebounce();
+    _resetResultState();
     if (_speech.isListening) {
       await _speech.stop();
     }
   }
 
   Future<void> cancelListening() async {
-    _clearResultDebounce();
+    _resetResultState();
     if (_speech.isListening) {
       await _speech.cancel();
     }
   }
 
-  void _handleResultText(
-    String text, {
-    required bool finalResult,
-    required Function(String text) onResult,
-  }) {
-    _pendingText = text;
-    _resultDebounceTimer?.cancel();
+  void _resetResultState() {
+    _resultGate.clearPending();
+    _currentOnResult = null;
+  }
+}
 
-    if (finalResult) {
-      _deliverPendingResult(onResult);
+/// Entrega comandos apenas quando o STT os marca como finais.
+///
+/// Se uma plataforma encerrar a sessão sem emitir `finalResult`, o último
+/// parcial é considerado estável somente no status `done`/`notListening`.
+class SpeechResultGate {
+  SpeechResultGate({
+    this.duplicateCooldown = const Duration(seconds: 2),
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
+
+  final Duration duplicateCooldown;
+  final DateTime Function() _now;
+
+  String? _pendingText;
+  String? _lastDeliveredText;
+  DateTime? _lastDeliveredAt;
+
+  void add(
+    String text, {
+    required bool isFinal,
+    required void Function(String text) onResult,
+  }) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
       return;
     }
 
-    _resultDebounceTimer = Timer(const Duration(milliseconds: 450), () {
-      _deliverPendingResult(onResult);
-    });
+    _pendingText = trimmed;
+    if (isFinal) {
+      finalizePending(onResult);
+    }
   }
 
-  void _deliverPendingResult(Function(String text) onResult) {
-    final text = _pendingText?.trim();
+  void finalizePending(void Function(String text) onResult) {
+    final text = _pendingText;
+    _pendingText = null;
     if (text == null || text.isEmpty) {
       return;
     }
 
-    final now = DateTime.now();
-    final normalized = _normalizeForDedup(text);
+    final now = _now();
+    final normalized = _normalize(text);
     final lastDeliveredAt = _lastDeliveredAt;
-
     if (_lastDeliveredText == normalized &&
         lastDeliveredAt != null &&
-        now.difference(lastDeliveredAt) < const Duration(seconds: 2)) {
+        now.difference(lastDeliveredAt) < duplicateCooldown) {
       return;
     }
 
@@ -196,19 +223,17 @@ class SpeechService {
     onResult(text);
   }
 
-  String _normalizeForDedup(String text) {
-    return text.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
-  }
-
-  void _resetResultState() {
-    _clearResultDebounce();
-    _pendingText = null;
+  void reset() {
+    clearPending();
     _lastDeliveredText = null;
     _lastDeliveredAt = null;
   }
 
-  void _clearResultDebounce() {
-    _resultDebounceTimer?.cancel();
-    _resultDebounceTimer = null;
+  void clearPending() {
+    _pendingText = null;
+  }
+
+  String _normalize(String text) {
+    return text.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
   }
 }
