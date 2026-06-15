@@ -141,10 +141,65 @@ void main() {
 
       expect(result.commandResult.recognized, isTrue);
       expect(result.commandResult.type, VoiceCommandType.abrirDashboard);
-      expect(result.commandResult.tipoComando, 'personalizado_abrir_dashboard');
+      expect(result.commandResult.tipoComando, 'abrir_dashboard');
       expect(result.usedAi, isFalse);
       expect(aiCalled, isFalse);
     });
+
+    test('consulta comando personalizado antes da IA configurada', () async {
+      var aiCalled = false;
+      final repository = FakeComandoRepository()
+        ..commands = [
+          _customCommand(
+            frase: 'abrir meu est\u00fadio',
+            tipoComando: 'abrir_editor',
+          ),
+        ];
+      final controller = VoiceCommandController(
+        aiCommandService: AiCommandService(
+          apiKey: 'test-key',
+          httpPost: (uri, headers, body, timeout) async {
+            aiCalled = true;
+            return _geminiResponse('{"action":"nav_history"}');
+          },
+        ),
+        customCommandService: CustomCommandService(repository: repository),
+        feedbackService: const NoopVoiceFeedbackService(),
+      );
+
+      final result = await controller.interpret(
+        '  Abrir   meu estudio! ',
+        usuarioId: 7,
+      );
+
+      expect(result.commandResult.recognized, isTrue);
+      expect(result.commandResult.type, VoiceCommandType.abrirEditor);
+      expect(result.commandResult.tipoComando, 'abrir_editor');
+      expect(result.usedAi, isFalse);
+      expect(aiCalled, isFalse);
+    });
+
+    test(
+      'sem comando personalizado segue fallback de nao reconhecido',
+      () async {
+        final controller = VoiceCommandController(
+          aiCommandService: AiCommandService(apiKey: ''),
+          customCommandService: CustomCommandService(
+            repository: FakeComandoRepository(),
+          ),
+          feedbackService: const NoopVoiceFeedbackService(),
+        );
+
+        final result = await controller.interpret(
+          'abrir meu est\u00fadio',
+          usuarioId: 7,
+        );
+
+        expect(result.commandResult.recognized, isFalse);
+        expect(result.commandResult.type, VoiceCommandType.desconhecido);
+        expect(result.usedAi, isFalse);
+      },
+    );
 
     test(
       'comando global tem prioridade sobre personalizado conflitante',
@@ -205,14 +260,16 @@ class FakeComandoRepository implements ComandoPersonalizadoRepository {
 
   @override
   Future<List<ComandoPersonalizado>> listarPorUsuario(int usuarioId) async {
-    return commands;
+    return commands.where((command) => command.usuarioId == usuarioId).toList();
   }
 
   @override
   Future<List<ComandoPersonalizado>> listarAtivosPorUsuario(
     int usuarioId,
   ) async {
-    return commands.where((command) => command.ativo).toList();
+    return commands
+        .where((command) => command.usuarioId == usuarioId && command.ativo)
+        .toList();
   }
 
   @override

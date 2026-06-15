@@ -1971,3 +1971,76 @@ Testes criados ou alterados:
 15. Falar `reproduzir gravação` com várias gravações.
 16. Confirmar que o app pede para especificar qual gravação.
 17. Parar reprodução e reproduzir novamente.
+
+## H.3 — Correção de comandos personalizados
+
+### Bug corrigido
+
+* Comandos personalizados eram criados e listados em Configurações, mas podiam
+  não ser reconhecidos corretamente ao serem falados depois.
+
+### Diagnóstico técnico
+
+* A criação já salvava `frase`, `tipo_comando`, `ativo`, `usuario_id` e
+  `data_criacao` sem exigir mudança de banco.
+* A validação de frase vazia, reservada e duplicada já usava normalização por
+  acento, maiúsculas/minúsculas, pontuação e espaços duplicados.
+* O fluxo de voz já chamava o parser local primeiro, depois comandos
+  personalizados do usuário e só então o fallback de IA/mensagem de não
+  reconhecido.
+* A falha estava no contrato do resultado personalizado: ele era convertido para
+  um `tipoComando` sintético, como `personalizado_abrir_editor`, em vez de manter
+  o tipo real da ação (`abrir_editor`). Isso deixava o reconhecimento menos
+  consistente para registro, execução e diagnósticos do fluxo real.
+* Os testes existentes cobriam criação/listagem e um reconhecimento básico, mas
+  não cobriam criação seguida de execução, outro usuário, comando removido e
+  ordem custom antes da IA configurada.
+
+### Correção realizada
+
+* Comandos personalizados reconhecidos agora mantêm o `tipoComando` real da ação
+  selecionada pelo usuário.
+* A normalização continua aceitando variações de acento, maiúsculas/minúsculas,
+  pontuação simples e espaços duplicados.
+* A consulta continua restrita ao `usuario_id` da sessão e somente a comandos
+  ativos.
+* Comando local/reservado continua tendo prioridade sobre personalizado.
+* Se não houver comando personalizado ativo compatível, o app segue o fallback
+  existente de IA configurada ou mensagem amigável de comando não reconhecido.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/services/custom_command_service_test.dart`
+  * comando personalizado ativo é encontrado por frase exata;
+  * comando ativo é encontrado sem acento e com espaços extras;
+  * comando inativo não é encontrado;
+  * comando removido não é encontrado;
+  * comando de outro usuário não é encontrado;
+  * tipo inválido continua virando desconhecido controlado.
+* `test/features/voices/controllers/voice_command_controller_test.dart`
+  * comando personalizado funciona sem chave da IA;
+  * comando personalizado é consultado antes da IA configurada;
+  * ausência de comando personalizado segue fallback de não reconhecido;
+  * comando local/global continua tendo prioridade sobre personalizado conflitante.
+* `test/features/settings/controllers/settings_controller_test.dart`
+  * comando criado pelo usuário pode ser reconhecido depois na execução;
+  * comando desativado ou removido deixa de executar.
+
+### Teste manual recomendado
+
+1. Rodar app no Android físico.
+2. Fazer login.
+3. Abrir Configurações.
+4. Criar comando personalizado válido.
+5. Falar o comando criado.
+6. Confirmar que o app reconhece e executa a ação esperada.
+7. Testar a mesma frase com diferença de acento ou maiúscula.
+8. Desativar o comando.
+9. Falar novamente e confirmar que não executa.
+10. Ativar novamente, se disponível.
+11. Remover o comando.
+12. Falar novamente e confirmar que não executa.
+13. Confirmar que comandos locais como `voltar` e `tela inicial` continuam
+    funcionando.

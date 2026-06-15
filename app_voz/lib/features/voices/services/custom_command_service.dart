@@ -167,7 +167,7 @@ class CustomCommandService {
       normalizedText: normalizedText,
       type: result.type,
       recognized: result.recognized,
-      tipoComando: 'personalizado_${action.tipoComando}',
+      tipoComando: action.tipoComando,
       acaoExecutada: '${result.acaoExecutada} (comando personalizado)',
       parametro: result.parametro,
       parametroSecundario: result.parametroSecundario,

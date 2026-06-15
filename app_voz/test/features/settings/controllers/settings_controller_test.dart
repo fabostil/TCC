@@ -1,4 +1,5 @@
 import 'package:app_voz/features/settings/controllers/settings_controller.dart';
+import 'package:app_voz/features/voices/services/command_service.dart';
 import 'package:app_voz/features/voices/services/custom_command_service.dart';
 import 'package:app_voz/models/comando_personalizado.dart';
 import 'package:app_voz/models/configuracao_app.dart';
@@ -63,6 +64,68 @@ void main() {
       expect(comandoRepository.savedCommands.single.frase, 'modo palco');
       expect(controller.state.customCommands, hasLength(1));
     });
+
+    test(
+      'comando criado pelo usuario pode ser reconhecido na execucao',
+      () async {
+        await controller.load(usuarioId: 7);
+
+        await controller.saveCustomCommand(
+          usuarioId: 7,
+          phrase: 'abrir meu est\u00fadio',
+          commandType: 'abrir_editor',
+        );
+
+        final customService = CustomCommandService(
+          repository: comandoRepository,
+        );
+        final spokenText = 'Abrir  meu   estudio!';
+        final result = await customService.interpret(
+          usuarioId: 7,
+          originalText: spokenText,
+          normalizedText: const CommandService().normalize(spokenText),
+        );
+
+        expect(result.recognized, isTrue);
+        expect(result.type, VoiceCommandType.abrirEditor);
+        expect(result.tipoComando, 'abrir_editor');
+      },
+    );
+
+    test(
+      'comando desativado ou removido nao executa depois de criado',
+      () async {
+        await controller.load(usuarioId: 7);
+        await controller.saveCustomCommand(
+          usuarioId: 7,
+          phrase: 'modo palco',
+          commandType: 'abrir_dashboard',
+        );
+        final customService = CustomCommandService(
+          repository: comandoRepository,
+        );
+        final command = controller.state.customCommands.single;
+
+        await controller.toggleCustomCommand(command, false, usuarioId: 7);
+
+        final disabled = await customService.interpret(
+          usuarioId: 7,
+          originalText: 'modo palco',
+          normalizedText: 'modo palco',
+        );
+        expect(disabled.recognized, isFalse);
+
+        final disabledCommand = controller.state.customCommands.single;
+        await controller.deleteCustomCommand(disabledCommand, usuarioId: 7);
+
+        final removed = await customService.interpret(
+          usuarioId: 7,
+          originalText: 'modo palco',
+          normalizedText: 'modo palco',
+        );
+        expect(removed.recognized, isFalse);
+      },
+    );
 
     test('rejeita comando personalizado sem usuario', () async {
       await controller.load(usuarioId: null);
@@ -194,19 +257,30 @@ class FakeComandoRepository implements ComandoPersonalizadoRepository {
   @override
   Future<List<ComandoPersonalizado>> listarPorUsuario(int usuarioId) async {
     lastUserId = usuarioId;
-    return commands;
+    return commands.where((command) => command.usuarioId == usuarioId).toList();
   }
 
   @override
   Future<List<ComandoPersonalizado>> listarAtivosPorUsuario(
     int usuarioId,
   ) async {
-    return commands.where((command) => command.ativo).toList();
+    return commands
+        .where((command) => command.usuarioId == usuarioId && command.ativo)
+        .toList();
   }
 
   @override
-  Future<void> alternarAtivo({required int id, required bool ativo}) async {}
+  Future<void> alternarAtivo({required int id, required bool ativo}) async {
+    commands = commands
+        .map(
+          (command) =>
+              command.id == id ? command.copyWith(ativo: ativo) : command,
+        )
+        .toList();
+  }
 
   @override
-  Future<void> excluir(int id) async {}
+  Future<void> excluir(int id) async {
+    commands = commands.where((command) => command.id != id).toList();
+  }
 }
