@@ -114,9 +114,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         return;
       }
 
-      if (!state.playing) {
-        _recordingsController.markPlaybackStopped();
-      }
+      _recordingsController.handlePlayerState(state);
     });
     _carregarGravacoes();
     if (widget.enableVoiceListening) {
@@ -541,17 +539,10 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   }
 
   Future<VoiceCommandPageResult> _handleReproduzirPorNome(String? nome) async {
-    final gravacao =
-        _buscarGravacaoPorNome(nome) ??
-        (_recordingsState.recordings.isNotEmpty
-            ? _recordingsState.recordings.first
-            : null);
-
+    final resolution = _recordingsController.resolvePlaybackCommand(nome);
+    final gravacao = resolution.recording;
     if (gravacao == null) {
-      return VoiceCommandPageResult.handled(
-        message:
-            'Não encontrei gravações para reproduzir. Grave um áudio no editor primeiro.',
-      );
+      return VoiceCommandPageResult.handled(message: resolution.message);
     }
 
     await _alternarReproducao(gravacao);

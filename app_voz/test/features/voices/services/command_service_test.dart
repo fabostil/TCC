@@ -114,6 +114,21 @@ void main() {
         VoiceCommandType.reproduzirGravacao,
       );
       expect(
+        service.interpret('reproduzir grava\u00e7\u00e3o 1').parametro,
+        '1',
+      );
+      expect(service.interpret('tocar grava\u00e7\u00e3o 2').parametro, '2');
+      expect(
+        service.interpret('dar play na grava\u00e7\u00e3o 1').parametro,
+        '1',
+      );
+      expect(
+        service.interpret('tocar a segunda grava\u00e7\u00e3o').parametro,
+        'segunda gravacao',
+      );
+      expect(service.interpret('reproduzir a segunda').parametro, 'segunda');
+      expect(service.interpret('tocar a primeira').parametro, 'primeira');
+      expect(
         service.interpret('mostrar grava\u00e7\u00f5es').type,
         VoiceCommandType.listarGravacoes,
       );

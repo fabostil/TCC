@@ -106,6 +106,119 @@ void main() {
       expect(recordingService.deletedIds, [1]);
       expect(playerService.stopCalls, 1);
     });
+
+    test(
+      'play muda estado para parar imediatamente e stop volta para play',
+      () async {
+        final recording = _recording(id: 1, name: 'Take');
+        recordingService.recordings = [recording];
+        await controller.load(usuarioId: 10);
+
+        await controller.togglePlayback(recording, usuarioId: null);
+
+        expect(controller.state.playingRecordingId, 1);
+        expect(playerService.playedPaths, ['/tmp/1.m4a']);
+
+        await controller.togglePlayback(recording, usuarioId: null);
+
+        expect(controller.state.playingRecordingId, isNull);
+        expect(playerService.stopCalls, 1);
+      },
+    );
+
+    test('conclusao limpa estado sem reiniciar reproducao', () async {
+      final recording = _recording(id: 1, name: 'Take');
+      recordingService.recordings = [recording];
+      await controller.load(usuarioId: 10);
+      await controller.togglePlayback(recording, usuarioId: null);
+
+      controller.handlePlayerState(
+        PlayerState(false, ProcessingState.completed),
+      );
+
+      expect(controller.state.playingRecordingId, isNull);
+      expect(playerService.playedPaths, ['/tmp/1.m4a']);
+    });
+
+    test('replay manual da mesma gravacao funciona apos conclusao', () async {
+      final recording = _recording(id: 1, name: 'Take');
+      recordingService.recordings = [recording];
+      await controller.load(usuarioId: 10);
+
+      await controller.togglePlayback(recording, usuarioId: null);
+      controller.handlePlayerState(
+        PlayerState(false, ProcessingState.completed),
+      );
+      await controller.togglePlayback(recording, usuarioId: null);
+
+      expect(controller.state.playingRecordingId, 1);
+      expect(playerService.playedPaths, ['/tmp/1.m4a', '/tmp/1.m4a']);
+    });
+
+    test('trocar gravacao para anterior e toca nova', () async {
+      final first = _recording(id: 1, name: 'Primeira');
+      final second = _recording(id: 2, name: 'Segunda');
+      recordingService.recordings = [first, second];
+      await controller.load(usuarioId: 10);
+
+      await controller.togglePlayback(first, usuarioId: null);
+      await controller.togglePlayback(second, usuarioId: null);
+
+      expect(controller.state.playingRecordingId, 2);
+      expect(playerService.stopCalls, 1);
+      expect(playerService.playedPaths, ['/tmp/1.m4a', '/tmp/2.m4a']);
+    });
+
+    test('resolve comando por numero e ordem da lista visivel', () async {
+      final first = _recording(id: 1, name: 'Primeira');
+      final second = _recording(id: 2, name: 'Segunda');
+      recordingService.recordings = [first, second];
+      await controller.load(usuarioId: 10);
+
+      expect(controller.resolvePlaybackCommand('1').recording, first);
+      expect(controller.resolvePlaybackCommand('2').recording, second);
+      expect(
+        controller.resolvePlaybackCommand('segunda gravacao').recording,
+        second,
+      );
+    });
+
+    test(
+      'comando ambiguo com varias gravacoes nao toca automaticamente',
+      () async {
+        recordingService.recordings = [
+          _recording(id: 1, name: 'Primeira'),
+          _recording(id: 2, name: 'Segunda'),
+        ];
+        await controller.load(usuarioId: 10);
+
+        final resolution = controller.resolvePlaybackCommand(null);
+
+        expect(resolution.recording, isNull);
+        expect(
+          resolution.message,
+          'Diga qual gravação deseja tocar, por exemplo: reproduzir gravação 1.',
+        );
+      },
+    );
+
+    test('comando ambiguo com uma gravacao toca a unica', () async {
+      final only = _recording(id: 1, name: 'Unica');
+      recordingService.recordings = [only];
+      await controller.load(usuarioId: 10);
+
+      expect(controller.resolvePlaybackCommand(null).recording, only);
+    });
+
+    test('numero inexistente retorna mensagem amigavel', () async {
+      recordingService.recordings = [_recording(id: 1, name: 'Primeira')];
+      await controller.load(usuarioId: 10);
+
+      final resolution = controller.resolvePlaybackCommand('2');
+
+      expect(resolution.recording, isNull);
+      expect(resolution.message, 'Não encontrei essa gravação na lista.');
+    });
   });
 }
 
@@ -172,6 +285,7 @@ class FakeAudioPlayerService implements AudioPlayerService {
   final _durationController = StreamController<Duration?>.broadcast();
   bool playing = false;
   int stopCalls = 0;
+  final playedPaths = <String>[];
 
   @override
   String? currentPath;
@@ -191,6 +305,7 @@ class FakeAudioPlayerService implements AudioPlayerService {
   @override
   Future<void> play(String path) async {
     currentPath = path;
+    playedPaths.add(path);
     playing = true;
   }
 

@@ -17,6 +17,8 @@ abstract class AudioPlayerClient {
 
   Future<void> setFilePath(String path);
 
+  Future<void> setLoopModeOff();
+
   Future<void> play();
 
   Future<void> seek(Duration position);
@@ -52,7 +54,12 @@ class JustAudioPlayerClient implements AudioPlayerClient {
   }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> setLoopModeOff() => _player.setLoopMode(LoopMode.off);
+
+  @override
+  Future<void> play() async {
+    unawaited(_player.play());
+  }
 
   @override
   Future<void> seek(Duration position) => _player.seek(position);
@@ -197,6 +204,7 @@ class AudioPlayerService {
       if (_currentPath != path) {
         await _player.stop();
         await _player.setFilePath(path);
+        await _player.setLoopModeOff();
         _currentPath = path;
         _restartCurrentPathFromBeginning = false;
       } else if (_restartCurrentPathFromBeginning) {

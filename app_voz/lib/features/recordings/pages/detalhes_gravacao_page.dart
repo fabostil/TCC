@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 
 import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_feedback.dart';
@@ -109,7 +110,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       onFallback: _dispatchContextualVoice,
     );
     _playerStateSubscription = _playerService.playerStateStream.listen((state) {
-      if (!mounted || state.playing) {
+      if (!mounted || state.processingState != ProcessingState.completed) {
         return;
       }
 

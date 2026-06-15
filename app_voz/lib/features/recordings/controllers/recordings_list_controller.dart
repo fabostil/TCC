@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:just_audio/just_audio.dart';
 
 import '../../../core/ui/user_facing_messages.dart';
 import '../../../models/gravacao.dart';
@@ -62,6 +63,23 @@ class RecordingsListState {
   }
 }
 
+class RecordingPlaybackResolution {
+  const RecordingPlaybackResolution._({this.recording, this.message});
+
+  final Gravacao? recording;
+  final String? message;
+
+  bool get canPlay => recording != null;
+
+  factory RecordingPlaybackResolution.play(Gravacao recording) {
+    return RecordingPlaybackResolution._(recording: recording);
+  }
+
+  factory RecordingPlaybackResolution.message(String message) {
+    return RecordingPlaybackResolution._(message: message);
+  }
+}
+
 class RecordingsListController extends ChangeNotifier {
   RecordingsListController({
     RecordingManagementService? recordingService,
@@ -83,7 +101,7 @@ class RecordingsListController extends ChangeNotifier {
 
   RecordingsListState get state => _state;
 
-  Stream<dynamic> get playerStateStream => _playerService.playerStateStream;
+  Stream<PlayerState> get playerStateStream => _playerService.playerStateStream;
 
   bool get isPlaying => _playerService.isPlaying;
 
@@ -175,6 +193,12 @@ class RecordingsListController extends ChangeNotifier {
       return;
     }
 
+    final previousPlayingId = state.playingRecordingId;
+    if (previousPlayingId != null && previousPlayingId != gravacao.id) {
+      await _playerService.stop();
+      _setState(_state.copyWith(clearPlayingRecording: true));
+    }
+
     await _playerService.play(gravacao.caminhoArquivo);
     _setState(_state.copyWith(playingRecordingId: gravacao.id));
 
@@ -187,6 +211,12 @@ class RecordingsListController extends ChangeNotifier {
         projetoId: gravacao.projetoId,
       ),
     );
+  }
+
+  void handlePlayerState(PlayerState playerState) {
+    if (playerState.processingState == ProcessingState.completed) {
+      markPlaybackStopped();
+    }
   }
 
   Future<void> stopPlayback() async {
@@ -289,6 +319,59 @@ class RecordingsListController extends ChangeNotifier {
     return null;
   }
 
+  Gravacao? findByPlaybackReference(String? reference) {
+    final normalized = _commandService.normalize(reference ?? '');
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final index = _playbackIndexFromReference(normalized);
+    if (index != null) {
+      if (index < 0 || index >= _state.recordings.length) {
+        return null;
+      }
+      return _state.recordings[index];
+    }
+
+    return findByName(normalized);
+  }
+
+  bool isPlaybackReferenceOutOfRange(String? reference) {
+    final normalized = _commandService.normalize(reference ?? '');
+    final index = _playbackIndexFromReference(normalized);
+    return index != null && (index < 0 || index >= _state.recordings.length);
+  }
+
+  RecordingPlaybackResolution resolvePlaybackCommand(String? reference) {
+    if (_state.recordings.isEmpty) {
+      return RecordingPlaybackResolution.message(
+        'Não encontrei gravações para reproduzir. Grave um áudio no editor primeiro.',
+      );
+    }
+
+    final trimmed = reference?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      if (_state.recordings.length == 1) {
+        return RecordingPlaybackResolution.play(_state.recordings.single);
+      }
+
+      return RecordingPlaybackResolution.message(
+        'Diga qual gravação deseja tocar, por exemplo: reproduzir gravação 1.',
+      );
+    }
+
+    final recording = findByPlaybackReference(trimmed);
+    if (recording != null) {
+      return RecordingPlaybackResolution.play(recording);
+    }
+
+    return RecordingPlaybackResolution.message(
+      isPlaybackReferenceOutOfRange(trimmed)
+          ? 'Não encontrei essa gravação na lista.'
+          : 'Não encontrei essa gravação. Diga o nome ou número da lista.',
+    );
+  }
+
   @override
   void dispose() {
     unawaited(_playerService.dispose());
@@ -322,5 +405,34 @@ class RecordingsListController extends ChangeNotifier {
     } catch (e) {
       debugPrint('Erro ao registrar historico persistente: $e');
     }
+  }
+
+  int? _playbackIndexFromReference(String reference) {
+    final numberMatch = RegExp(r'(^| )([0-9]+)( |$)').firstMatch(reference);
+    final numericValue = int.tryParse(numberMatch?.group(2) ?? '');
+    if (numericValue != null) {
+      return numericValue - 1;
+    }
+
+    const ordinals = {
+      'primeira': 0,
+      'primeiro': 0,
+      'segunda': 1,
+      'segundo': 1,
+      'terceira': 2,
+      'terceiro': 2,
+      'quarta': 3,
+      'quarto': 3,
+      'quinta': 4,
+      'quinto': 4,
+    };
+
+    for (final entry in ordinals.entries) {
+      if (RegExp('(^| )${entry.key}( |\$)').hasMatch(reference)) {
+        return entry.value;
+      }
+    }
+
+    return null;
   }
 }

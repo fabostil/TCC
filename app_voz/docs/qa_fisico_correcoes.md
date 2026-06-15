@@ -1882,3 +1882,92 @@ Testes criados ou alterados:
 14. Confirmar que grava em vez de voltar tela.
 15. Verificar se a mensagem de erro de reconhecimento não fica repetindo em
     loop.
+
+## H.2 — Correção do player de gravações
+
+### Bugs corrigidos
+
+* Botão play/stop não atualizava na primeira reprodução.
+* Gravação podia entrar em loop ou não finalizar corretamente.
+* Comando `reproduzir gravação 2` não selecionava corretamente a gravação.
+* Comando ambíguo tocava automaticamente a gravação mais recente ou a primeira
+  da lista.
+
+### Diagnóstico técnico
+
+* A tela Minhas Gravações usa `RecordingsListController`, que delega a execução
+  para `AudioPlayerService`.
+* `AudioPlayerService.play()` aguardava o `just_audio.play()`. No `just_audio`,
+  esse `Future` pode terminar apenas quando a reprodução para ou completa. Com
+  isso, o controller só atualizava `playingRecordingId` no fim do áudio, e o
+  botão continuava como play durante a primeira execução.
+* A lista limpava o estado em qualquer evento `!state.playing`. Isso podia
+  confundir transições intermediárias do player com conclusão real.
+* O modo de loop não era explicitamente desligado ao preparar o arquivo.
+* O comando por voz buscava por nome e, quando não encontrava parâmetro, caía no
+  primeiro item da lista. Assim `reproduzir gravação` com várias opções era
+  perigoso, e `reproduzir gravação 2` podia não ser tratado como posição.
+
+### Correção realizada
+
+* O adapter do `just_audio` agora inicia a reprodução sem bloquear a UI até o
+  fim do áudio.
+* O `AudioPlayerService` força `LoopMode.off` ao preparar um arquivo.
+* A conclusão natural usa `ProcessingState.completed` para limpar o estado,
+  voltar o botão para play e reposicionar o áudio no início.
+* Ao trocar de gravação, o controller para a anterior antes de tocar a nova.
+* O controller resolve comandos por número ou ordem da lista visível:
+  `1`, `2`, `primeira`, `segunda`, etc.
+* Com uma única gravação, `reproduzir gravação` toca a única opção.
+* Com várias gravações, `reproduzir gravação` pede especificação:
+  `Diga qual gravação deseja tocar, por exemplo: reproduzir gravação 1.`
+* Número fora da lista retorna:
+  `Não encontrei essa gravação na lista.`
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/editor/services/audio_player_service_test.dart`
+  * valida início imediato do playback;
+  * valida `LoopMode.off`;
+  * valida conclusão natural, retorno ao início e replay;
+  * valida falhas de start sem manter sessão presa.
+* `test/features/recordings/controllers/recordings_list_controller_test.dart`
+  * play muda estado para parar;
+  * stop volta para play;
+  * conclusão limpa estado sem reiniciar;
+  * replay manual funciona;
+  * trocar gravação para a anterior e toca a nova;
+  * comando por número e ordem seleciona o item correto;
+  * comando ambíguo com várias gravações não toca automaticamente;
+  * comando ambíguo com uma gravação toca a única;
+  * número inexistente mostra mensagem amigável.
+* `test/features/voices/services/command_service_test.dart`
+  * reconhece `reproduzir gravação 1`;
+  * reconhece `tocar gravação 2`;
+  * reconhece `dar play na gravação 1`;
+  * reconhece `tocar a segunda gravação`, `reproduzir a segunda` e
+    `tocar a primeira`.
+* `test/features/recordings/pages/minhas_gravacoes_page_test.dart`
+  * mantém o teste de ajuda contextual com o stream tipado do player.
+
+### Teste manual recomendado
+
+1. Rodar app no Android físico.
+2. Fazer login.
+3. Abrir Minhas Gravações.
+4. Tocar no play de uma gravação.
+5. Confirmar que o botão muda para parar imediatamente.
+6. Esperar a gravação terminar.
+7. Confirmar que o botão volta para play.
+8. Confirmar que o áudio não toca em loop.
+9. Reproduzir a mesma gravação novamente.
+10. Repetir 3 vezes.
+11. Falar `reproduzir gravação 1`.
+12. Confirmar que toca a primeira gravação.
+13. Falar `reproduzir gravação 2`.
+14. Confirmar que toca a segunda gravação.
+15. Falar `reproduzir gravação` com várias gravações.
+16. Confirmar que o app pede para especificar qual gravação.
+17. Parar reprodução e reproduzir novamente.

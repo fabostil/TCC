@@ -191,12 +191,20 @@ class CommandService {
       final gravacao = _extractAfterAny(normalizedText, const [
         'reproduzir gravacao',
         'tocar gravacao',
+        'tocar a gravacao',
+        'toca a gravacao',
         'reproduzir audio',
         'tocar audio',
+        'dar play na gravacao',
+        'dar play gravacao',
         'ouvir gravacao',
         'escutar gravacao',
         'ouvir audio',
         'escutar audio',
+        'reproduzir a',
+        'tocar a',
+        'toque a',
+        'toca a',
       ]);
 
       return _recognized(
@@ -658,6 +666,12 @@ class CommandService {
       'escutar audio',
       'toque a gravacao',
       'toca a gravacao',
+      'dar play na gravacao',
+      'dar play gravacao',
+      'reproduzir a',
+      'tocar a',
+      'toque a',
+      'toca a',
     ]);
     if (gravacaoParaReproduzir != null) {
       return _recognized(

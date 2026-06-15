@@ -42,7 +42,12 @@ void main() {
         await service.play(audioFile.path);
 
         expect(service.currentPath, audioFile.path);
-        expect(player.calls, ['stop', 'setFilePath:${audioFile.path}', 'play']);
+        expect(player.calls, [
+          'stop',
+          'setFilePath:${audioFile.path}',
+          'setLoopModeOff',
+          'play',
+        ]);
         expect(session.calls, ['begin:audio_player_play']);
         expect(player.playing, isTrue);
       },
@@ -298,6 +303,11 @@ class _FakeAudioPlayerClient implements AudioPlayerClient {
     if (error != null) {
       throw error;
     }
+  }
+
+  @override
+  Future<void> setLoopModeOff() async {
+    calls.add('setLoopModeOff');
   }
 
   @override

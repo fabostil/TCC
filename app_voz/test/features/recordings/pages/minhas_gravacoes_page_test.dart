@@ -3,6 +3,7 @@ import 'package:app_voz/features/recordings/pages/minhas_gravacoes_page.dart';
 import 'package:app_voz/models/usuario.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:just_audio/just_audio.dart';
 
 void main() {
   testWidgets('abre e fecha ajuda contextual de gravacoes', (tester) async {
@@ -59,7 +60,7 @@ class _RecordingsHelpTestController extends RecordingsListController {
   RecordingsListState get state => _testState;
 
   @override
-  Stream<dynamic> get playerStateStream => const Stream.empty();
+  Stream<PlayerState> get playerStateStream => const Stream.empty();
 
   @override
   Future<void> load({required int? usuarioId, String? searchTerm}) async {}
