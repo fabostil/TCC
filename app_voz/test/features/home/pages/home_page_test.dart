@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:app_voz/features/home/pages/home_page.dart';
+import 'package:app_voz/features/voices/coordination/voice_command_dispatcher.dart';
 import 'package:app_voz/features/voices/services/auth_session_service.dart';
+import 'package:app_voz/features/voices/services/command_service.dart';
 import 'package:app_voz/features/voices/services/voice_permission_service.dart';
 import 'package:app_voz/models/configuracao_app.dart';
 import 'package:app_voz/models/usuario.dart';
@@ -151,6 +153,90 @@ void main() {
       expect(permissionClient.statusCalls, 0);
       expect(permissionClient.requestCalls, 0);
     });
+
+    testWidgets('comando descer rola a Home por voz', (tester) async {
+      await _pumpHome(tester);
+      await tester.pump();
+      final scrollView = _homeScrollView(tester);
+      final before = scrollView.controller!.offset;
+
+      final result = await _dispatchHomeCommandAndSettle(tester, 'descer');
+
+      expect(result.handled, isTrue);
+      expect(result.statusMessage, 'Rolando para baixo.');
+      expect(scrollView.controller!.offset, greaterThan(before));
+    });
+
+    testWidgets('comando subir rola a Home para cima por voz', (tester) async {
+      await _pumpHome(tester);
+      await tester.pump();
+      final controller = _homeScrollView(tester).controller!;
+      controller.jumpTo(300);
+      await tester.pump();
+
+      final result = await _dispatchHomeCommandAndSettle(tester, 'subir');
+
+      expect(result.handled, isTrue);
+      expect(result.statusMessage, 'Rolando para cima.');
+      expect(controller.offset, lessThan(300));
+    });
+
+    testWidgets('comando ir para o topo volta a Home ao inicio', (
+      tester,
+    ) async {
+      await _pumpHome(tester);
+      await tester.pump();
+      final controller = _homeScrollView(tester).controller!;
+      controller.jumpTo(300);
+      await tester.pump();
+
+      final result = await _dispatchHomeCommandAndSettle(
+        tester,
+        'ir para o topo',
+      );
+
+      expect(result.handled, isTrue);
+      expect(result.statusMessage, 'Indo para o topo.');
+      expect(controller.offset, 0);
+    });
+
+    testWidgets('comando ir para o fim chega ao final real da Home', (
+      tester,
+    ) async {
+      await _pumpHome(tester);
+      await tester.pump();
+      final controller = _homeScrollView(tester).controller!;
+
+      final result = await _dispatchHomeCommandAndSettle(
+        tester,
+        'ir para o fim',
+      );
+
+      expect(result.handled, isTrue);
+      expect(result.statusMessage, 'Indo para o fim da lista.');
+      expect(controller.offset, controller.position.maxScrollExtent);
+    });
+
+    testWidgets('tela inicial e voltar continuam como navegacao na Home', (
+      tester,
+    ) async {
+      await _pumpHome(tester);
+      await tester.pump();
+      final controller = _homeScrollView(tester).controller!;
+      controller.jumpTo(250);
+      await tester.pump();
+
+      final telaInicial = await _dispatchHomeCommandAndSettle(
+        tester,
+        'tela inicial',
+      );
+      final offsetAfterTelaInicial = controller.offset;
+      final voltar = await _dispatchHomeCommandAndSettle(tester, 'voltar');
+
+      expect(telaInicial.handled, isTrue);
+      expect(voltar.handled, isTrue);
+      expect(controller.offset, offsetAfterTelaInicial);
+    });
   });
 }
 
@@ -178,6 +264,26 @@ Future<void> _pumpHome(
       ),
     ),
   );
+}
+
+SingleChildScrollView _homeScrollView(WidgetTester tester) {
+  return tester.widget<SingleChildScrollView>(
+    find.byType(SingleChildScrollView),
+  );
+}
+
+Future<VoiceCommandPageResult> _dispatchHomeCommandAndSettle(
+  WidgetTester tester,
+  String text,
+) async {
+  final state = tester.state(find.byType(HomePage)) as dynamic;
+  final result = const CommandService().interpret(text);
+  final future =
+      state.voiceCommandDispatcher.dispatch(result)
+          as Future<VoiceCommandPageResult>;
+  await tester.pump();
+  await tester.pumpAndSettle(const Duration(milliseconds: 20));
+  return future;
 }
 
 Future<void> _triggerLogout(WidgetTester tester) async {

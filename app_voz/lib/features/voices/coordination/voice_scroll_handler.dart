@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../services/command_service.dart';
 import 'voice_command_dispatcher.dart';
@@ -20,14 +21,14 @@ class VoiceScrollHandler {
 
     if (!_controller.hasClients) {
       return VoiceCommandPageResult.handled(
-        message: 'Não há lista para rolar nesta tela.',
+        message: 'Não há mais conteúdo para rolar.',
       );
     }
 
     final position = _controller.position;
     if (position.maxScrollExtent <= position.minScrollExtent) {
       return VoiceCommandPageResult.handled(
-        message: 'Não há lista para rolar nesta tela.',
+        message: 'Não há mais conteúdo para rolar.',
       );
     }
 
@@ -51,17 +52,42 @@ class VoiceScrollHandler {
             direction == VoiceScrollDirection.up ||
                 direction == VoiceScrollDirection.top
             ? 'Você já está no topo.'
-            : 'Você já chegou ao fim da lista.',
+            : 'Você já está no fim da lista.',
       );
     }
 
-    await _controller.animateTo(
-      clamped.toDouble(),
+    await _animateTo(clamped.toDouble());
+
+    if (direction == VoiceScrollDirection.bottom) {
+      await _adjustToLatestBottomIfNeeded();
+    }
+
+    return VoiceCommandPageResult.handled(message: direction.feedbackMessage);
+  }
+
+  Future<void> _animateTo(double target) {
+    return _controller.animateTo(
+      target,
       duration: animationDuration,
       curve: Curves.easeOutCubic,
     );
+  }
 
-    return VoiceCommandPageResult.handled(message: direction.feedbackMessage);
+  Future<void> _adjustToLatestBottomIfNeeded() async {
+    await SchedulerBinding.instance.endOfFrame;
+
+    if (!_controller.hasClients) {
+      return;
+    }
+
+    final position = _controller.position;
+    final latestBottom = position.maxScrollExtent;
+    final current = position.pixels;
+    if ((latestBottom - current).abs() < 0.5) {
+      return;
+    }
+
+    await _animateTo(latestBottom);
   }
 }
 

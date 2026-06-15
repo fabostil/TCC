@@ -16,6 +16,7 @@ import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
+import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/pages/login_page.dart';
 import '../../voices/services/auth_session_service.dart';
 import '../../voices/services/command_service.dart';
@@ -53,6 +54,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage>
     with ContextualVoiceListeningMixin<HomePage> {
+  final ScrollController _scrollController = ScrollController();
   ConfiguracaoApp? _configuracao;
   bool _verificandoPrimeiraExecucao = true;
   bool _escutaInicialSolicitada = false;
@@ -121,6 +123,10 @@ class _HomePageState extends State<HomePage>
         VoiceCommandType.abrirAssistente: _handleAssistenteAtivo,
         VoiceCommandType.abrirHistorico: _handleAbrirHistorico,
         VoiceCommandType.voltar: _handleVoltar,
+        VoiceCommandType.scrollBaixo: _handleScrollPorVoz,
+        VoiceCommandType.scrollCima: _handleScrollPorVoz,
+        VoiceCommandType.scrollTopo: _handleScrollPorVoz,
+        VoiceCommandType.scrollFim: _handleScrollPorVoz,
         VoiceCommandType.sair: _handleSair,
       },
       onFallback: _handleComandoIndisponivel,
@@ -394,6 +400,15 @@ class _HomePageState extends State<HomePage>
     return VoiceCommandPageResult.handled(restartListening: false);
   }
 
+  Future<VoiceCommandPageResult> _handleScrollPorVoz(
+    CommandResult result,
+  ) async {
+    return await VoiceScrollHandler(
+          controller: _scrollController,
+        ).handle(result) ??
+        VoiceCommandPageResult.unavailable(recognized: result.recognized);
+  }
+
   Future<VoiceCommandPageResult> _handleComandoIndisponivel(
     CommandResult result,
   ) async {
@@ -501,6 +516,7 @@ class _HomePageState extends State<HomePage>
   @override
   void dispose() {
     disposeContextualVoiceListening();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -529,6 +545,7 @@ class _HomePageState extends State<HomePage>
         ],
       ),
       body: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

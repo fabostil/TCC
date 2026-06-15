@@ -2235,3 +2235,79 @@ Testes criados ou alterados:
 13. Confirmar mensagem amigavel.
 14. Confirmar que nao aparecem termos tecnicos como SHA, Firebase,
     PlatformException, stacktrace, token ou API key.
+
+## H.6 - Correcao do scroll por voz na Home e final real da lista
+
+### Bugs corrigidos
+
+* Na Home, os comandos `descer`, `subir`, `ir para o topo` e `ir para o fim`
+  eram reconhecidos pelo parser, mas nao executavam scroll na tela.
+* Em telas com listas, `ir para o fim` podia parar antes do final visual real
+  quando o tamanho rolavel mudava durante ou logo apos a animacao.
+
+### Diagnostico tecnico
+
+* `CommandService` ja separava corretamente comandos de scroll de comandos de
+  navegacao como `tela inicial` e `voltar`.
+* `VoiceScrollHandler` ja era o ponto compartilhado usado por listas como
+  projetos, gravacoes, historico, dashboard e configuracoes.
+* A Home usava `SingleChildScrollView`, mas nao possuia `ScrollController`
+  proprio e nao registrava os tipos `scrollBaixo`, `scrollCima`, `scrollTopo`
+  e `scrollFim` no `VoiceCommandDispatcher`.
+* O comando `ir para o fim` calculava `maxScrollExtent` apenas antes da
+  animacao. Se o layout/lista atualizasse o tamanho rolavel durante o movimento,
+  a animacao parava no limite antigo.
+
+### Correcao realizada
+
+* A Home passou a ter `ScrollController` proprio, descartado no `dispose`.
+* A Home passou a encaminhar os quatro comandos de scroll para
+  `VoiceScrollHandler`.
+* `VoiceScrollHandler` passou a fazer um ajuste final apos o frame seguinte ao
+  rolar para o fim, usando o `maxScrollExtent` mais recente.
+* Feedback de limite foi padronizado com mensagens amigaveis:
+  `Nao ha mais conteudo para rolar.`, `Voce ja esta no topo.` e
+  `Voce ja esta no fim da lista.`.
+* `tela inicial` e `voltar` continuam seguindo o fluxo de navegacao, sem virar
+  comandos de scroll.
+* Nenhuma regra de autenticacao, Google Login, player, comandos personalizados,
+  editor, banco ou parser global foi alterada.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/coordination/voice_scroll_handler_test.dart`
+  * controller sem clients retorna feedback amigavel;
+  * `descer` aumenta offset;
+  * `subir` reduz offset;
+  * `ir para o topo` vai para offset zero;
+  * `ir para o fim` vai para o limite final;
+  * `ir para o fim` ajusta se o limite final mudar apos layout;
+  * ja no topo e ja no fim retornam mensagens amigaveis.
+* `test/features/home/pages/home_page_test.dart`
+  * Home aceita `descer`;
+  * Home aceita `subir`;
+  * Home aceita `ir para o topo`;
+  * Home aceita `ir para o fim` ate o final real;
+  * `tela inicial` e `voltar` continuam como navegacao, sem rolar a tela.
+
+### Teste manual recomendado
+
+1. Rodar app no Android fisico.
+2. Fazer login.
+3. Na Home, dizer `descer`.
+4. Confirmar que a Home rola para baixo.
+5. Dizer `subir`.
+6. Confirmar que a Home rola para cima.
+7. Dizer `ir para o fim`.
+8. Confirmar que chega ao final real da Home.
+9. Dizer `ir para o topo`.
+10. Confirmar que volta ao topo.
+11. Dizer `tela inicial`.
+12. Confirmar que continua sendo navegacao para Home.
+13. Abrir Meus Projetos ou Minhas Gravacoes.
+14. Dizer `ir para o fim`.
+15. Confirmar que chega ao final real da lista.
+16. Dizer `voltar`.
+17. Confirmar que volta tela e nao rola.

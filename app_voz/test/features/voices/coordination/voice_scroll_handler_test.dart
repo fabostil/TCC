@@ -31,6 +31,32 @@ void main() {
     await tester.pump();
   }
 
+  Future<void> pumpDynamicScrollable(
+    WidgetTester tester,
+    ScrollController controller,
+    ValueNotifier<int> itemCount,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 300,
+            child: ValueListenableBuilder<int>(
+              valueListenable: itemCount,
+              builder: (context, count, _) => ListView.builder(
+                controller: controller,
+                itemCount: count,
+                itemExtent: 48,
+                itemBuilder: (context, index) => Text('Item $index'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+  }
+
   Future<VoiceCommandPageResult?> handleAndSettle(
     WidgetTester tester,
     VoiceScrollHandler handler,
@@ -49,7 +75,7 @@ void main() {
     ).handle(command('descer'));
 
     expect(result?.handled, isTrue);
-    expect(result?.statusMessage, 'Não há lista para rolar nesta tela.');
+    expect(result?.statusMessage, 'Não há mais conteúdo para rolar.');
   });
 
   testWidgets('scroll down aumenta o offset sem ultrapassar limites', (
@@ -125,6 +151,28 @@ void main() {
     expect(controller.offset, controller.position.maxScrollExtent);
   });
 
+  testWidgets('fim ajusta para o novo maxScrollExtent apos layout', (
+    tester,
+  ) async {
+    final controller = ScrollController();
+    final itemCount = ValueNotifier<int>(20);
+    addTearDown(controller.dispose);
+    addTearDown(itemCount.dispose);
+    await pumpDynamicScrollable(tester, controller, itemCount);
+
+    final future = VoiceScrollHandler(
+      controller: controller,
+    ).handle(command('fim da lista'));
+    itemCount.value = 50;
+
+    await tester.pump();
+    await tester.pumpAndSettle(const Duration(milliseconds: 20));
+    final result = await future;
+
+    expect(result?.handled, isTrue);
+    expect(controller.offset, controller.position.maxScrollExtent);
+  });
+
   testWidgets('fim informa quando a lista ja esta no final', (tester) async {
     final controller = ScrollController();
     addTearDown(controller.dispose);
@@ -139,6 +187,21 @@ void main() {
     );
 
     expect(result?.handled, isTrue);
-    expect(result?.statusMessage, 'Você já chegou ao fim da lista.');
+    expect(result?.statusMessage, 'Você já está no fim da lista.');
+  });
+
+  testWidgets('topo informa quando a lista ja esta no inicio', (tester) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await pumpScrollable(tester, controller);
+
+    final result = await handleAndSettle(
+      tester,
+      VoiceScrollHandler(controller: controller),
+      command('ir para o topo'),
+    );
+
+    expect(result?.handled, isTrue);
+    expect(result?.statusMessage, 'Você já está no topo.');
   });
 }
