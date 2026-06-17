@@ -46,6 +46,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   bool _voiceStartInProgress = false;
   bool _voiceRouteRecoveryAttempted = false;
   bool _voiceRecoveryPending = false;
+  bool _voiceSpeechResultReceived = false;
   Future<void> _voiceRoutePausePending = Future<void>.value();
   AppLifecycleListener? _voiceLifecycleListener;
   PageRoute<dynamic>? _voiceRoute;
@@ -269,7 +270,12 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   }
 
   Future<void> toggleContextualVoiceListening() async {
-    if (voiceOuvindo) {
+    // Só executa STOP se o manager/STT estão realmente ouvindo.
+    // Se voiceOuvindo=true mas o STT real está parado (estado stale),
+    // cai no restart para recuperar a escuta em vez de parar nada.
+    if (voiceOuvindo &&
+        voiceSessionManager.activeOwnerId == voiceOwnerId &&
+        voiceSessionManager.listeningActive) {
       voiceParadaManual = true;
       await voiceSessionManager.stopListening(voiceOwnerId, manual: true);
       if (!mounted) {
@@ -455,6 +461,9 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         if (!_voiceRouteActive) {
           return;
         }
+        // Sinalizar que resultado chegou antes de processContextualVoiceInput
+        // iniciar — evita que recovery dispare na janela entre done e resultado.
+        _voiceSpeechResultReceived = true;
         voiceRecognitionErrorGuard.reset();
         _debugVoiceCommandFlow('finalText="$texto" owner=$voiceOwnerId');
         unawaited(processContextualVoiceInput(texto));
@@ -466,9 +475,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         _debugVoiceCommandFlow('sttStatus=$status owner=$voiceOwnerId');
 
         if (status == 'done' || status == 'notListening') {
-          if (voiceExecutandoComando) {
+          if (voiceExecutandoComando || _voiceSpeechResultReceived) {
             _debugVoiceCommandFlow(
-              'recoveryScheduled allowed=false reason=command_processing '
+              'recoveryScheduled allowed=false '
+              'reason=${voiceExecutandoComando ? 'command_processing' : 'result_pending'} '
               'status=$status owner=$voiceOwnerId',
             );
             return;
@@ -533,6 +543,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   }
 
   Future<void> processContextualVoiceInput(String texto) async {
+    // Limpar latch de resultado imediatamente (antes de qualquer await).
+    // Garante que onStatus 'done' posterior não seja bloqueado desnecessariamente.
+    _voiceSpeechResultReceived = false;
+
     if (!_voiceRouteActive) {
       return;
     }
@@ -769,15 +783,22 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
     voiceCoordinator.scheduleContinuousRestart(
       ownerId: voiceOwnerId,
       reason: reason,
-      shouldRestart: () =>
-          mounted &&
-          _voiceRouteActive &&
-          voiceEscutaContinuaAtiva &&
-          !voiceParadaManual &&
-          !voiceExecutandoComando &&
-          !voiceOuvindo &&
-          !voiceSessionManager.isListeningStartInProgress &&
-          !voiceSessionManager.isBusyCooldownActive,
+      shouldRestart: () {
+        final canRestart = mounted &&
+            _voiceRouteActive &&
+            voiceEscutaContinuaAtiva &&
+            !voiceParadaManual &&
+            !voiceExecutandoComando &&
+            !voiceOuvindo &&
+            !voiceSessionManager.isListeningStartInProgress &&
+            !voiceSessionManager.isBusyCooldownActive;
+        // Liberar latch quando condição não é atendida para não bloquear
+        // futuros agendamentos quando o estado mudar.
+        if (!canRestart) {
+          _voiceRecoveryPending = false;
+        }
+        return canRestart;
+      },
       onRestart: () async {
         _voiceRecoveryPending = false;
         _debugVoiceCommandFlow(

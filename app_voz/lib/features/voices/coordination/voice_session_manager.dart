@@ -830,12 +830,25 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
     _activeRecoveryCorrelationId = correlationId;
     final sessionToken = VoiceRuntimeRegistry.instance.registerVoiceSession(
       ownerId: ownerId,
-      shouldRecover: () => generation == _generation && shouldRecover(),
+      shouldRecover: () {
+        final conditionMet = generation == _generation && shouldRecover();
+        // Liberar latch quando a condição falha naturalmente (sem invalidação).
+        // Sem isso, _activeRecoveryCorrelationId fica preso após condition_false
+        // e bloqueia recoveries futuros com 'recovery_already_pending'.
+        if (!conditionMet && _activeRecoveryCorrelationId == correlationId) {
+          _activeRecoveryCorrelationId = null;
+        }
+        return conditionMet;
+      },
       recover: () async {
         if (generation != _generation) {
           return;
         }
         stateMachine.incrementRecoveryAttempts();
+        // Limpar latch antes de executar o recovery para liberar slot imediatamente.
+        if (_activeRecoveryCorrelationId == correlationId) {
+          _activeRecoveryCorrelationId = null;
+        }
         await onRecover();
       },
       metadata: {'generation': generation, 'reason': reason.name},

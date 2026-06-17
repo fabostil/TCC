@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_voz/features/voices/coordination/voice_diagnostics.dart';
 import 'package:app_voz/features/voices/coordination/voice_session_manager.dart';
 import 'package:app_voz/features/voices/coordination/voice_state_machine.dart';
+import 'package:app_voz/features/voices/realtime/runtime/runtime_registry.dart';
 import 'package:app_voz/features/voices/realtime/voice_realtime_event.dart';
 import 'package:app_voz/features/voices/services/speech_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -349,8 +350,166 @@ void main() {
         isTrue,
       );
     });
+
+    test(
+      'recovery pulado por condition_false libera latch e permite novo recovery',
+      () {
+        final manager = VoiceSessionManager.forTesting(
+          speechService: _FakeSpeechService(),
+        );
+        addTearDown(manager.dispose);
+
+        // Agendar recovery com condição que sempre falha
+        manager.scheduleRecovery(
+          ownerId: 'home',
+          shouldRecover: () => false,
+          onRecover: () async {},
+        );
+
+        expect(manager.hasPendingRecovery, isTrue);
+
+        // Engine chama shouldRecover via registry → condition_false
+        final session =
+            VoiceRuntimeRegistry.instance.activeVoiceSession;
+        expect(session, isNotNull);
+        final canRecover = session!.shouldRecover();
+        expect(canRecover, isFalse);
+
+        // Latch deve ter sido liberado automaticamente
+        expect(manager.hasPendingRecovery, isFalse);
+
+        // Deve ser possível agendar novo recovery sem bloqueio
+        manager.scheduleRecovery(
+          ownerId: 'home',
+          shouldRecover: () => true,
+          onRecover: () async {},
+        );
+        expect(manager.hasPendingRecovery, isTrue);
+        expect(
+          manager.diagnostics.events
+              .where((e) => e.reason == 'recovery_already_pending')
+              .length,
+          0,
+        );
+      },
+    );
+
+    test(
+      'recovery executado com sucesso libera latch antes de onRecover',
+      () async {
+        final manager = VoiceSessionManager.forTesting(
+          speechService: _FakeSpeechService(),
+        );
+        addTearDown(manager.dispose);
+
+        var pendingDuringRecover = true;
+        manager.scheduleRecovery(
+          ownerId: 'home',
+          shouldRecover: () => true,
+          onRecover: () async {
+            pendingDuringRecover = manager.hasPendingRecovery;
+          },
+        );
+
+        expect(manager.hasPendingRecovery, isTrue);
+        final session =
+            VoiceRuntimeRegistry.instance.activeVoiceSession;
+        expect(session, isNotNull);
+        await session!.recover();
+
+        // Latch deve ter sido limpo antes de onRecover executar
+        expect(pendingDuringRecover, isFalse);
+        expect(manager.hasPendingRecovery, isFalse);
+      },
+    );
+
+    test(
+      'resultado final chega apos done na mesma geracao e processado',
+      () async {
+        final speech = _FakeSpeechService();
+        final manager = VoiceSessionManager.forTesting(speechService: speech);
+        addTearDown(manager.dispose);
+
+        var results = 0;
+        await manager.startListening(
+          ownerId: 'home',
+          onResult: (_) => results++,
+        );
+
+        // done chega antes do resultado (ordem Android)
+        speech.emitStatus('done');
+        expect(manager.activeOwnerId, isNull);
+
+        // Resultado chega depois — mesma geração, deve ser processado
+        speech.emitResult('projetos');
+        expect(results, 1);
+      },
+    );
+
+    test(
+      'recovery nao inicia enquanto shouldRecover retorna false',
+      () async {
+        final manager = VoiceSessionManager.forTesting(
+          speechService: _FakeSpeechService(),
+        );
+        addTearDown(manager.dispose);
+
+        var recovered = false;
+        // shouldRecover false simula voiceExecutandoComando=true no mixin
+        manager.scheduleRecovery(
+          ownerId: 'home',
+          shouldRecover: () => false,
+          onRecover: () async {
+            recovered = true;
+          },
+        );
+
+        final session =
+            VoiceRuntimeRegistry.instance.activeVoiceSession;
+        expect(session, isNotNull);
+        final canRecover = await VoiceRuntimeRegistry.instance.recoverVoiceSession(
+          ownerId: 'home',
+          token: session!.token,
+        );
+
+        expect(canRecover, isFalse);
+        expect(recovered, isFalse);
+        expect(manager.hasPendingRecovery, isFalse);
+      },
+    );
+
+    test(
+      'error_busy repetido nao cria loop de recovery infinito',
+      () async {
+        final speech = _FakeSpeechService();
+        final manager = VoiceSessionManager.forTesting(speechService: speech);
+        addTearDown(manager.dispose);
+
+        await manager.startListening(ownerId: 'home', onResult: (_) {});
+        speech.emitError('error_busy');
+        expect(manager.isBusyCooldownActive, isTrue);
+
+        // Tentar agendar recovery com cooldown ativo → shouldRecover=false
+        manager.scheduleRecovery(
+          ownerId: 'home',
+          shouldRecover: () => !manager.isBusyCooldownActive,
+          onRecover: () async {},
+        );
+
+        final session =
+            VoiceRuntimeRegistry.instance.activeVoiceSession;
+        if (session != null) {
+          session.shouldRecover();
+        }
+
+        // Latch liberado, sem segundo start
+        expect(manager.hasPendingRecovery, isFalse);
+        expect(speech.startCalls, 1);
+      },
+    );
   });
 }
+
 
 class _FakeSpeechService implements SpeechService {
   _FakeSpeechService({Completer<bool>? startCompleter})

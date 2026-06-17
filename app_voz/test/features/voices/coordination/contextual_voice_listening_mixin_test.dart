@@ -205,6 +205,149 @@ void main() {
       );
     });
   });
+
+  group('ContextualVoiceListeningMixin recovery e toggle fixes', () {
+    testWidgets(
+      'toggle com voiceOuvindo=true mas STT inativo reinicia, nao executa stop',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        // Estado stale: voiceOuvindo=true localmente, mas manager sem escuta real
+        key.currentState!.voiceSetState(() {
+          key.currentState!.voiceOuvindo = true;
+        });
+
+        expect(VoiceSessionManager.instance.listeningActive, isFalse);
+        expect(
+          VoiceSessionManager.instance.activeOwnerId,
+          isNot('test_contextual'),
+        );
+
+        // unawaited + pump para avançar o Future.delayed(350ms) interno
+        unawaited(key.currentState!.toggleContextualVoiceListening());
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // Deve ter chamado restart, não stop
+        expect(key.currentState!.voiceParadaManual, isFalse);
+        expect(key.currentState!.resumeAttempts, greaterThan(0));
+      },
+    );
+
+    testWidgets(
+      'toggle com voiceOuvindo=true e STT realmente ativo executa stop',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        // Simular escuta real ativa no manager
+        VoiceSessionManager.instance.claimListening('test_contextual');
+        key.currentState!.voiceSetState(() {
+          key.currentState!.voiceOuvindo = true;
+        });
+
+        expect(VoiceSessionManager.instance.listeningActive, isTrue);
+        expect(VoiceSessionManager.instance.activeOwnerId, 'test_contextual');
+
+        // toggleContextualVoiceListening no caminho de stop não tem delay interno
+        await key.currentState!.toggleContextualVoiceListening();
+        await tester.pump();
+
+        // Deve ter feito stop e setado parada manual
+        expect(key.currentState!.voiceParadaManual, isTrue);
+        expect(key.currentState!.voiceOuvindo, isFalse);
+      },
+    );
+
+    testWidgets(
+      '_voiceRecoveryPending liberado quando shouldRestart retorna false',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        // Condições que fazem shouldRestart retornar false:
+        // voiceEscutaContinuaAtiva=false (default)
+        expect(key.currentState!.voiceEscutaContinuaAtiva, isFalse);
+
+        // Chamar scheduleVoiceContinuousRestart (sets _voiceRecoveryPending=true)
+        key.currentState!.scheduleVoiceContinuousRestart();
+
+        // shouldRestart vai ser chamado pelo coordinator e retornar false
+        // isso deve liberar _voiceRecoveryPending automaticamente
+        // A verificação indireta: uma segunda chamada não deve ser bloqueada
+        // (sem 'recovery_already_pending' sendo logado)
+        key.currentState!.scheduleVoiceContinuousRestart();
+
+        // Como shouldRestart é false, nenhum restart deveria ter sido tentado
+        expect(key.currentState!.resumeAttempts, 0);
+
+        // E não houve 'recovery_already_pending' no diagnóstico
+        expect(
+          VoiceSessionManager.instance.diagnostics.events.any(
+            (e) => e.reason == 'recovery_already_pending',
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    testWidgets(
+      'restartManually apos error_busy limpa cooldown e inicia restart',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        // Simular que houve error_busy (cooldown ativo)
+        VoiceSessionManager.instance.registerFailure(
+          ownerId: 'test_contextual',
+          reason: 'error_busy',
+          message: 'STT ocupado',
+        );
+
+        // restartContextualVoiceListeningManually tem Future.delayed(350ms) interno.
+        // unawaited + pump avança o relógio do fake async.
+        unawaited(key.currentState!.restartContextualVoiceListeningManually());
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // Cooldown deve ter sido limpo pelo forceReset com clearBusyCooldown=true
+        expect(VoiceSessionManager.instance.isBusyCooldownActive, isFalse);
+        // Deve ter tentado iniciar
+        expect(key.currentState!.resumeAttempts, greaterThan(0));
+        expect(key.currentState!.voiceParadaManual, isFalse);
+      },
+    );
+
+    testWidgets(
+      'scheduleVoiceContinuousRestart bloqueado durante comando em processamento',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        // Simular comando em processamento
+        key.currentState!.voiceEscutaContinuaAtiva = true;
+        key.currentState!.voiceExecutandoComando = true;
+
+        // scheduleVoiceContinuousRestart: shouldRestart vai retornar false
+        // porque voiceExecutandoComando=true → latch deve ser liberado
+        key.currentState!.scheduleVoiceContinuousRestart();
+
+        // Nenhum restart executado
+        expect(key.currentState!.resumeAttempts, 0);
+
+        // Após fim do comando, não deve haver bloqueio para nova tentativa
+        key.currentState!.voiceExecutandoComando = false;
+        key.currentState!.scheduleVoiceContinuousRestart();
+
+        // recovery_already_pending não deve aparecer
+        expect(
+          VoiceSessionManager.instance.diagnostics.events.any(
+            (e) => e.reason == 'recovery_already_pending',
+          ),
+          isFalse,
+        );
+      },
+    );
+  });
 }
 
 class _TestVoiceApp extends StatelessWidget {
