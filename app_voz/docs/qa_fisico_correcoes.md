@@ -2830,3 +2830,238 @@ Ficam explicitamente para proximas etapas:
 * Recuperacao real de senha.
 * Perfil.
 * Exclusao avancada de projeto com gravacoes.
+
+## H.9.3 - Correcao da regressao de escuta apos H.9.2
+
+### Problema encontrado
+
+Depois da H.9.2, comandos essenciais que antes funcionavam na Home e em telas
+autenticadas pararam de executar. O log fisico indicou ciclo repetido de
+`listening`, `notListening`, `done`, `recovering`, `error_speech_timeout` e
+`error_busy`, sem evidencia de comando final chegando ao parser/dispatcher.
+
+O problema ocorreu com e sem `GEMINI_API_KEY`, portanto a causa nao era Gemini.
+
+### Diagnostico raiz
+
+As mudancas da H.9.2 em `VoiceCommandController` e `AiCommandService` apenas
+adicionaram governanca de IA (`aiEnabled`) e validacao de placeholder. Elas nao
+bloquearam comandos essenciais, que continuam resolvidos localmente antes da IA.
+
+A regressao real estava no ciclo compartilhado de STT:
+
+* `VoiceSessionManager.startListening` reservava o owner antes de saber se o STT
+  tinha encerrado a sessao anterior;
+* status `done` e `notListening` publicavam parada, mas nao liberavam
+  `_activeOwnerId` nem `VoiceAudioOwnerType.stt`;
+* a pagina agendava recovery para `notListening`, `done`, erro e falha de start
+  sem uma trava local contra recovery pendente;
+* `error_busy` podia disparar novo start antes de o Android liberar a sessao de
+  reconhecimento anterior;
+* com owner ainda reservado, novas tentativas ficavam presas em
+  `claim_listening`/recovery, sem entregar texto final ao dispatcher.
+
+### Correcoes realizadas
+
+* `VoiceSessionManager` agora libera owner e ownership de STT quando recebe
+  `done`, `notListening` ou erro do reconhecimento.
+* `startListening` passou a ignorar start duplicado quando ja ha start em
+  andamento, owner ouvindo ou cooldown de `error_busy`.
+* `error_busy` aplica cooldown maior antes de nova tentativa e nao deixa owner
+  preso.
+* `scheduleRecovery` passou a rejeitar recovery duplicado enquanto uma tentativa
+  ja esta pendente.
+* `ContextualVoiceListeningMixin` passou a controlar recovery pendente por tela,
+  ignorar restart normal durante cooldown e limitar recuperacao automatica de
+  `error_busy`.
+* Comandos essenciais continuam locais e nao dependem de Gemini, inclusive com
+  `aiEnabled=false`.
+* As correcoes da H.9.2 foram preservadas: referencias de Minhas Gravacoes como
+  `item 1`, `primeira gravacao` e titulo real `gravacao 1` seguem contextuais,
+  sem voltar a usar Gemini como primeira opcao.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/coordination/voice_session_manager_test.dart`
+  * valida que `notListening` sem texto libera owner;
+  * valida que `done` sem texto libera owner;
+  * valida que start duplicado durante start em andamento nao chama STT de novo;
+  * valida que start duplicado com owner ja ouvindo e ignorado;
+  * valida que `error_busy` libera owner, aplica cooldown e bloqueia start
+    imediato;
+  * valida que recoveries multiplos nao duplicam tentativa pendente.
+* `test/features/voices/controllers/voice_command_controller_test.dart`
+  * valida que `aiEnabled=false` nao bloqueia comandos essenciais da Home;
+  * valida que comando essencial com chave Gemini valida nao chama IA.
+
+Testes de H.9.2 mantidos:
+
+* `test/features/recordings/controllers/recordings_list_controller_test.dart`
+  cobre `item 1`, `tocar item 1`, `primeira gravacao` e titulo real.
+* `test/features/recordings/pages/minhas_gravacoes_page_test.dart` cobre
+  referencias contextuais e retomada pos-player.
+* `test/features/voices/services/command_service_test.dart` preserva
+  `item 1` fora de contexto como comando nao global.
+
+### Teste fisico recomendado
+
+1. Rodar `flutter run` sem `GEMINI_API_KEY`.
+2. Na Home, dizer `projetos`.
+3. Confirmar abertura de Projetos.
+4. Voltar para Home.
+5. Dizer `configuracoes`.
+6. Confirmar abertura.
+7. Voltar.
+8. Dizer `abrir editor`.
+9. Confirmar abertura.
+10. Abrir Minhas Gravacoes.
+11. Dizer `item 1`.
+12. Confirmar reproducao.
+13. Parar reproducao.
+14. Confirmar que a escuta volta.
+15. Repetir com `GEMINI_API_KEY` real.
+16. Confirmar que comandos essenciais continuam locais e nao mostram
+    `IA pensando...`.
+
+### Itens ainda pendentes
+
+Ficam explicitamente para H.10 ou proximas etapas:
+
+* Abertura lenta.
+* Boas-vindas/onboarding.
+* README e documentacao final.
+* Roteiro de apresentacao.
+* Recuperacao real de senha.
+* Perfil.
+* Exclusao avancada de projeto com gravacoes.
+
+## H.9.4 - Escuta travada e contrato oficial de comandos da apresentacao
+
+### Problema encontrado
+
+Depois da H.9.3, o Android fisico ainda podia ficar em estado travado: a escuta
+continua sumia e aparecia sozinha, o botao de microfone nao reativava a sessao
+e comandos locais como `projetos`, `abrir novo projeto`, `configuracoes` e
+`voltar` continuavam intermitentes. O log anterior indicava ciclo de
+`contextual_listening`, `listening`, `notListening`, `done`, recovery,
+`error_speech_timeout`, `error_busy` e `claim_listening`, sem evidencias de
+texto final chegando ao dispatcher.
+
+### Diagnostico raiz
+
+A H.9.3 corrigiu parte do owner preso, mas o clique manual no microfone ainda
+usava o mesmo caminho do start automatico. Se o manager estivesse em
+`startListening` ou cooldown de `error_busy`, o clique era ignorado e nao
+cancelava recovery, nao liberava owner stale e nao cancelava a sessao STT
+anterior. Alem disso, callbacks antigos de STT podiam chegar depois de um reset
+e `done`/`notListening` ainda podiam tentar rearmar recovery enquanto um comando
+final estava em processamento.
+
+No parser, comandos essenciais ja tinham prioridade local, mas faltava um
+contrato explicito para todos os comandos planejados da apresentacao, incluindo
+entrada/onboarding preparado, aliases de navegacao, scroll, projeto, gravacao,
+detalhes e comandos personalizados.
+
+### Correcoes realizadas
+
+* `VoiceSessionManager` ganhou reset manual seguro da sessao de escuta, com
+  cancelamento de STT, liberacao de owner, limpeza opcional de cooldown e
+  invalidacao de recovery pendente.
+* `startListening` passou a ignorar callbacks stale de resultado, status e erro
+  quando a geracao da sessao ja foi invalidada por reset ou recovery novo.
+* `ContextualVoiceListeningMixin` passou a usar um caminho de reinicio manual
+  para o botao de microfone: cancela recovery, limpa sessao travada, espera um
+  intervalo curto e tenta iniciar novamente.
+* `done` e `notListening` nao agendam recovery enquanto ha comando final em
+  processamento.
+* Ao receber texto final, a pagina cancela recovery pendente, marca
+  processamento e so rearma escuta depois da execucao do comando.
+* Logs debug-only `[VoiceCommandFlow]` foram adicionados para tap manual,
+  reset, start, status STT, texto final, normalizacao, origem do comando,
+  decisao de recovery e cooldown.
+* `VoiceCommandController` passou a expor a origem do comando:
+  `local`, `custom`, `gemini` ou `unknown`, permitindo validar que comando
+  essencial nao usa IA.
+* `CommandService` foi reforcado como contrato local dos comandos oficiais da
+  apresentacao, antes de comando personalizado e antes de Gemini.
+* Foram adicionados comandos locais preparados para entrada/onboarding:
+  `comecar`, `ja tenho conta`, `permitir microfone`, `continuar` e `entrar`.
+  As telas futuras de onboarding ficam para H.10.
+* Foram reforcados aliases locais de navegacao, scroll, criacao de projeto,
+  descricao curta, detalhes por item visual, exclusao por item visual,
+  renomeacao de gravacao e comandos personalizados.
+* `parar` passou a ser interpretado como parada de reproducao; para captura de
+  audio permanecem comandos explicitos como `finalizar gravacao` e
+  `parar gravacao`.
+* Minhas Gravacoes passou a resolver `abrir detalhes do item 1` e
+  `excluir item 1` pela referencia visual segura, preservando o contrato da
+  H.9.2.
+* Gemini continua apenas como fallback de comando desconhecido com chave valida;
+  comandos oficiais nao chamam IA e nao exibem `IA pensando...`.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/coordination/voice_session_manager_test.dart`
+  * valida que reset manual cancela recovery pendente, libera owner e limpa
+    cooldown de `error_busy`;
+  * valida que resultado final antigo nao executa apos reset manual.
+* `test/features/voices/controllers/voice_command_controller_test.dart`
+  * valida origem `local` para comandos essenciais;
+  * preserva que comando essencial com chave Gemini valida nao chama IA.
+* `test/features/voices/services/command_service_test.dart`
+  * valida contrato oficial local da apresentacao;
+  * valida `criar projeto abacate`;
+  * valida `descricao abacate e bom`;
+  * valida `abrir detalhes do item 1`;
+  * valida `excluir item 1`;
+  * valida `nome da gravacao teste`;
+  * valida `parar` como parada de reproducao.
+
+Testes de regressao preservados:
+
+* H.9.2 de Minhas Gravacoes continua cobrindo `item 1`, `tocar item 1`,
+  `primeira gravacao` e titulo real `gravacao 1`.
+* Player continua coberto por testes de lista/detalhes para retomada apos stop,
+  completed e erro.
+* Comandos personalizados continuam depois de comando local reservado.
+
+### Roteiro fisico pos-H.9.4
+
+1. Rodar `flutter run` sem Gemini.
+2. Na Home, dizer `projetos`.
+3. Dizer `voltar`.
+4. Dizer `configuracoes`.
+5. Dizer `voltar`.
+6. Dizer `abrir novo projeto`.
+7. Dizer `nome do projeto abacate`.
+8. Dizer `descricao do projeto abacate e bom`.
+9. Dizer `salvar projeto`.
+10. Entrar no projeto.
+11. Dizer `abrir editor`.
+12. Dizer `gravar`.
+13. Dizer `finalizar gravacao`.
+14. Abrir Minhas Gravacoes.
+15. Dizer `tocar item 1`.
+16. Dizer `parar`.
+17. Dizer `abrir detalhes do item 1`.
+18. Testar botao de microfone apos falha.
+19. Repetir comandos essenciais com `GEMINI_API_KEY` real.
+20. Confirmar que nao aparece `IA pensando...` em comando essencial.
+
+### Itens ainda pendentes
+
+Ficam explicitamente para H.10 ou proximas etapas:
+
+* Implementar telas reais/integração de onboarding para os comandos ja
+  preparados (`comecar`, `ja tenho conta`, `permitir microfone`, `continuar`,
+  `entrar`).
+* Preencher automaticamente nome inicial ao navegar por `criar projeto abacate`
+  depende de integração de rota/formulario futura; o parser ja entrega o
+  parametro local.
+* Editor sem contexto suficiente continua devendo mostrar mensagem clara ao
+  executar `abrir editor`.
+* Exclusao avancada de projeto com gravacoes permanece fora do escopo.

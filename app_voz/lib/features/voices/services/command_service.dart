@@ -50,6 +50,15 @@ enum VoiceCommandType {
   scrollFim,
   voltar,
   sair,
+  comecarExperiencia,
+  jaTenhoConta,
+  permitirMicrofone,
+  continuarFluxo,
+  entrarConta,
+  criarComandoPersonalizado,
+  ativarComandoPersonalizado,
+  desativarComandoPersonalizado,
+  excluirComandoPersonalizado,
   desconhecido,
 }
 
@@ -153,14 +162,13 @@ class CommandService {
     }
 
     if (_containsAny(normalizedText, const [
-          'encerrar gravacao',
-          'parar gravacao',
-          'finalizar gravacao',
-          'terminar gravacao',
-          'salvar gravacao',
-          'concluir gravacao',
-        ]) ||
-        normalizedText == 'parar') {
+      'encerrar gravacao',
+      'parar gravacao',
+      'finalizar gravacao',
+      'terminar gravacao',
+      'salvar gravacao',
+      'concluir gravacao',
+    ])) {
       return _recognized(
         text,
         normalizedText,
@@ -174,6 +182,7 @@ class CommandService {
       'parar reproducao',
       'parar audio',
       'parar som',
+      'parar',
     ])) {
       return _recognized(
         text,
@@ -1138,6 +1147,40 @@ class CommandService {
     String originalText,
     String normalizedText,
   ) {
+    final entryCommand = switch (normalizedText) {
+      'comecar' => (
+        VoiceCommandType.comecarExperiencia,
+        'comecar_experiencia',
+        'Comecar experiencia',
+      ),
+      'ja tenho conta' => (
+        VoiceCommandType.jaTenhoConta,
+        'ja_tenho_conta',
+        'Ja tenho conta',
+      ),
+      'permitir microfone' => (
+        VoiceCommandType.permitirMicrofone,
+        'permitir_microfone',
+        'Permitir microfone',
+      ),
+      'continuar' => (
+        VoiceCommandType.continuarFluxo,
+        'continuar_fluxo',
+        'Continuar',
+      ),
+      'entrar' => (VoiceCommandType.entrarConta, 'entrar_conta', 'Entrar'),
+      _ => null,
+    };
+    if (entryCommand != null) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        entryCommand.$1,
+        tipoComando: entryCommand.$2,
+        acaoExecutada: entryCommand.$3,
+      );
+    }
+
     if (_equalsAny(normalizedText, const [
       'meus projetos',
       'abrir meus projetos',
@@ -1205,6 +1248,49 @@ class CommandService {
     }
 
     if (_equalsAny(normalizedText, const [
+      'criar comando personalizado',
+      'comando personalizado',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.criarComandoPersonalizado,
+        tipoComando: 'criar_comando_personalizado',
+        acaoExecutada: 'Criar comando personalizado',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['ativar comando'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.ativarComandoPersonalizado,
+        tipoComando: 'ativar_comando_personalizado',
+        acaoExecutada: 'Ativar comando personalizado',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['desativar comando'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.desativarComandoPersonalizado,
+        tipoComando: 'desativar_comando_personalizado',
+        acaoExecutada: 'Desativar comando personalizado',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['excluir comando'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.excluirComandoPersonalizado,
+        tipoComando: 'excluir_comando_personalizado',
+        acaoExecutada: 'Excluir comando personalizado',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
       'home',
       'inicio',
       'tela inicial',
@@ -1247,6 +1333,7 @@ class CommandService {
     if (_equalsAny(normalizedText, const [
       'novo projeto',
       'criar projeto',
+      'abrir novo projeto',
       'adicionar projeto',
     ])) {
       return _recognized(
@@ -1261,6 +1348,22 @@ class CommandService {
         acaoExecutada: normalizedText == 'criar projeto'
             ? 'Criar projeto'
             : 'Abrir novo projeto',
+      );
+    }
+
+    final novoProjetoComNome = _extractAfterAny(normalizedText, const [
+      'criar projeto',
+      'novo projeto',
+      'abrir novo projeto',
+    ]);
+    if (novoProjetoComNome != null) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.abrirNovoProjeto,
+        tipoComando: 'abrir_novo_projeto',
+        acaoExecutada: 'Abrir novo projeto',
+        parametro: _cleanShortName(novoProjetoComNome),
       );
     }
 
@@ -1283,6 +1386,75 @@ class CommandService {
         VoiceCommandType.definirDescricaoProjeto,
         tipoComando: 'definir_descricao_projeto',
         acaoExecutada: 'Definir descricao do projeto',
+      );
+    }
+
+    final descricaoDireta = normalizedText.startsWith('descricao do projeto ')
+        ? null
+        : _extractAfterAny(normalizedText, const ['descricao']);
+    if (descricaoDireta != null) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.definirDescricaoProjeto,
+        tipoComando: 'definir_descricao_projeto',
+        acaoExecutada: 'Definir descricao do projeto',
+        parametro: _polishSentence(descricaoDireta),
+      );
+    }
+
+    final nomeGravacao = _extractAfterAny(normalizedText, const [
+      'nome da gravacao',
+    ]);
+    if (nomeGravacao != null) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.renomearGravacao,
+        tipoComando: 'renomear_gravacao',
+        acaoExecutada: 'Renomear gravacao',
+        parametroSecundario: _cleanShortName(nomeGravacao),
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
+      'editar nome da gravacao',
+      'renomear gravacao',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.renomearGravacao,
+        tipoComando: 'renomear_gravacao',
+        acaoExecutada: 'Renomear gravacao',
+      );
+    }
+
+    final detalhesDoItem = RegExp(
+      r'^(abrir )?detalhes (do |da )?item ([0-9]+)$',
+    ).firstMatch(normalizedText);
+    if (detalhesDoItem != null) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.abrirDetalhesGravacao,
+        tipoComando: 'abrir_detalhes_gravacao',
+        acaoExecutada: 'Abrir detalhes da gravacao',
+        parametro: 'item ${detalhesDoItem.group(3)}',
+      );
+    }
+
+    final excluirItem = RegExp(
+      r'^excluir item ([0-9]+)$',
+    ).firstMatch(normalizedText);
+    if (excluirItem != null) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.excluirGravacao,
+        tipoComando: 'excluir_gravacao',
+        acaoExecutada: 'Excluir gravacao',
+        parametro: 'item ${excluirItem.group(1)}',
       );
     }
 

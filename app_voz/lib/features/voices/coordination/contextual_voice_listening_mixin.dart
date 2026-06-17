@@ -45,6 +45,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   bool _voiceRouteActive = true;
   bool _voiceStartInProgress = false;
   bool _voiceRouteRecoveryAttempted = false;
+  bool _voiceRecoveryPending = false;
   Future<void> _voiceRoutePausePending = Future<void>.value();
   AppLifecycleListener? _voiceLifecycleListener;
   PageRoute<dynamic>? _voiceRoute;
@@ -285,8 +286,57 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       return;
     }
 
+    await restartContextualVoiceListeningManually();
+  }
+
+  @visibleForTesting
+  Future<void> restartContextualVoiceListeningManually() async {
+    _debugVoiceCommandFlow(
+      'manualMicTap owner=$voiceOwnerId state=${voiceSessionState.phase.name} '
+      'managerOwner=${voiceSessionManager.activeOwnerId} '
+      'cooldown=${voiceSessionManager.isBusyCooldownActive}',
+    );
+
+    if (voiceExecutandoComando &&
+        !voiceConfirmationController.hasPendingConfirmation) {
+      _debugVoiceCommandFlow(
+        'startRequested owner=$voiceOwnerId allowed=false '
+        'reason=command_processing',
+      );
+      return;
+    }
+
+    _voiceRecoveryPending = false;
     voiceParadaManual = false;
-    await startContextualVoiceListening();
+    voiceSessionManager.cancelPendingRecovery(
+      ownerId: voiceOwnerId,
+      reason: 'manual_mic_tap',
+    );
+    _debugVoiceCommandFlow('forceReset reason=manual_mic_tap');
+    await voiceSessionManager.forceResetListeningSession(
+      ownerId: voiceOwnerId,
+      reason: 'manual_mic_tap',
+      clearBusyCooldown: true,
+    );
+
+    if (!mounted || !_voiceRouteActive) {
+      return;
+    }
+
+    voiceSetState(() {
+      setVoiceSession(
+        VoiceSessionPhase.idle,
+        message: 'Reativando microfone...',
+        listening: false,
+        thinking: false,
+      );
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (!mounted || !_voiceRouteActive) {
+      return;
+    }
+    await startContextualVoiceListening(manualOverride: true);
   }
 
   Future<void> startContinuousVoiceListeningIfActive() async {
@@ -319,9 +369,43 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         configuracao.comandosVozAtivos && configuracao.escutaContinua;
   }
 
-  Future<void> startContextualVoiceListening() async {
+  Future<void> startContextualVoiceListening({
+    bool manualOverride = false,
+  }) async {
     _ensureVoiceLifecycleObserver();
     if (!_voiceRouteActive) {
+      return;
+    }
+
+    if (voiceSessionManager.isListeningStartInProgress ||
+        voiceSessionManager.isBusyCooldownActive) {
+      if (manualOverride) {
+        _debugVoiceCommandFlow(
+          'startRequested owner=$voiceOwnerId allowed=false '
+          'reason=manager_busy_after_manual_reset starting='
+          '${voiceSessionManager.isListeningStartInProgress} cooldown='
+          '${voiceSessionManager.isBusyCooldownActive}',
+        );
+      }
+      _debugVoice(
+        'start_ignored owner=$voiceOwnerId reason=busy startInProgress='
+        '$_voiceStartInProgress managerStarting='
+        '${voiceSessionManager.isListeningStartInProgress} cooldown='
+        '${voiceSessionManager.isBusyCooldownActive}',
+      );
+      return;
+    }
+
+    if (voiceSessionManager.activeOwnerId == voiceOwnerId &&
+        voiceSessionManager.listeningActive) {
+      voiceSetState(() {
+        setVoiceSession(
+          VoiceSessionPhase.listening,
+          message: voiceListeningPrompt,
+          listening: true,
+          thinking: false,
+        );
+      });
       return;
     }
 
@@ -333,6 +417,8 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
     }
 
     syncVoiceConfigFlags(configuracao);
+
+    _voiceRecoveryPending = false;
 
     if (!configuracao.comandosVozAtivos) {
       voiceSetState(() {
@@ -358,6 +444,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         thinking: false,
       );
     });
+    _debugVoiceCommandFlow(
+      'startRequested owner=$voiceOwnerId allowed=true '
+      'reason=${manualOverride ? 'manual' : 'continuous'}',
+    );
 
     final started = await voiceSessionManager.startListening(
       ownerId: voiceOwnerId,
@@ -366,14 +456,23 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
           return;
         }
         voiceRecognitionErrorGuard.reset();
+        _debugVoiceCommandFlow('finalText="$texto" owner=$voiceOwnerId');
         unawaited(processContextualVoiceInput(texto));
       },
       onStatus: (status) {
         if (!mounted || !_voiceRouteActive) {
           return;
         }
+        _debugVoiceCommandFlow('sttStatus=$status owner=$voiceOwnerId');
 
         if (status == 'done' || status == 'notListening') {
+          if (voiceExecutandoComando) {
+            _debugVoiceCommandFlow(
+              'recoveryScheduled allowed=false reason=command_processing '
+              'status=$status owner=$voiceOwnerId',
+            );
+            return;
+          }
           voiceSetState(() {
             setVoiceSession(
               VoiceSessionPhase.idle,
@@ -403,7 +502,9 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
             thinking: false,
           );
         });
-        if (decision.shouldRecover) {
+        if (decision.shouldRecover &&
+            (error != 'error_busy' ||
+                voiceSessionManager.recoveryAttempts == 0)) {
           scheduleVoiceContinuousRestart(reason: VoiceRestartReason.afterError);
         }
       },
@@ -425,7 +526,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
           );
         });
       }
-      if (decision.shouldRecover) {
+      if (decision.shouldRecover && !voiceSessionManager.isBusyCooldownActive) {
         scheduleVoiceContinuousRestart(reason: VoiceRestartReason.afterError);
       }
     }
@@ -441,6 +542,11 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       return;
     }
 
+    _voiceRecoveryPending = false;
+    voiceSessionManager.cancelPendingRecovery(
+      ownerId: voiceOwnerId,
+      reason: 'command_processing',
+    );
     voiceExecutandoComando = true;
     voiceSessionManager.markProcessing(
       ownerId: voiceOwnerId,
@@ -470,6 +576,11 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       },
     );
     final resultado = resultadoController.commandResult;
+    _debugVoiceCommandFlow(
+      'normalized="${resultado.normalizedText}" '
+      'source=${resultadoController.source.name} '
+      'type=${resultado.type.name} owner=$voiceOwnerId',
+    );
     _debugVoice(
       'recognized owner=$voiceOwnerId raw="$texto" '
       'normalized="${resultado.normalizedText}" type=${resultado.type.name} '
@@ -631,6 +742,30 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   void scheduleVoiceContinuousRestart({
     VoiceRestartReason reason = VoiceRestartReason.normal,
   }) {
+    if (_voiceRecoveryPending ||
+        _voiceStartInProgress ||
+        voiceSessionManager.isListeningStartInProgress ||
+        (reason == VoiceRestartReason.normal &&
+            voiceSessionManager.isBusyCooldownActive)) {
+      _debugVoiceCommandFlow(
+        'recoveryScheduled allowed=false reason=${reason.name} '
+        'pending=$_voiceRecoveryPending startInProgress=$_voiceStartInProgress '
+        'managerStarting=${voiceSessionManager.isListeningStartInProgress} '
+        'busyCooldown=${voiceSessionManager.isBusyCooldownActive}',
+      );
+      _debugVoice(
+        'recovery_ignored owner=$voiceOwnerId reason=${reason.name} '
+        'pending=$_voiceRecoveryPending startInProgress=$_voiceStartInProgress '
+        'managerStarting=${voiceSessionManager.isListeningStartInProgress} '
+        'cooldown=${voiceSessionManager.isBusyCooldownActive}',
+      );
+      return;
+    }
+
+    _voiceRecoveryPending = true;
+    _debugVoiceCommandFlow(
+      'recoveryScheduled allowed=true reason=${reason.name} owner=$voiceOwnerId',
+    );
     voiceCoordinator.scheduleContinuousRestart(
       ownerId: voiceOwnerId,
       reason: reason,
@@ -640,8 +775,16 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
           voiceEscutaContinuaAtiva &&
           !voiceParadaManual &&
           !voiceExecutandoComando &&
-          !voiceOuvindo,
-      onRestart: startContextualVoiceListening,
+          !voiceOuvindo &&
+          !voiceSessionManager.isListeningStartInProgress &&
+          !voiceSessionManager.isBusyCooldownActive,
+      onRestart: () async {
+        _voiceRecoveryPending = false;
+        _debugVoiceCommandFlow(
+          'recoveryCancelled reason=restart_running owner=$voiceOwnerId',
+        );
+        await startContextualVoiceListening();
+      },
     );
   }
 
@@ -775,6 +918,13 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   void _debugVoice(String message) {
     assert(() {
       debugPrint('[VoiceH8] $message');
+      return true;
+    }());
+  }
+
+  void _debugVoiceCommandFlow(String message) {
+    assert(() {
+      debugPrint('[VoiceCommandFlow] $message');
       return true;
     }());
   }

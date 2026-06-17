@@ -138,6 +138,15 @@ class VoiceGlobalCommandService {
       case VoiceCommandType.confirmarAcao:
       case VoiceCommandType.cancelarAcao:
       case VoiceCommandType.voltar:
+      case VoiceCommandType.comecarExperiencia:
+      case VoiceCommandType.jaTenhoConta:
+      case VoiceCommandType.permitirMicrofone:
+      case VoiceCommandType.continuarFluxo:
+      case VoiceCommandType.entrarConta:
+      case VoiceCommandType.criarComandoPersonalizado:
+      case VoiceCommandType.ativarComandoPersonalizado:
+      case VoiceCommandType.desativarComandoPersonalizado:
+      case VoiceCommandType.excluirComandoPersonalizado:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
         return const VoiceGlobalCommandResult.notHandled();

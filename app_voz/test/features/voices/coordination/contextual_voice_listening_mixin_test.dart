@@ -268,7 +268,9 @@ class _TestVoicePageState extends State<_TestVoicePage>
   }
 
   @override
-  Future<void> startContextualVoiceListening() async {
+  Future<void> startContextualVoiceListening({
+    bool manualOverride = false,
+  }) async {
     resumeAttempts++;
   }
 

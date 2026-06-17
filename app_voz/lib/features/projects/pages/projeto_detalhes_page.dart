@@ -455,6 +455,15 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       case VoiceCommandType.definirTempoSilencio:
       case VoiceCommandType.confirmarAcao:
       case VoiceCommandType.cancelarAcao:
+      case VoiceCommandType.comecarExperiencia:
+      case VoiceCommandType.jaTenhoConta:
+      case VoiceCommandType.permitirMicrofone:
+      case VoiceCommandType.continuarFluxo:
+      case VoiceCommandType.entrarConta:
+      case VoiceCommandType.criarComandoPersonalizado:
+      case VoiceCommandType.ativarComandoPersonalizado:
+      case VoiceCommandType.desativarComandoPersonalizado:
+      case VoiceCommandType.excluirComandoPersonalizado:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
         return VoiceCommandPageResult.unavailable(

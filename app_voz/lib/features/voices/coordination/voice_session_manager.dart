@@ -34,9 +34,21 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
 
   static final VoiceSessionManager instance = VoiceSessionManager._();
 
+  @visibleForTesting
+  factory VoiceSessionManager.forTesting({
+    SpeechService? speechService,
+    VoiceStateMachine? stateMachine,
+  }) {
+    return VoiceSessionManager._(
+      speechService: speechService,
+      stateMachine: stateMachine,
+    );
+  }
+
   static const Duration restartDelayDefault = Duration(milliseconds: 700);
   static const Duration restartDelayAfterError = Duration(seconds: 2);
   static const int maxRecoveryAttempts = 3;
+  static const Duration busyCooldown = Duration(seconds: 3);
 
   final SpeechService speech;
   final VoiceStateMachine stateMachine;
@@ -47,9 +59,11 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
   String? _activeRecoveryCorrelationId;
   String? _activeListeningCorrelationId;
   String? _lastFailureReason;
+  DateTime? _busyCooldownUntil;
   late final StreamSubscription<StopVoiceCaptureRequestedEvent>
   _controlSubscription;
   bool _speechHardwareStarted = false;
+  bool _listeningStartInProgress = false;
 
   VoiceDiagnostics get diagnostics => stateMachine.diagnostics;
 
@@ -67,6 +81,17 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
 
   String? get lastFailureReason => _lastFailureReason;
 
+  bool get isListeningStartInProgress => _listeningStartInProgress;
+
+  bool get isBusyCooldownActive {
+    final cooldownUntil = _busyCooldownUntil;
+    return cooldownUntil != null && DateTime.now().isBefore(cooldownUntil);
+  }
+
+  bool get hasPendingRecovery => _activeRecoveryCorrelationId != null;
+
+  int get recoveryAttempts => stateMachine.snapshot.recoveryAttempts;
+
   @override
   bool isAudioOutputAvailable() {
     return _audioOwnerType == VoiceAudioOwnerType.none ||
@@ -74,6 +99,9 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
   }
 
   Duration restartDelayFor(VoiceRecoveryReason reason) {
+    if (_lastFailureReason == 'error_busy') {
+      return busyCooldown + const Duration(milliseconds: 500);
+    }
     return reason == VoiceRecoveryReason.afterError
         ? restartDelayAfterError
         : restartDelayDefault;
@@ -200,7 +228,38 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
     void Function(String status)? onStatus,
     void Function(String error)? onError,
   }) async {
+    if (_listeningStartInProgress) {
+      _recordStartSkipped(
+        ownerId: ownerId,
+        reason: 'start_in_progress',
+        message: 'Start ignorado: inicio de STT ja esta em andamento.',
+      );
+      return false;
+    }
+
+    if (_activeOwnerId == ownerId &&
+        _audioOwnerType == VoiceAudioOwnerType.stt) {
+      _recordStartSkipped(
+        ownerId: ownerId,
+        reason: 'already_listening',
+        message: 'Start ignorado: owner ja possui escuta ativa.',
+      );
+      return false;
+    }
+
+    final busyCooldownUntil = _busyCooldownUntil;
+    if (busyCooldownUntil != null &&
+        DateTime.now().isBefore(busyCooldownUntil)) {
+      _recordStartSkipped(
+        ownerId: ownerId,
+        reason: 'busy_cooldown',
+        message: 'Start ignorado: aguardando Android liberar o STT.',
+      );
+      return false;
+    }
+
     invalidateRecovery();
+    final listeningGeneration = _generation;
 
     if (!claimListening(ownerId)) {
       return false;
@@ -208,40 +267,82 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
 
     _activeListeningCorrelationId = 'stt_${ownerId}_$_generation';
     _speechHardwareStarted = false;
-    final started = await speech.startListening(
-      onResult: (text) {
-        diagnostics.eventBus.publish(
-          SpeechResultReceivedEvent(
-            source: 'voice_session_manager',
+    _listeningStartInProgress = true;
+    final bool started;
+    try {
+      started = await speech.startListening(
+        onResult: (text) {
+          if (listeningGeneration != _generation) {
+            diagnostics.record(
+              VoiceDiagnosticEventType.recoverySkipped,
+              ownerId: ownerId,
+              reason: 'stale_result',
+              message: 'Resultado STT antigo ignorado apos reset de sessao.',
+            );
+            return;
+          }
+          diagnostics.eventBus.publish(
+            SpeechResultReceivedEvent(
+              source: 'voice_session_manager',
+              ownerId: ownerId,
+              reason: 'speech_result',
+              correlationId: _activeListeningCorrelationId,
+              text: text,
+            ),
+          );
+          onResult(text);
+        },
+        onStatus: (status) {
+          if (listeningGeneration != _generation) {
+            diagnostics.record(
+              VoiceDiagnosticEventType.recoverySkipped,
+              ownerId: ownerId,
+              reason: 'stale_status_$status',
+              message: 'Status STT antigo ignorado apos reset de sessao.',
+            );
+            return;
+          }
+          diagnostics.record(
+            VoiceDiagnosticEventType.listeningStarted,
             ownerId: ownerId,
-            reason: 'speech_result',
-            correlationId: _activeListeningCorrelationId,
-            text: text,
-          ),
-        );
-        onResult(text);
-      },
-      onStatus: (status) {
-        diagnostics.record(
-          VoiceDiagnosticEventType.listeningStarted,
-          ownerId: ownerId,
-          reason: status,
-          message: 'Status STT: $status.',
-        );
-        if (status == 'done' || status == 'notListening') {
-          _publishSpeechStopped(ownerId: ownerId, reason: status);
-        }
-        onStatus?.call(status);
-      },
-      onError: (error) {
-        registerFailure(
-          ownerId: ownerId,
-          reason: error,
-          message: 'Não foi possível reconhecer a fala.',
-        );
-        onError?.call(error);
-      },
-    );
+            reason: status,
+            message: 'Status STT: $status.',
+          );
+          if (status == 'done' || status == 'notListening') {
+            _releaseStoppedSpeech(ownerId: ownerId, reason: status);
+          }
+          onStatus?.call(status);
+        },
+        onError: (error) {
+          if (listeningGeneration != _generation) {
+            diagnostics.record(
+              VoiceDiagnosticEventType.recoverySkipped,
+              ownerId: ownerId,
+              reason: 'stale_error_$error',
+              message: 'Erro STT antigo ignorado apos reset de sessao.',
+            );
+            return;
+          }
+          if (error == 'error_busy') {
+            _busyCooldownUntil = DateTime.now().add(busyCooldown);
+          }
+          registerFailure(
+            ownerId: ownerId,
+            reason: error,
+            message: 'Não foi possível reconhecer a fala.',
+          );
+          _releaseStoppedSpeech(ownerId: ownerId, reason: error);
+          onError?.call(error);
+        },
+      );
+    } finally {
+      _listeningStartInProgress = false;
+    }
+
+    if (listeningGeneration != _generation) {
+      _releaseStoppedSpeech(ownerId: ownerId, reason: 'stale_start_result');
+      return false;
+    }
 
     if (!started) {
       registerFailure(
@@ -254,6 +355,7 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
     }
 
     _speechHardwareStarted = true;
+    _busyCooldownUntil = null;
     diagnostics.eventBus.publish(
       SpeechListeningStartedEvent(
         source: 'voice_session_manager',
@@ -264,6 +366,82 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
     );
     stateMachine.resetRecoveryAttempts();
     return true;
+  }
+
+  Future<void> forceResetListeningSession({
+    String? ownerId,
+    required String reason,
+    bool clearBusyCooldown = false,
+  }) async {
+    final releasedOwner = ownerId ?? _activeOwnerId;
+    final previousOwnerType = _audioOwnerType;
+    invalidateRecovery();
+
+    if (clearBusyCooldown) {
+      _busyCooldownUntil = null;
+    }
+    _listeningStartInProgress = false;
+
+    try {
+      await speech.cancelListening();
+    } catch (error) {
+      diagnostics.record(
+        VoiceDiagnosticEventType.error,
+        ownerId: releasedOwner,
+        reason: 'reset_cancel_failed',
+        message: 'Falha ao cancelar sessao STT anterior durante reset manual.',
+        metadata: {'error': error.runtimeType.toString()},
+      );
+    }
+
+    _activeOwnerId = null;
+    VoiceRuntimeRegistry.instance.setActiveOwner(null);
+    if (_audioOwnerType == VoiceAudioOwnerType.stt) {
+      _audioOwnerType = VoiceAudioOwnerType.none;
+    }
+    _speechHardwareStarted = false;
+    _activeListeningCorrelationId = null;
+    _lastFailureReason = null;
+
+    diagnostics.record(
+      VoiceDiagnosticEventType.listeningStopped,
+      ownerId: releasedOwner,
+      reason: reason,
+      message: 'Sessao de escuta reiniciada manualmente.',
+    );
+    _publishSpeechStopped(ownerId: releasedOwner, reason: reason);
+
+    if (stateMachine.state != VoiceState.recording &&
+        stateMachine.state != VoiceState.disabled) {
+      stateMachine.transitionTo(
+        VoiceState.idle,
+        ownerId: releasedOwner,
+        reason: reason,
+        force: true,
+      );
+    }
+
+    _publishAudioOwnershipChanged(
+      previousOwnerType,
+      _audioOwnerType,
+      ownerId: releasedOwner,
+      reason: reason,
+    );
+    notifyListeners();
+  }
+
+  void cancelPendingRecovery({String? ownerId, required String reason}) {
+    if (_activeRecoveryCorrelationId == null) {
+      return;
+    }
+    final correlationId = _activeRecoveryCorrelationId;
+    invalidateRecovery();
+    diagnostics.record(
+      VoiceDiagnosticEventType.recoverySkipped,
+      ownerId: ownerId,
+      reason: reason,
+      message: 'Recovery pendente cancelado: $correlationId.',
+    );
   }
 
   Future<void> stopListening(String ownerId, {bool manual = false}) async {
@@ -637,6 +815,16 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
       return;
     }
 
+    if (_activeRecoveryCorrelationId != null) {
+      diagnostics.record(
+        VoiceDiagnosticEventType.recoverySkipped,
+        ownerId: ownerId,
+        reason: 'recovery_already_pending',
+        message: 'Recovery ignorado: ja existe tentativa pendente.',
+      );
+      return;
+    }
+
     final generation = _generation;
     final delay = restartDelayFor(reason);
     _activeRecoveryCorrelationId = correlationId;
@@ -697,6 +885,8 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
     _activeOwnerId = null;
     _audioOwnerType = VoiceAudioOwnerType.none;
     _lastFailureReason = null;
+    _busyCooldownUntil = null;
+    _listeningStartInProgress = false;
     invalidateRecovery();
     VoiceRuntimeEngine.instance.resetForTesting();
     VoiceRuntimeRegistry.instance.resetForTesting();
@@ -765,6 +955,40 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
     );
     _speechHardwareStarted = false;
     _activeListeningCorrelationId = null;
+  }
+
+  void _releaseStoppedSpeech({String? ownerId, required String reason}) {
+    _publishSpeechStopped(ownerId: ownerId, reason: reason);
+    if (ownerId != null && _activeOwnerId != ownerId) {
+      return;
+    }
+
+    final previousOwnerType = _audioOwnerType;
+    _activeOwnerId = null;
+    VoiceRuntimeRegistry.instance.setActiveOwner(null);
+    if (_audioOwnerType == VoiceAudioOwnerType.stt) {
+      _audioOwnerType = VoiceAudioOwnerType.none;
+    }
+    _publishAudioOwnershipChanged(
+      previousOwnerType,
+      _audioOwnerType,
+      ownerId: ownerId,
+      reason: reason,
+    );
+    notifyListeners();
+  }
+
+  void _recordStartSkipped({
+    required String ownerId,
+    required String reason,
+    required String message,
+  }) {
+    diagnostics.record(
+      VoiceDiagnosticEventType.recoverySkipped,
+      ownerId: ownerId,
+      reason: reason,
+      message: message,
+    );
   }
 
   void _publishAudioOwnershipChanged(

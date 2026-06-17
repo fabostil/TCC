@@ -101,6 +101,7 @@ void main() {
         service.interpret('parar reprodu\u00e7\u00e3o').type,
         VoiceCommandType.pararReproducao,
       );
+      expect(service.interpret('parar').type, VoiceCommandType.pararReproducao);
       expect(
         service.interpret('tocar').type,
         VoiceCommandType.reproduzirGravacao,
@@ -331,6 +332,10 @@ void main() {
     });
 
     test('reconhece comandos contextuais com parametros', () {
+      final criarComNome = service.interpret('criar projeto abacate');
+      expect(criarComNome.type, VoiceCommandType.abrirNovoProjeto);
+      expect(criarComNome.parametro, 'abacate');
+
       final nomeProjeto = service.interpret('nome do projeto beat novo');
       expect(nomeProjeto.type, VoiceCommandType.definirNomeProjeto);
       expect(nomeProjeto.parametro, 'beat novo');
@@ -346,6 +351,10 @@ void main() {
       );
       expect(descricao.type, VoiceCommandType.definirDescricaoProjeto);
       expect(descricao.parametro, 'Ideia simples para tocar na rua.');
+
+      final descricaoCurta = service.interpret('descricao abacate e bom');
+      expect(descricaoCurta.type, VoiceCommandType.definirDescricaoProjeto);
+      expect(descricaoCurta.parametro, 'Abacate e bom.');
 
       for (final text in [
         'descricao',
@@ -412,9 +421,21 @@ void main() {
       expect(detalhesSemNome.type, VoiceCommandType.abrirDetalhesGravacao);
       expect(detalhesSemNome.parametro, isNull);
 
+      final detalhesItem = service.interpret('abrir detalhes do item 1');
+      expect(detalhesItem.type, VoiceCommandType.abrirDetalhesGravacao);
+      expect(detalhesItem.parametro, 'item 1');
+
       final excluirGravacao = service.interpret('apagar gravacao');
       expect(excluirGravacao.type, VoiceCommandType.excluirGravacao);
       expect(excluirGravacao.parametro, isNull);
+
+      final excluirItem = service.interpret('excluir item 1');
+      expect(excluirItem.type, VoiceCommandType.excluirGravacao);
+      expect(excluirItem.parametro, 'item 1');
+
+      final nomeGravacao = service.interpret('nome da gravacao teste');
+      expect(nomeGravacao.type, VoiceCommandType.renomearGravacao);
+      expect(nomeGravacao.parametroSecundario, 'teste');
 
       final renomear = service.interpret(
         'renomear gravacao ideia um para refrao final',
@@ -504,6 +525,69 @@ void main() {
       expect(service.interpret('sim').type, VoiceCommandType.confirmarAcao);
       expect(service.interpret('nao').type, VoiceCommandType.cancelarAcao);
       expect(service.interpret('desistir').type, VoiceCommandType.cancelarAcao);
+    });
+
+    test('contrato oficial da apresentacao resolve localmente', () {
+      final cases = <String, VoiceCommandType>{
+        'comecar': VoiceCommandType.comecarExperiencia,
+        'ja tenho conta': VoiceCommandType.jaTenhoConta,
+        'permitir microfone': VoiceCommandType.permitirMicrofone,
+        'continuar': VoiceCommandType.continuarFluxo,
+        'entrar': VoiceCommandType.entrarConta,
+        'descer': VoiceCommandType.scrollBaixo,
+        'subir': VoiceCommandType.scrollCima,
+        'ir para o topo': VoiceCommandType.scrollTopo,
+        'ir para o fim': VoiceCommandType.scrollFim,
+        'configuracoes': VoiceCommandType.abrirConfiguracoes,
+        'preferencias': VoiceCommandType.abrirConfiguracoes,
+        'projetos': VoiceCommandType.abrirProjetos,
+        'meus projetos': VoiceCommandType.abrirProjetos,
+        'abrir meus projetos': VoiceCommandType.abrirProjetos,
+        'novo projeto': VoiceCommandType.abrirNovoProjeto,
+        'abrir novo projeto': VoiceCommandType.abrirNovoProjeto,
+        'criar projeto': VoiceCommandType.criarProjeto,
+        'minhas gravacoes': VoiceCommandType.abrirGravacoes,
+        'gravacoes': VoiceCommandType.abrirGravacoes,
+        'dashboard': VoiceCommandType.abrirDashboard,
+        'painel': VoiceCommandType.abrirDashboard,
+        'historico': VoiceCommandType.abrirHistorico,
+        'editor': VoiceCommandType.abrirEditor,
+        'abrir editor': VoiceCommandType.abrirEditor,
+        'home': VoiceCommandType.voltar,
+        'inicio': VoiceCommandType.voltar,
+        'tela inicial': VoiceCommandType.voltar,
+        'voltar': VoiceCommandType.voltar,
+        'sair': VoiceCommandType.sair,
+        'confirmar': VoiceCommandType.confirmarAcao,
+        'sim': VoiceCommandType.confirmarAcao,
+        'cancelar': VoiceCommandType.cancelarAcao,
+        'nao': VoiceCommandType.cancelarAcao,
+        'gravar': VoiceCommandType.iniciarGravacao,
+        'iniciar gravacao': VoiceCommandType.iniciarGravacao,
+        'comecar gravacao': VoiceCommandType.iniciarGravacao,
+        'pausar gravacao': VoiceCommandType.pausarGravacao,
+        'retomar gravacao': VoiceCommandType.retomarGravacao,
+        'finalizar gravacao': VoiceCommandType.encerrarGravacao,
+        'salvar gravacao': VoiceCommandType.encerrarGravacao,
+        'parar reproducao': VoiceCommandType.pararReproducao,
+        'abrir detalhes': VoiceCommandType.abrirDetalhesGravacao,
+        'detalhes da gravacao': VoiceCommandType.abrirDetalhesGravacao,
+        'editar nome da gravacao': VoiceCommandType.renomearGravacao,
+        'renomear gravacao': VoiceCommandType.renomearGravacao,
+        'excluir gravacao': VoiceCommandType.excluirGravacao,
+        'criar comando personalizado':
+            VoiceCommandType.criarComandoPersonalizado,
+        'comando personalizado': VoiceCommandType.criarComandoPersonalizado,
+        'ativar comando': VoiceCommandType.ativarComandoPersonalizado,
+        'desativar comando': VoiceCommandType.desativarComandoPersonalizado,
+        'excluir comando': VoiceCommandType.excluirComandoPersonalizado,
+      };
+
+      for (final entry in cases.entries) {
+        final result = service.interpret(entry.key);
+        expect(result.recognized, isTrue, reason: entry.key);
+        expect(result.type, entry.value, reason: entry.key);
+      }
     });
 
     test('mantem comandos destrutivos ambiguos sem acao direta', () {

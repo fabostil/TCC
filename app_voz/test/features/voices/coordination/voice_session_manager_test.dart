@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:app_voz/features/voices/coordination/voice_diagnostics.dart';
 import 'package:app_voz/features/voices/coordination/voice_session_manager.dart';
 import 'package:app_voz/features/voices/coordination/voice_state_machine.dart';
 import 'package:app_voz/features/voices/realtime/voice_realtime_event.dart';
+import 'package:app_voz/features/voices/services/speech_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -130,5 +133,293 @@ void main() {
         isTrue,
       );
     });
+
+    test('notListening sem texto libera owner para proxima escuta', () async {
+      final speech = _FakeSpeechService();
+      final manager = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(manager.dispose);
+
+      final started = await manager.startListening(
+        ownerId: 'home',
+        onResult: (_) {},
+      );
+
+      expect(started, isTrue);
+      expect(manager.activeOwnerId, 'home');
+
+      speech.emitStatus('notListening');
+
+      expect(manager.activeOwnerId, isNull);
+      expect(manager.audioOwnerType, VoiceAudioOwnerType.none);
+    });
+
+    test('done sem texto libera owner para proxima escuta', () async {
+      final speech = _FakeSpeechService();
+      final manager = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(manager.dispose);
+
+      final started = await manager.startListening(
+        ownerId: 'home',
+        onResult: (_) {},
+      );
+
+      expect(started, isTrue);
+      speech.emitStatus('done');
+
+      expect(manager.activeOwnerId, isNull);
+      expect(manager.audioOwnerType, VoiceAudioOwnerType.none);
+    });
+
+    test(
+      'startListening nao duplica sessao durante start em andamento',
+      () async {
+        final speech = _FakeSpeechService(startCompleter: Completer<bool>());
+        final manager = VoiceSessionManager.forTesting(speechService: speech);
+        addTearDown(manager.dispose);
+
+        final firstStart = manager.startListening(
+          ownerId: 'home',
+          onResult: (_) {},
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final secondStart = await manager.startListening(
+          ownerId: 'home',
+          onResult: (_) {},
+        );
+
+        expect(secondStart, isFalse);
+        expect(speech.startCalls, 1);
+        expect(
+          manager.diagnostics.events.any(
+            (event) => event.reason == 'start_in_progress',
+          ),
+          isTrue,
+        );
+
+        speech.completeStart(true);
+        expect(await firstStart, isTrue);
+      },
+    );
+
+    test('startListening nao reinicia quando owner ja esta ouvindo', () async {
+      final speech = _FakeSpeechService();
+      final manager = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(manager.dispose);
+
+      expect(
+        await manager.startListening(ownerId: 'home', onResult: (_) {}),
+        isTrue,
+      );
+
+      expect(
+        await manager.startListening(ownerId: 'home', onResult: (_) {}),
+        isFalse,
+      );
+      expect(speech.startCalls, 1);
+      expect(
+        manager.diagnostics.events.any(
+          (event) => event.reason == 'already_listening',
+        ),
+        isTrue,
+      );
+    });
+
+    test('error_busy libera owner e aplica cooldown de start', () async {
+      final speech = _FakeSpeechService();
+      final manager = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(manager.dispose);
+
+      expect(
+        await manager.startListening(ownerId: 'home', onResult: (_) {}),
+        isTrue,
+      );
+
+      speech.emitError('error_busy');
+
+      expect(manager.activeOwnerId, isNull);
+      expect(manager.audioOwnerType, VoiceAudioOwnerType.none);
+      expect(manager.isBusyCooldownActive, isTrue);
+      expect(
+        await manager.startListening(ownerId: 'home', onResult: (_) {}),
+        isFalse,
+      );
+      expect(speech.startCalls, 1);
+    });
+
+    test('multiplos recoveries nao duplicam tentativa pendente', () {
+      final manager = VoiceSessionManager.forTesting(
+        speechService: _FakeSpeechService(),
+      );
+      addTearDown(manager.dispose);
+
+      var recoveries = 0;
+      manager.scheduleRecovery(
+        ownerId: 'home',
+        shouldRecover: () => true,
+        onRecover: () async {
+          recoveries++;
+        },
+      );
+      manager.scheduleRecovery(
+        ownerId: 'home',
+        shouldRecover: () => true,
+        onRecover: () async {
+          recoveries++;
+        },
+      );
+
+      expect(recoveries, 0);
+      expect(
+        manager.diagnostics.events.any(
+          (event) => event.type == VoiceDiagnosticEventType.recoveryScheduled,
+        ),
+        isTrue,
+      );
+      expect(
+        manager.diagnostics.events.any(
+          (event) => event.reason == 'recovery_already_pending',
+        ),
+        isTrue,
+      );
+    });
+
+    test(
+      'reset manual cancela recovery pendente, libera owner e cooldown',
+      () async {
+        final speech = _FakeSpeechService();
+        final manager = VoiceSessionManager.forTesting(speechService: speech);
+        addTearDown(manager.dispose);
+
+        expect(
+          await manager.startListening(ownerId: 'home', onResult: (_) {}),
+          isTrue,
+        );
+        speech.emitError('error_busy');
+        manager.scheduleRecovery(
+          ownerId: 'home',
+          shouldRecover: () => true,
+          onRecover: () async {},
+        );
+
+        expect(manager.isBusyCooldownActive, isTrue);
+        expect(manager.hasPendingRecovery, isTrue);
+
+        await manager.forceResetListeningSession(
+          ownerId: 'home',
+          reason: 'manual_mic_tap',
+          clearBusyCooldown: true,
+        );
+
+        expect(manager.activeOwnerId, isNull);
+        expect(manager.audioOwnerType, VoiceAudioOwnerType.none);
+        expect(manager.hasPendingRecovery, isFalse);
+        expect(manager.isBusyCooldownActive, isFalse);
+        expect(speech.cancelCalls, 1);
+      },
+    );
+
+    test('resultado final antigo nao executa apos reset manual', () async {
+      final speech = _FakeSpeechService();
+      final manager = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(manager.dispose);
+
+      var results = 0;
+      expect(
+        await manager.startListening(
+          ownerId: 'home',
+          onResult: (_) => results++,
+        ),
+        isTrue,
+      );
+
+      await manager.forceResetListeningSession(
+        ownerId: 'home',
+        reason: 'manual_mic_tap',
+        clearBusyCooldown: true,
+      );
+
+      speech.emitResult('projetos');
+
+      expect(results, 0);
+      expect(
+        manager.diagnostics.events.any(
+          (event) => event.reason == 'stale_result',
+        ),
+        isTrue,
+      );
+    });
   });
+}
+
+class _FakeSpeechService implements SpeechService {
+  _FakeSpeechService({Completer<bool>? startCompleter})
+    : _startCompleter = startCompleter;
+
+  final Completer<bool>? _startCompleter;
+  void Function(String status)? _onStatus;
+  void Function(String error)? _onError;
+  void Function(String text)? _onResult;
+  var startCalls = 0;
+  var cancelCalls = 0;
+  var _listening = false;
+
+  @override
+  bool get isListening => _listening;
+
+  @override
+  Future<bool> initialize({
+    Function(String status)? onStatus,
+    Function(String error)? onError,
+  }) async {
+    return true;
+  }
+
+  @override
+  Future<bool> startListening({
+    required Function(String text) onResult,
+    Function(String status)? onStatus,
+    Function(String error)? onError,
+  }) async {
+    startCalls++;
+    _onResult = onResult;
+    _onStatus = onStatus;
+    _onError = onError;
+    final result = _startCompleter == null
+        ? true
+        : await _startCompleter.future;
+    _listening = result;
+    return result;
+  }
+
+  @override
+  Future<void> stopListening() async {
+    _listening = false;
+  }
+
+  @override
+  Future<void> cancelListening() async {
+    cancelCalls++;
+    _listening = false;
+  }
+
+  void completeStart(bool result) {
+    _startCompleter?.complete(result);
+  }
+
+  void emitStatus(String status) {
+    if (status == 'done' || status == 'notListening') {
+      _listening = false;
+    }
+    _onStatus?.call(status);
+  }
+
+  void emitError(String error) {
+    _listening = false;
+    _onError?.call(error);
+  }
+
+  void emitResult(String text) {
+    _onResult?.call(text);
+  }
 }

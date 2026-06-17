@@ -3,16 +3,20 @@ import '../services/command_service.dart';
 import '../services/custom_command_service.dart';
 import '../services/voice_feedback_service.dart';
 
+enum VoiceCommandSource { local, custom, gemini, unknown }
+
 class VoiceCommandControllerResult {
   const VoiceCommandControllerResult({
     required this.commandResult,
     required this.usedAi,
     required this.aiConfigured,
+    required this.source,
   });
 
   final CommandResult commandResult;
   final bool usedAi;
   final bool aiConfigured;
+  final VoiceCommandSource source;
 }
 
 class VoiceCommandController {
@@ -47,6 +51,7 @@ class VoiceCommandController {
         commandResult: result,
         usedAi: false,
         aiConfigured: aiConfigured,
+        source: VoiceCommandSource.unknown,
       );
     }
 
@@ -56,6 +61,7 @@ class VoiceCommandController {
         commandResult: result,
         usedAi: false,
         aiConfigured: aiConfigured,
+        source: VoiceCommandSource.local,
       );
     }
 
@@ -72,6 +78,7 @@ class VoiceCommandController {
           commandResult: customResult,
           usedAi: false,
           aiConfigured: aiConfigured,
+          source: VoiceCommandSource.custom,
         );
       }
     }
@@ -82,6 +89,7 @@ class VoiceCommandController {
         commandResult: result,
         usedAi: false,
         aiConfigured: aiConfigured,
+        source: VoiceCommandSource.unknown,
       );
     }
 
@@ -93,6 +101,7 @@ class VoiceCommandController {
       commandResult: result,
       usedAi: true,
       aiConfigured: aiConfigured,
+      source: VoiceCommandSource.gemini,
     );
   }
 }

@@ -900,6 +900,15 @@ class _EditorPageState extends State<EditorPage>
         case VoiceCommandType.definirTempoSilencio:
         case VoiceCommandType.confirmarAcao:
         case VoiceCommandType.cancelarAcao:
+        case VoiceCommandType.comecarExperiencia:
+        case VoiceCommandType.jaTenhoConta:
+        case VoiceCommandType.permitirMicrofone:
+        case VoiceCommandType.continuarFluxo:
+        case VoiceCommandType.entrarConta:
+        case VoiceCommandType.criarComandoPersonalizado:
+        case VoiceCommandType.ativarComandoPersonalizado:
+        case VoiceCommandType.desativarComandoPersonalizado:
+        case VoiceCommandType.excluirComandoPersonalizado:
           setState(() {
             statusProjeto =
                 'Esse comando não está disponível no editor. Use os botões da tela inicial para navegar.';

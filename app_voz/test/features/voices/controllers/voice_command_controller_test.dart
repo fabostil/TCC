@@ -94,9 +94,38 @@ void main() {
       expect(thinkingShown, isFalse);
     });
 
-    test('IA desabilitada no contexto nao chama Gemini com chave valida', () async {
+    test(
+      'IA desabilitada no contexto nao chama Gemini com chave valida',
+      () async {
+        var aiCalled = false;
+        var thinkingShown = false;
+        final controller = VoiceCommandController(
+          aiCommandService: AiCommandService(
+            apiKey: 'real-looking-test-key',
+            httpPost: (uri, headers, body, timeout) async {
+              aiCalled = true;
+              return _geminiResponse('{"action":"nav_history"}');
+            },
+          ),
+          feedbackService: const NoopVoiceFeedbackService(),
+        );
+
+        final result = await controller.interpret(
+          'item 1',
+          aiEnabled: false,
+          onAiStarted: () => thinkingShown = true,
+        );
+
+        expect(result.commandResult.type, VoiceCommandType.desconhecido);
+        expect(result.usedAi, isFalse);
+        expect(result.aiConfigured, isTrue);
+        expect(aiCalled, isFalse);
+        expect(thinkingShown, isFalse);
+      },
+    );
+
+    test('IA desabilitada nao bloqueia comandos essenciais da Home', () async {
       var aiCalled = false;
-      var thinkingShown = false;
       final controller = VoiceCommandController(
         aiCommandService: AiCommandService(
           apiKey: 'real-looking-test-key',
@@ -108,17 +137,56 @@ void main() {
         feedbackService: const NoopVoiceFeedbackService(),
       );
 
-      final result = await controller.interpret(
-        'item 1',
-        aiEnabled: false,
-        onAiStarted: () => thinkingShown = true,
+      final cases = {
+        'projetos': VoiceCommandType.abrirProjetos,
+        'meus projetos': VoiceCommandType.abrirProjetos,
+        'abrir meus projetos': VoiceCommandType.abrirProjetos,
+        'novo projeto': VoiceCommandType.abrirNovoProjeto,
+        'abrir novo projeto': VoiceCommandType.abrirNovoProjeto,
+        'configura\u00e7\u00f5es': VoiceCommandType.abrirConfiguracoes,
+        'minhas grava\u00e7\u00f5es': VoiceCommandType.abrirGravacoes,
+        'abrir editor': VoiceCommandType.abrirEditor,
+        'voltar': VoiceCommandType.voltar,
+        'tela inicial': VoiceCommandType.voltar,
+      };
+
+      for (final entry in cases.entries) {
+        final result = await controller.interpret(entry.key, aiEnabled: false);
+
+        expect(
+          result.commandResult.type,
+          entry.value,
+          reason: 'Comando: ${entry.key}',
+        );
+        expect(result.usedAi, isFalse, reason: 'Comando: ${entry.key}');
+        expect(
+          result.source,
+          VoiceCommandSource.local,
+          reason: 'Comando: ${entry.key}',
+        );
+      }
+      expect(aiCalled, isFalse);
+    });
+
+    test('comando essencial nao chama Gemini com chave valida', () async {
+      var aiCalled = false;
+      final controller = VoiceCommandController(
+        aiCommandService: AiCommandService(
+          apiKey: 'real-looking-test-key',
+          httpPost: (uri, headers, body, timeout) async {
+            aiCalled = true;
+            return _geminiResponse('{"action":"nav_history"}');
+          },
+        ),
+        feedbackService: const NoopVoiceFeedbackService(),
       );
 
-      expect(result.commandResult.type, VoiceCommandType.desconhecido);
+      final result = await controller.interpret('abrir novo projeto');
+
+      expect(result.commandResult.type, VoiceCommandType.abrirNovoProjeto);
       expect(result.usedAi, isFalse);
-      expect(result.aiConfigured, isTrue);
+      expect(result.source, VoiceCommandSource.local);
       expect(aiCalled, isFalse);
-      expect(thinkingShown, isFalse);
     });
 
     test('resolve comandos essenciais localmente sem chave da IA', () async {

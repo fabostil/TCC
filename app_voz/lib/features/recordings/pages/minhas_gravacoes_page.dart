@@ -515,6 +515,15 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       case VoiceCommandType.ativarParadaSilencio:
       case VoiceCommandType.desativarParadaSilencio:
       case VoiceCommandType.definirTempoSilencio:
+      case VoiceCommandType.comecarExperiencia:
+      case VoiceCommandType.jaTenhoConta:
+      case VoiceCommandType.permitirMicrofone:
+      case VoiceCommandType.continuarFluxo:
+      case VoiceCommandType.entrarConta:
+      case VoiceCommandType.criarComandoPersonalizado:
+      case VoiceCommandType.ativarComandoPersonalizado:
+      case VoiceCommandType.desativarComandoPersonalizado:
+      case VoiceCommandType.excluirComandoPersonalizado:
       case VoiceCommandType.desconhecido:
         return _handleReferenciaParcialDeGravacao(resultado.normalizedText);
       case VoiceCommandType.sair:
@@ -667,6 +676,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     String? nome,
   ) async {
     final gravacao =
+        _resolverGravacaoPorReferencia(nome) ??
         _buscarGravacaoPorNome(nome) ??
         (_recordingsState.recordings.isNotEmpty
             ? _recordingsState.recordings.first
@@ -716,7 +726,8 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   }
 
   Future<VoiceCommandPageResult> _handleExcluirPorVoz(String? nome) async {
-    final gravacao = _buscarGravacaoPorNome(nome);
+    final gravacao =
+        _resolverGravacaoPorReferencia(nome) ?? _buscarGravacaoPorNome(nome);
 
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(
@@ -803,6 +814,14 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
   Gravacao? _buscarGravacaoPorNome(String? nome) {
     return _recordingsController.findByName(nome);
+  }
+
+  Gravacao? _resolverGravacaoPorReferencia(String? referencia) {
+    final valor = referencia?.trim();
+    if (valor == null || valor.isEmpty) {
+      return null;
+    }
+    return _recordingsController.resolvePlaybackCommand(valor).recording;
   }
 
   Future<void> _abrirAjudaComandosGravacoes() {
