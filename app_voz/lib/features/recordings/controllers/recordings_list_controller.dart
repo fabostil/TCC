@@ -214,7 +214,10 @@ class RecordingsListController extends ChangeNotifier {
   }
 
   void handlePlayerState(PlayerState playerState) {
-    if (playerState.processingState == ProcessingState.completed) {
+    if (playerState.processingState == ProcessingState.completed ||
+        (_state.playingRecordingId != null &&
+            !playerState.playing &&
+            playerState.processingState == ProcessingState.idle)) {
       markPlaybackStopped();
     }
   }

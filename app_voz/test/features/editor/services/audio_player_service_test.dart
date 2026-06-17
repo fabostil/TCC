@@ -44,8 +44,8 @@ void main() {
         expect(service.currentPath, audioFile.path);
         expect(player.calls, [
           'stop',
-          'setFilePath:${audioFile.path}',
           'setLoopModeOff',
+          'setFilePath:${audioFile.path}',
           'play',
         ]);
         expect(session.calls, ['begin:audio_player_play']);
@@ -78,8 +78,28 @@ void main() {
         await pumpEventQueue();
 
         expect(player.playing, isFalse);
-        expect(player.calls, ['seek:0']);
+        expect(player.calls, ['stop', 'seek:0']);
         expect(session.calls, ['end:playback_completed']);
+      },
+    );
+
+    test(
+      'completed duplicado nao executa cleanup nem encerra sessao de novo',
+      () async {
+        await service.play(audioFile.path);
+        player.calls.clear();
+        session.calls.clear();
+        player.blockStop = true;
+
+        player.emitCompleted();
+        player.emitCompleted();
+        await pumpEventQueue();
+
+        expect(player.calls, ['stop']);
+        expect(session.calls, ['end:playback_completed']);
+
+        player.completeBlockedStop();
+        await pumpEventQueue();
       },
     );
 
@@ -251,6 +271,28 @@ void main() {
       expect(session.calls, ['end:playback_completed']);
     });
 
+    test('novo service para playback anterior antes de tocar', () async {
+      final otherPlayer = _FakeAudioPlayerClient();
+      final otherSession = _FakeAudioPlaybackSessionClient();
+      final otherService = AudioPlayerService.test(
+        player: otherPlayer,
+        sessionClient: otherSession,
+      );
+      addTearDown(() async {
+        await otherService.dispose();
+        await otherPlayer.closeStreams();
+      });
+      await service.play(audioFile.path);
+      player.calls.clear();
+      session.calls.clear();
+
+      await otherService.play(audioFile.path);
+
+      expect(player.calls, ['stop']);
+      expect(session.calls, ['end:replaced_by_other_playback']);
+      expect(otherPlayer.playing, isTrue);
+    });
+
     test('streams de posicao e duracao sao expostos pelo service', () async {
       final positions = <Duration>[];
       final durations = <Duration?>[];
@@ -285,6 +327,8 @@ class _FakeAudioPlayerClient implements AudioPlayerClient {
   Object? playError;
   Object? seekError;
   Object? stopError;
+  bool blockStop = false;
+  Completer<void>? _blockedStopCompleter;
   int disposeCalls = 0;
 
   @override
@@ -342,6 +386,10 @@ class _FakeAudioPlayerClient implements AudioPlayerClient {
     if (error != null) {
       throw error;
     }
+    if (blockStop) {
+      _blockedStopCompleter = Completer<void>();
+      await _blockedStopCompleter!.future;
+    }
     playing = false;
   }
 
@@ -353,6 +401,12 @@ class _FakeAudioPlayerClient implements AudioPlayerClient {
   void emitCompleted() {
     playing = false;
     _playerStateController.add(PlayerState(false, ProcessingState.completed));
+  }
+
+  void completeBlockedStop() {
+    blockStop = false;
+    _blockedStopCompleter?.complete();
+    _blockedStopCompleter = null;
   }
 
   void emitPosition(Duration position) {

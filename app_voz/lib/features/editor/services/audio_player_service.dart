@@ -161,9 +161,12 @@ class AudioPlayerService {
   final String _ownerId;
   StreamSubscription<PlayerState>? _playerStateSubscription;
 
+  static AudioPlayerService? _activeService;
+
   String? _currentPath;
   bool _restartCurrentPathFromBeginning = false;
   Future<void>? _completionResetFuture;
+  bool _disposed = false;
 
   bool get isPlaying => _player.playing;
   String? get currentPath => _currentPath;
@@ -186,6 +189,11 @@ class AudioPlayerService {
       return;
     }
 
+    final activeService = _activeService;
+    if (activeService != null && activeService != this) {
+      await activeService._stopForReplacement();
+    }
+
     if (!await _sessionClient.beginPlayback(
       ownerId: _ownerId,
       reason: 'audio_player_play',
@@ -203,8 +211,8 @@ class AudioPlayerService {
 
       if (_currentPath != path) {
         await _player.stop();
-        await _player.setFilePath(path);
         await _player.setLoopModeOff();
+        await _player.setFilePath(path);
         _currentPath = path;
         _restartCurrentPathFromBeginning = false;
       } else if (_restartCurrentPathFromBeginning) {
@@ -213,6 +221,7 @@ class AudioPlayerService {
       }
 
       await _player.play();
+      _activeService = this;
     } catch (error, stackTrace) {
       _sessionClient.recordStartFailure(
         ownerId: _ownerId,
@@ -235,11 +244,18 @@ class AudioPlayerService {
   Future<void> stop() async {
     await _player.stop();
     _restartCurrentPathFromBeginning = true;
+    if (_activeService == this) {
+      _activeService = null;
+    }
     _sessionClient.endPlayback(ownerId: _ownerId, reason: 'stop');
   }
 
   Future<void> dispose() async {
+    _disposed = true;
     await _playerStateSubscription?.cancel();
+    if (_activeService == this) {
+      _activeService = null;
+    }
     _sessionClient.endPlayback(ownerId: _ownerId, reason: 'dispose');
     await _player.dispose();
   }
@@ -248,14 +264,21 @@ class AudioPlayerService {
     if (state.processingState != ProcessingState.completed) {
       return;
     }
+    if (_completionResetFuture != null) {
+      return;
+    }
 
     _restartCurrentPathFromBeginning = true;
+    if (_activeService == this) {
+      _activeService = null;
+    }
     _sessionClient.endPlayback(ownerId: _ownerId, reason: 'playback_completed');
     _completionResetFuture = _resetCompletedPlayback();
   }
 
   Future<void> _resetCompletedPlayback() async {
     try {
+      await _player.stop();
       await _player.seek(Duration.zero);
       _restartCurrentPathFromBeginning = false;
     } catch (_) {
@@ -263,5 +286,21 @@ class AudioPlayerService {
     } finally {
       _completionResetFuture = null;
     }
+  }
+
+  Future<void> _stopForReplacement() async {
+    if (_disposed) {
+      return;
+    }
+
+    await _player.stop();
+    _restartCurrentPathFromBeginning = true;
+    if (_activeService == this) {
+      _activeService = null;
+    }
+    _sessionClient.endPlayback(
+      ownerId: _ownerId,
+      reason: 'replaced_by_other_playback',
+    );
   }
 }

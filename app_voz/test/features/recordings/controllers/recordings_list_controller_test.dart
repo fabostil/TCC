@@ -140,6 +140,20 @@ void main() {
       expect(playerService.playedPaths, ['/tmp/1.m4a']);
     });
 
+    test(
+      'idle sem playing limpa estado apos parada externa do player',
+      () async {
+        final recording = _recording(id: 1, name: 'Take');
+        recordingService.recordings = [recording];
+        await controller.load(usuarioId: 10);
+        await controller.togglePlayback(recording, usuarioId: null);
+
+        controller.handlePlayerState(PlayerState(false, ProcessingState.idle));
+
+        expect(controller.state.playingRecordingId, isNull);
+      },
+    );
+
     test('replay manual da mesma gravacao funciona apos conclusao', () async {
       final recording = _recording(id: 1, name: 'Take');
       recordingService.recordings = [recording];
@@ -170,16 +184,26 @@ void main() {
     });
 
     test('resolve comando por numero e ordem da lista visivel', () async {
-      final first = _recording(id: 1, name: 'Primeira');
-      final second = _recording(id: 2, name: 'Segunda');
-      recordingService.recordings = [first, second];
+      final visualOrder = [
+        _recording(id: 6, name: 'Mais recente'),
+        _recording(id: 5, name: 'Segunda visivel'),
+        _recording(id: 4, name: 'Terceira'),
+        _recording(id: 3, name: 'Quarta'),
+        _recording(id: 2, name: 'Quinta'),
+        _recording(id: 1, name: 'Mais antiga'),
+      ];
+      recordingService.recordings = visualOrder;
       await controller.load(usuarioId: 10);
 
-      expect(controller.resolvePlaybackCommand('1').recording, first);
-      expect(controller.resolvePlaybackCommand('2').recording, second);
+      expect(controller.resolvePlaybackCommand('1').recording, visualOrder[0]);
+      expect(controller.resolvePlaybackCommand('2').recording, visualOrder[1]);
       expect(
         controller.resolvePlaybackCommand('segunda gravacao').recording,
-        second,
+        visualOrder[1],
+      );
+      expect(
+        controller.resolvePlaybackCommand('tocar a segunda gravacao').recording,
+        visualOrder[1],
       );
     });
 

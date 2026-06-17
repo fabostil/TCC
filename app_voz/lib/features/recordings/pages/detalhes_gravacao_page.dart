@@ -50,10 +50,16 @@ class DetalhesGravacaoPage extends StatefulWidget {
     super.key,
     required this.usuario,
     required this.gravacaoId,
+    @visibleForTesting this.recordingService,
+    @visibleForTesting this.playerService,
+    @visibleForTesting this.enableVoiceListening = true,
   });
 
   final Usuario usuario;
   final int gravacaoId;
+  final RecordingManagementService? recordingService;
+  final AudioPlayerService? playerService;
+  final bool enableVoiceListening;
 
   @override
   State<DetalhesGravacaoPage> createState() => _DetalhesGravacaoPageState();
@@ -61,9 +67,8 @@ class DetalhesGravacaoPage extends StatefulWidget {
 
 class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     with ContextualVoiceListeningMixin<DetalhesGravacaoPage> {
-  final RecordingManagementService _recordingService =
-      RecordingManagementService();
-  final AudioPlayerService _playerService = AudioPlayerService();
+  late final RecordingManagementService _recordingService;
+  late final AudioPlayerService _playerService;
   final ScrollController _voiceScrollController = ScrollController();
 
   RecordingDetails? _details;
@@ -95,6 +100,8 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   @override
   void initState() {
     super.initState();
+    _recordingService = widget.recordingService ?? RecordingManagementService();
+    _playerService = widget.playerService ?? AudioPlayerService();
     voiceNavigationCommandHandler = VoiceNavigationCommandHandler(
       currentDestination: VoiceNavigationDestination.other,
       goHome: _handleIrParaHome,
@@ -110,16 +117,23 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       onFallback: _dispatchContextualVoice,
     );
     _playerStateSubscription = _playerService.playerStateStream.listen((state) {
-      if (!mounted || state.processingState != ProcessingState.completed) {
+      if (!mounted) {
         return;
       }
 
-      setState(() {
-        _reproduzindo = false;
-      });
+      if (state.processingState == ProcessingState.completed ||
+          (_reproduzindo &&
+              !state.playing &&
+              state.processingState == ProcessingState.idle)) {
+        setState(() {
+          _reproduzindo = false;
+        });
+      }
     });
     _carregarDados();
-    scheduleVoiceListeningOnFirstFrame();
+    if (widget.enableVoiceListening) {
+      scheduleVoiceListeningOnFirstFrame();
+    }
   }
 
   @override
@@ -840,7 +854,16 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
                       label: 'Formato',
                       value: details.gravacao.formatoAudio.toUpperCase(),
                     ),
-                    _InfoRow(label: 'Caminho', value: details.fileInfo.path),
+                    _InfoRow(
+                      label: 'Local',
+                      value: details.fileInfo.exists
+                          ? 'Gravação local'
+                          : 'Arquivo local não encontrado',
+                    ),
+                    _InfoRow(
+                      label: 'Nome',
+                      value: UserFacingMessages.fileName(details.fileInfo.path),
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.lg),

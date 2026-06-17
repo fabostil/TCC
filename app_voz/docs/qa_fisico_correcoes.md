@@ -2500,3 +2500,95 @@ Ficam explicitamente para próximas etapas:
 * Ordem de `reproduzir gravação 1/2`.
 * Path técnico em detalhes.
 * Abertura lenta.
+
+## H.9 - Correcao definitiva do player e ordem das gravacoes
+
+### Problemas corrigidos
+
+* Player entrava em loop ou podia manter reproducao nativa apos a UI considerar
+  a gravacao concluida.
+* Botao play/parar ficava inconsistente quando o estado do player mudava fora do
+  fluxo direto do botao.
+* Detalhes da gravacao podia exigir dois cliques para parar porque mantinha
+  estado proprio separado do contrato usado na lista.
+* `reproduzir gravacao 1/2` precisava ser comprovado contra a ordem visual da
+  lista, sem usar id do banco.
+* Path tecnico aparecia nos detalhes da gravacao.
+
+### Diagnostico raiz
+
+* Existe um contrato central em `AudioPlayerService`, mas lista e detalhes
+  criavam instancias separadas. Sem coordenacao entre instancias, uma tela podia
+  iniciar playback sem parar a instancia anterior.
+* O `JustAudioPlayerClient.play()` nao bloqueia ate o fim da faixa, o que esta
+  correto para evitar travar a UI. O problema estava no tratamento de conclusao:
+  o listener de `ProcessingState.completed` apenas fazia `seek(Duration.zero)`,
+  sem `stop()`, deixando risco de o player nativo continuar ativo no Android.
+* `LoopMode.off` era aplicado depois de `setFilePath`; a correcao aplica antes
+  de carregar o source novo.
+* Nao havia chamada a `play()` dentro do listener de `completed`; o risco de loop
+  vinha de source/estado nativo nao parado e de eventos duplicados sem guarda.
+* A lista usa `RecordingsListController.state.recordings` como lista
+  renderizada/filtrada, carregada em ordem recente pelo repositorio. O comando
+  por numero ja passava pelo controller, mas faltava teste com ids fora da ordem
+  visual para impedir regressao.
+* O detalhe montava a UI com `details.fileInfo.path`, expondo `/data/user/0` e
+  `app_flutter` diretamente ao usuario.
+
+### Correcoes realizadas
+
+* `AudioPlayerService` passou a manter uma instancia ativa global e parar a
+  reproducao anterior antes de iniciar outra, garantindo apenas um playback por
+  vez entre lista e detalhes.
+* Antes de carregar um arquivo novo, o servico executa `stop()`, aplica
+  `LoopMode.off` e entao chama `setFilePath()`.
+* Em `ProcessingState.completed`, o servico agora encerra a sessao uma unica vez,
+  executa `stop()` real, reposiciona para o inicio com `seek(Duration.zero)` e
+  limpa a instancia ativa.
+* Eventos duplicados de `completed` sao ignorados enquanto o cleanup anterior
+  ainda esta em andamento.
+* `RecordingsListController` limpa `playingRecordingId` tanto em `completed`
+  quanto em `idle` sem `playing`, cobrindo parada externa por outra instancia.
+* `DetalhesGravacaoPage` passou a limpar o estado visual em `completed` e em
+  `idle` sem `playing`, mantendo o botao coerente com a lista.
+* O detalhe deixou de mostrar caminho absoluto e passou a exibir `Gravacao local`
+  e o nome do arquivo por `UserFacingMessages.fileName()`.
+* A selecao por voz permanece baseada em `state.recordings`, isto e, na mesma
+  lista visual/filtrada usada pela UI. Testes agora cobrem seis gravacoes com ids
+  `6, 5, 4, 3, 2, 1`, validando que `gravacao 1` e o primeiro card visivel e
+  `segunda gravacao` e o segundo.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/editor/services/audio_player_service_test.dart`
+  * valida `LoopMode.off` antes de `setFilePath`;
+  * valida cleanup de conclusao natural com `stop()` e `seek(0)`;
+  * valida que `completed` duplicado nao executa cleanup duas vezes;
+  * valida replay manual da mesma gravacao;
+  * valida que uma nova instancia para a anterior antes de tocar.
+* `test/features/recordings/controllers/recordings_list_controller_test.dart`
+  * valida play/stop imediato;
+  * valida limpeza de estado em `completed`;
+  * valida limpeza em `idle` sem `playing`;
+  * valida troca de gravacao A para B;
+  * valida comando por ordem visual com seis gravacoes fora da ordem de id;
+  * preserva comando ambiguo com varias gravacoes pedindo especificacao;
+  * preserva comando ambiguo com uma unica gravacao tocando a unica;
+  * valida numero inexistente com mensagem amigavel.
+* `test/features/recordings/pages/detalhes_gravacao_page_test.dart`
+  * valida que detalhes nao mostram `/data/user/0`;
+  * valida que detalhes nao mostram `app_flutter`;
+  * valida texto amigavel de arquivo local;
+  * valida play/stop em detalhes com um clique.
+
+### Itens ainda pendentes
+
+Ficam explicitamente para proximas etapas:
+
+* Abertura lenta.
+* Boas-vindas/onboarding.
+* Documentacao final.
+* Roteiro de apresentacao.
+* Exclusao avancada de projeto com gravacoes.
