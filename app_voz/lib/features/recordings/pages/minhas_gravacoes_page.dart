@@ -98,6 +98,11 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   late final VoiceNavigationCommandHandler voiceNavigationCommandHandler;
 
   @override
+  bool shouldUseAiForVoiceInput(String normalizedText) {
+    return !_pareceReferenciaVisualDeGravacao(normalizedText);
+  }
+
+  @override
   void initState() {
     super.initState();
     _recordingsController =
@@ -433,7 +438,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       case VoiceCommandType.abrirDetalhesGravacao:
         return _handleAbrirDetalhesPorVoz(resultado.parametro);
       case VoiceCommandType.reproduzirGravacao:
-        return _handleReproduzirPorNome(resultado.parametro);
+        return _handleReproduzirPorNome(resultado);
       case VoiceCommandType.pararReproducao:
         await _recordingsController.stopPlayback();
         await _retomarEscutaAposPlayback();
@@ -600,8 +605,11 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     return VoiceCommandPageResult.handled(restartListening: false);
   }
 
-  Future<VoiceCommandPageResult> _handleReproduzirPorNome(String? nome) async {
-    final resolution = _recordingsController.resolvePlaybackCommand(nome);
+  Future<VoiceCommandPageResult> _handleReproduzirPorNome(
+    CommandResult resultado,
+  ) async {
+    final referencia = _referenciaPlaybackDoResultado(resultado);
+    final resolution = _recordingsController.resolvePlaybackCommand(referencia);
     final gravacao = resolution.recording;
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(message: resolution.message);
@@ -611,6 +619,15 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     return VoiceCommandPageResult.handled(
       restartListening: action != _PlaybackAction.started,
     );
+  }
+
+  String? _referenciaPlaybackDoResultado(CommandResult resultado) {
+    final normalized = resultado.normalizedText;
+    if (_pareceReferenciaVisualDeGravacao(normalized)) {
+      return normalized;
+    }
+
+    return resultado.parametro;
   }
 
   Future<VoiceCommandPageResult> _handleReferenciaParcialDeGravacao(
@@ -633,7 +650,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
   bool _pareceReferenciaVisualDeGravacao(String referencia) {
     return RegExp(
-      r'(^| )(gravacao|primeira|primeiro|segunda|segundo|terceira|terceiro|quarta|quarto|quinta|quinto|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove)( |$)',
+      r'(^| )(gravacao|item|posicao|posição|primeira|primeiro|segunda|segundo|terceira|terceiro|quarta|quarto|quinta|quinto|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove)( |$)',
     ).hasMatch(referencia);
   }
 
@@ -970,13 +987,15 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Gravação $numeroVisual',
+                            'Item $numeroVisual da lista',
                             key: Key('recording_visual_number_$numeroVisual'),
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
+                          const SizedBox(height: 4),
+                          Text('Diga: tocar item $numeroVisual'),
                           const SizedBox(height: 4),
                           Text('Data: ${_formatarData(gravacao.dataCriacao)}'),
                           const SizedBox(height: 4),

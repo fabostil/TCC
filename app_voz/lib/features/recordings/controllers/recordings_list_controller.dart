@@ -322,10 +322,30 @@ class RecordingsListController extends ChangeNotifier {
     return null;
   }
 
+  Gravacao? findByExactVisibleTitle(String? reference) {
+    final normalizedTitle = _normalizeTitleReference(reference);
+    if (normalizedTitle.isEmpty) {
+      return null;
+    }
+
+    for (final recording in _state.recordings) {
+      if (_commandService.normalize(recording.nome) == normalizedTitle) {
+        return recording;
+      }
+    }
+
+    return null;
+  }
+
   Gravacao? findByPlaybackReference(String? reference) {
     final normalized = _commandService.normalize(reference ?? '');
     if (normalized.isEmpty) {
       return null;
+    }
+
+    final byExactTitle = findByExactVisibleTitle(normalized);
+    if (byExactTitle != null) {
+      return byExactTitle;
     }
 
     final index = _playbackIndexFromReference(normalized);
@@ -359,7 +379,7 @@ class RecordingsListController extends ChangeNotifier {
       }
 
       return RecordingPlaybackResolution.message(
-        'Diga qual gravação deseja tocar, por exemplo: reproduzir gravação 1.',
+        'Diga qual gravação deseja tocar, por exemplo: tocar item 1.',
       );
     }
 
@@ -371,7 +391,7 @@ class RecordingsListController extends ChangeNotifier {
     return RecordingPlaybackResolution.message(
       isPlaybackReferenceOutOfRange(trimmed)
           ? 'Não encontrei essa gravação na lista.'
-          : 'Não encontrei essa gravação. Diga o nome ou número da lista.',
+          : 'Não consegui identificar qual gravação você quer tocar.',
     );
   }
 
@@ -411,7 +431,9 @@ class RecordingsListController extends ChangeNotifier {
   }
 
   int? _playbackIndexFromReference(String reference) {
-    final numberMatch = RegExp(r'(^| )([0-9]+)( |$)').firstMatch(reference);
+    final numberMatch = RegExp(
+      r'(^| )(?:item|posicao|posição) ([0-9]+)( |$)',
+    ).firstMatch(reference);
     final numericValue = int.tryParse(numberMatch?.group(2) ?? '');
     if (numericValue != null) {
       return numericValue - 1;
@@ -432,7 +454,9 @@ class RecordingsListController extends ChangeNotifier {
     };
 
     for (final entry in numberWords.entries) {
-      if (RegExp('(^| )${entry.key}( |\$)').hasMatch(reference)) {
+      if (RegExp(
+        '(^| )(?:item|posicao|posição) ${entry.key}( |\$)',
+      ).hasMatch(reference)) {
         return entry.value;
       }
     }
@@ -457,5 +481,19 @@ class RecordingsListController extends ChangeNotifier {
     }
 
     return null;
+  }
+
+  String _normalizeTitleReference(String? reference) {
+    var normalized = _commandService.normalize(reference ?? '').trim();
+    if (normalized.isEmpty) {
+      return '';
+    }
+
+    normalized = normalized
+        .replaceFirst(RegExp(r'^(tocar|toque|reproduzir|reproduza|play) '), '')
+        .replaceFirst(RegExp(r'^a '), '')
+        .trim();
+
+    return normalized;
   }
 }

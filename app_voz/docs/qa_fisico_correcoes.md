@@ -2696,3 +2696,137 @@ Ficam explicitamente para proximas etapas:
 * Roteiro de apresentacao.
 * Recuperacao real de senha.
 * Exclusao avancada de projeto com gravacoes.
+
+## H.9.2 - Correcao real de numeracao, escuta pos-player, Gemini opcional e Editor por voz
+
+### Problemas encontrados no teste fisico
+
+* O card podia mostrar o titulo real `Gravacao 3` e, logo abaixo, o indice
+  visual tambem como `Gravacao 1`, criando dois significados para a mesma fala.
+* `gravacao 1` podia tocar item inesperado porque a UI sugeria indice visual com
+  o mesmo texto usado pelo titulo real da gravacao.
+* Stop manual podia parar a escuta continua e nao retomar de forma confiavel.
+* Detalhes podia ficar em `Reproducao parada.` sem nova retomada de escuta.
+* Com `GEMINI_API_KEY` configurada, inclusive chave real valida, comandos
+  contextuais como `item 1` podiam passar pela IA antes de a pagina resolver o
+  fallback local.
+* Com `GEMINI_API_KEY=SUA_CHAVE_AQUI`, o app podia considerar a IA configurada
+  e entrar no estado `IA pensando...` mesmo sem chave real.
+* `abrir editor` dentro de detalhes de projeto dependia do fallback contextual,
+  em vez de estar ligado explicitamente ao handler de navegacao da tela.
+
+### Diagnostico raiz
+
+* O titulo principal do card e `gravacao.nome`. A H.9.1 adicionou abaixo uma
+  label artificial `Gravacao N`, calculada por `gravacaoIndex + 1`. Quando os
+  titulos reais eram `Gravacao 3`, `Gravacao 2`, `Gravacao 1`, a tela passava a
+  exibir dois numeros concorrentes.
+* O comando de voz precisava separar titulo visivel e posicao visual. A regra
+  correta e: titulo exato visivel vence; posicao visual deve ser dita como
+  `item 1`, `item 2`, `primeira gravacao`, `segunda gravacao`.
+* `CommandService` reconhece comandos essenciais antes de comandos
+  personalizados e antes da IA. O problema remanescente estava nos comandos
+  contextuais que sao desconhecidos globalmente, como `item 1`: eles precisam
+  chegar ao fallback da pagina antes de qualquer chamada Gemini.
+* `AiCommandService.isConfigured` aceitava qualquer string nao vazia como chave,
+  incluindo placeholders.
+* Nao ha uma configuracao visual propria de IA no modelo atual de
+  `ConfiguracaoApp`; portanto a etapa nao adicionou toggle persistido nem
+  migration. A governanca real implementada e: chave valida, timeout curto,
+  fallback apenas apos local/custom e bloqueio contextual de IA onde a tela tem
+  resolver local seguro.
+* O feedback sonoro vem de `VoiceFeedbackService` local, nao da Gemini.
+* A retomada pos-player ja era solicitada por lista e detalhes, mas os testes
+  fisicos mostraram que stop manual e erro precisavam permanecer cobertos como
+  contrato explicito.
+* Em `ProjetoDetalhesPage`, `_abrirEditor()` ja passava `EditorPage(usuario,
+  projeto)`, mas `VoiceNavigationCommandHandler` nao recebia `openEditor`; isso
+  deixava a decisao menos direta para comando de voz dentro do projeto.
+
+### Correcoes realizadas
+
+* Minhas Gravacoes deixou de usar `Gravacao N` como indice visual e passou a
+  mostrar `Item N da lista`, com dica curta `Diga: tocar item N`.
+* `RecordingsListController` passou a buscar titulo exato visivel antes de
+  resolver posicao.
+* `gravacao 1` e `tocar gravacao 1` agora tocam a gravacao cujo titulo visivel
+  e exatamente `Gravacao 1`, quando ela existe.
+* Posicao visual passou a ser resolvida por `item 1`, `tocar item 1`,
+  `primeira gravacao`, `a primeira`, `item 2` e `segunda gravacao`.
+* `gravacao 1` sem titulo exato nao cai mais silenciosamente no primeiro card;
+  retorna mensagem segura de ambiguidade.
+* A ajuda contextual de Minhas Gravacoes orienta comandos sem ambiguidade:
+  `Tocar item 1`, `Tocar item 2`, `Primeira gravacao`.
+* Lista e detalhes mantem retomada explicita apos stop manual, completed e erro
+  do player, sem retomar se a tela foi descartada ou se houve pausa manual.
+* `AiCommandService` trata `SUA_CHAVE_AQUI`, `YOUR_KEY_HERE`,
+  `COLE_SUA_CHAVE_AQUI` e placeholders semelhantes como chave invalida.
+* Comandos essenciais continuam resolvidos localmente; Gemini so e consultado
+  depois de comando local e comando personalizado falharem, com chave valida.
+* `VoiceCommandController` passou a receber `aiEnabled`; paginas contextuais
+  podem impedir IA antes de exibir `IA pensando...`.
+* Minhas Gravacoes bloqueia IA para referencias locais de lista, como `item 1`,
+  `gravacao 1` e ordinais, garantindo que a pagina resolva o comando sem
+  depender da Gemini.
+* `ProjetoDetalhesPage` passou a conectar `abrir editor` diretamente ao handler
+  de navegacao da tela e registra debug-only a decisao com tela e projeto atual.
+
+### Teste fisico recomendado
+
+1. Criar 4 gravacoes.
+2. Conferir cards com titulo real e `Item 1`, `Item 2`, `Item 3`.
+3. Dizer `gravacao 1`.
+4. Confirmar que toca a gravacao cujo titulo e `Gravacao 1`.
+5. Dizer `item 1`.
+6. Confirmar que toca o primeiro card.
+7. Dizer `primeira gravacao`.
+8. Confirmar que toca o primeiro card.
+9. Tocar play e parar.
+10. Confirmar que a escuta volta.
+11. Abrir detalhes, tocar play/parar.
+12. Confirmar que a escuta volta.
+13. Rodar sem `GEMINI_API_KEY`.
+14. Confirmar que comandos essenciais funcionam sem IA.
+15. Rodar com `GEMINI_API_KEY=SUA_CHAVE_AQUI`.
+16. Confirmar que placeholder nao ativa IA.
+17. Entrar em projeto e dizer `abrir editor`.
+18. Confirmar que o Editor abre vinculado ao projeto atual.
+
+### Testes automatizados
+
+* `test/features/recordings/controllers/recordings_list_controller_test.dart`
+  * valida titulo exato antes de posicao visual;
+  * valida `item 1`, `tocar item 1`, `item 2`, `primeira gravacao`,
+    `segunda gravacao`;
+  * valida que `gravacao 1` sem titulo exato nao vira indice silencioso;
+  * valida numero inexistente por `item 2`.
+* `test/features/recordings/pages/minhas_gravacoes_page_test.dart`
+  * valida titulo real separado de `Item N da lista`;
+  * valida dica `Diga: tocar item 1`;
+  * valida titulo real `gravacao 1` e posicao `item 1`;
+  * valida que referencias locais de lista nao usam IA contextual;
+  * valida retomada em stop manual, completed e erro.
+* `test/features/recordings/pages/detalhes_gravacao_page_test.dart`
+  * valida retomada em stop, completed e erro nos detalhes.
+* `test/features/voices/services/ai_command_service_test.dart`
+  * valida placeholders de Gemini como nao configurados.
+* `test/features/voices/controllers/voice_command_controller_test.dart`
+  * valida que placeholder nao chama Gemini nem mostra estado pensando;
+  * valida que `aiEnabled: false` bloqueia Gemini mesmo com chave valida;
+  * preserva comando essencial local antes da IA.
+* `test/features/voices/services/command_service_test.dart`
+  * valida que `item 1` fora de contexto nao vira playback global.
+* `test/features/projects/pages/projeto_detalhes_page_test.dart`
+  * valida que `abrir editor` por voz usa o projeto atual.
+
+### Itens ainda pendentes
+
+Ficam explicitamente para proximas etapas:
+
+* Abertura lenta.
+* Boas-vindas/onboarding.
+* README e documentacao final.
+* Roteiro de apresentacao.
+* Recuperacao real de senha.
+* Perfil.
+* Exclusao avancada de projeto com gravacoes.

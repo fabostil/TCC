@@ -69,8 +69,8 @@ void main() {
     await _pumpHelp(tester, const VoiceCommandHelpDialog.forRecordings());
 
     expect(find.text('Comandos em gravações'), findsOneWidget);
-    expect(find.text('Tocar'), findsOneWidget);
-    expect(find.text('Dar play'), findsOneWidget);
+    expect(find.text('Tocar item 1'), findsOneWidget);
+    expect(find.text('Primeira gravação'), findsOneWidget);
     expect(find.text('Excluir gravação'), findsOneWidget);
     expect(find.text('Confirmar'), findsOneWidget);
     _expectNoTechnicalTerms(tester);

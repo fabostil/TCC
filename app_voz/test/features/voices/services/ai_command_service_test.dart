@@ -23,6 +23,29 @@ void main() {
       expect(result.recognized, isFalse);
     });
 
+    test('trata placeholders de chave como nao configurados', () async {
+      for (final placeholder in const [
+        'SUA_CHAVE_AQUI',
+        'YOUR_KEY_HERE',
+        'COLE_SUA_CHAVE_AQUI',
+      ]) {
+        var called = false;
+        final service = AiCommandService(
+          apiKey: placeholder,
+          httpPost: (uri, headers, body, timeout) async {
+            called = true;
+            return _geminiResponse('{"action":"nav_history"}');
+          },
+        );
+
+        final result = await service.interpretUnknown('abre algo');
+
+        expect(service.isConfigured, isFalse);
+        expect(called, isFalse);
+        expect(result.type, VoiceCommandType.desconhecido);
+      }
+    });
+
     test('mapeia JSON da Gemini para CommandResult reconhecido', () async {
       final service = AiCommandService(
         apiKey: 'test-key',

@@ -200,11 +200,11 @@ void main() {
       expect(playerService.playedPaths, ['/tmp/1.m4a', '/tmp/2.m4a']);
     });
 
-    test('resolve comando por numero e ordem da lista visivel', () async {
+    test('resolve comando por titulo exato antes de posicao visual', () async {
       final visualOrder = [
-        _recording(id: 6, name: 'Mais recente'),
-        _recording(id: 5, name: 'Segunda visivel'),
-        _recording(id: 4, name: 'Terceira'),
+        _recording(id: 6, name: 'Gravacao 3'),
+        _recording(id: 5, name: 'Gravacao 2'),
+        _recording(id: 4, name: 'Gravacao 1'),
         _recording(id: 3, name: 'Quarta'),
         _recording(id: 2, name: 'Quinta'),
         _recording(id: 1, name: 'Mais antiga'),
@@ -212,8 +212,30 @@ void main() {
       recordingService.recordings = visualOrder;
       await controller.load(usuarioId: 10);
 
-      expect(controller.resolvePlaybackCommand('1').recording, visualOrder[0]);
-      expect(controller.resolvePlaybackCommand('2').recording, visualOrder[1]);
+      expect(
+        controller.resolvePlaybackCommand('gravacao 1').recording,
+        visualOrder[2],
+      );
+      expect(
+        controller.resolvePlaybackCommand('tocar gravacao 1').recording,
+        visualOrder[2],
+      );
+      expect(
+        controller.resolvePlaybackCommand('gravacao 3').recording,
+        visualOrder[0],
+      );
+      expect(
+        controller.resolvePlaybackCommand('item 1').recording,
+        visualOrder[0],
+      );
+      expect(
+        controller.resolvePlaybackCommand('tocar item 1').recording,
+        visualOrder[0],
+      );
+      expect(
+        controller.resolvePlaybackCommand('item 2').recording,
+        visualOrder[1],
+      );
       expect(
         controller.resolvePlaybackCommand('segunda gravacao').recording,
         visualOrder[1],
@@ -223,28 +245,28 @@ void main() {
         visualOrder[1],
       );
       expect(
-        controller.resolvePlaybackCommand('gravacao 1').recording,
-        visualOrder[0],
-      );
-      expect(
-        controller.resolvePlaybackCommand('gravacao um').recording,
-        visualOrder[0],
-      );
-      expect(
         controller.resolvePlaybackCommand('primeira gravacao').recording,
         visualOrder[0],
       );
       expect(
-        controller.resolvePlaybackCommand('gravacao dois').recording,
-        visualOrder[1],
-      );
-      expect(
-        controller.resolvePlaybackCommand('gravacao 3').recording,
-        visualOrder[2],
-      );
-      expect(
         controller.resolvePlaybackCommand('a primeira').recording,
         visualOrder[0],
+      );
+    });
+
+    test('gravacao numerada sem titulo exato nao vira indice silencioso', () async {
+      recordingService.recordings = [
+        _recording(id: 6, name: 'Mais recente'),
+        _recording(id: 5, name: 'Segunda visivel'),
+      ];
+      await controller.load(usuarioId: 10);
+
+      final resolution = controller.resolvePlaybackCommand('gravacao 1');
+
+      expect(resolution.recording, isNull);
+      expect(
+        resolution.message,
+        'Não consegui identificar qual gravação você quer tocar.',
       );
     });
 
@@ -261,9 +283,9 @@ void main() {
 
         expect(resolution.recording, isNull);
         expect(
-          resolution.message,
-          'Diga qual gravação deseja tocar, por exemplo: reproduzir gravação 1.',
-        );
+        resolution.message,
+        'Diga qual gravação deseja tocar, por exemplo: tocar item 1.',
+      );
       },
     );
 
@@ -279,7 +301,7 @@ void main() {
       recordingService.recordings = [_recording(id: 1, name: 'Primeira')];
       await controller.load(usuarioId: 10);
 
-      final resolution = controller.resolvePlaybackCommand('2');
+      final resolution = controller.resolvePlaybackCommand('item 2');
 
       expect(resolution.recording, isNull);
       expect(resolution.message, 'Não encontrei essa gravação na lista.');

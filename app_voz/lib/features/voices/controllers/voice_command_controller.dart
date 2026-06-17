@@ -36,6 +36,7 @@ class VoiceCommandController {
   Future<VoiceCommandControllerResult> interpret(
     String text, {
     int? usuarioId,
+    bool aiEnabled = true,
     void Function()? onAiStarted,
   }) async {
     var result = _commandService.interpret(text);
@@ -75,7 +76,7 @@ class VoiceCommandController {
       }
     }
 
-    if (!aiConfigured) {
+    if (!aiEnabled || !aiConfigured) {
       await _feedbackService.notifyCommandResult(result);
       return VoiceCommandControllerResult(
         commandResult: result,

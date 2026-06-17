@@ -106,7 +106,12 @@ class VoiceCommandHelpDialog extends StatelessWidget {
   static const _recordingsSections = [
     _VoiceCommandHelpSection(
       title: 'Reprodução',
-      commands: ['Tocar', 'Dar play', 'Parar reprodução'],
+      commands: [
+        'Tocar item 1',
+        'Tocar item 2',
+        'Primeira gravação',
+        'Parar reprodução',
+      ],
     ),
     _VoiceCommandHelpSection(
       title: 'Gravações',

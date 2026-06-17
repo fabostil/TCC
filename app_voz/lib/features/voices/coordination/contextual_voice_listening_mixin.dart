@@ -65,6 +65,8 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
 
   bool get voiceRegistersCommands => true;
 
+  bool shouldUseAiForVoiceInput(String normalizedText) => true;
+
   VoiceNavigationCommandHandler? get voiceNavigationCommandHandler => null;
 
   /// Implementar com `@override late final` em [initState].
@@ -452,6 +454,9 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
     final resultadoController = await voiceCommandController.interpret(
       texto,
       usuarioId: voiceUsuarioId,
+      aiEnabled: shouldUseAiForVoiceInput(
+        const CommandService().normalize(texto),
+      ),
       onAiStarted: () {
         voiceSetState(() {
           setVoiceSession(

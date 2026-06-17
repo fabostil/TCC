@@ -34,7 +34,27 @@ class AiCommandService {
   final CommandService _commandService;
   final List<DateTime> _requestTimes = [];
 
-  bool get isConfigured => apiKey.trim().isNotEmpty;
+  bool get isConfigured {
+    final normalizedKey = apiKey.trim().toLowerCase();
+    if (normalizedKey.isEmpty) {
+      return false;
+    }
+
+    const placeholders = {
+      'sua_chave_aqui',
+      'your_key_here',
+      'cole_sua_chave_aqui',
+      'cole_sua_api_key_aqui',
+      'gemini_api_key',
+      'api_key',
+      'apikey',
+    };
+
+    return !placeholders.contains(normalizedKey) &&
+        !normalizedKey.contains('sua_chave') &&
+        !normalizedKey.contains('your_key') &&
+        !normalizedKey.contains('cole_sua_chave');
+  }
 
   Future<CommandResult> interpretUnknown(String text) async {
     final normalizedText = _commandService.normalize(text);

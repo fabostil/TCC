@@ -111,6 +111,34 @@ void main() {
     expect(resumed, 1);
     expect(find.widgetWithText(FilledButton, 'Tocar'), findsOneWidget);
   });
+
+  testWidgets('erro nos detalhes solicita retomada da escuta', (tester) async {
+    final playerService = _FakeAudioPlayerService()..throwOnPlay = true;
+    addTearDown(playerService.close);
+    var resumed = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DetalhesGravacaoPage(
+          usuario: _usuario,
+          gravacaoId: 1,
+          recordingService: _FakeRecordingManagementService(
+            details: _details(path: '/tmp/gravacao_123.m4a'),
+          ),
+          playerService: playerService,
+          enableVoiceListening: false,
+          onVoicePlaybackResumeRequestedForTesting: () => resumed++,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Tocar'));
+    await tester.pump();
+
+    expect(resumed, 1);
+    expect(find.widgetWithText(FilledButton, 'Tocar'), findsOneWidget);
+  });
 }
 
 final _usuario = Usuario(
@@ -169,6 +197,7 @@ class _FakeAudioPlayerService implements AudioPlayerService {
   final playedPaths = <String>[];
   var playing = false;
   var stopCalls = 0;
+  var throwOnPlay = false;
 
   @override
   String? currentPath;
@@ -187,6 +216,10 @@ class _FakeAudioPlayerService implements AudioPlayerService {
 
   @override
   Future<void> play(String path) async {
+    if (throwOnPlay) {
+      throw StateError('player failure');
+    }
+
     currentPath = path;
     playedPaths.add(path);
     playing = true;

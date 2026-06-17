@@ -68,6 +68,59 @@ void main() {
       expect(aiCalled, isFalse);
     });
 
+    test('placeholder da IA nao aciona Gemini nem estado pensando', () async {
+      var aiCalled = false;
+      var thinkingShown = false;
+      final controller = VoiceCommandController(
+        aiCommandService: AiCommandService(
+          apiKey: 'SUA_CHAVE_AQUI',
+          httpPost: (uri, headers, body, timeout) async {
+            aiCalled = true;
+            return _geminiResponse('{"action":"nav_history"}');
+          },
+        ),
+        feedbackService: const NoopVoiceFeedbackService(),
+      );
+
+      final result = await controller.interpret(
+        'abrir afinador',
+        onAiStarted: () => thinkingShown = true,
+      );
+
+      expect(result.commandResult.type, VoiceCommandType.desconhecido);
+      expect(result.usedAi, isFalse);
+      expect(result.aiConfigured, isFalse);
+      expect(aiCalled, isFalse);
+      expect(thinkingShown, isFalse);
+    });
+
+    test('IA desabilitada no contexto nao chama Gemini com chave valida', () async {
+      var aiCalled = false;
+      var thinkingShown = false;
+      final controller = VoiceCommandController(
+        aiCommandService: AiCommandService(
+          apiKey: 'real-looking-test-key',
+          httpPost: (uri, headers, body, timeout) async {
+            aiCalled = true;
+            return _geminiResponse('{"action":"nav_history"}');
+          },
+        ),
+        feedbackService: const NoopVoiceFeedbackService(),
+      );
+
+      final result = await controller.interpret(
+        'item 1',
+        aiEnabled: false,
+        onAiStarted: () => thinkingShown = true,
+      );
+
+      expect(result.commandResult.type, VoiceCommandType.desconhecido);
+      expect(result.usedAi, isFalse);
+      expect(result.aiConfigured, isTrue);
+      expect(aiCalled, isFalse);
+      expect(thinkingShown, isFalse);
+    });
+
     test('resolve comandos essenciais localmente sem chave da IA', () async {
       var aiCalled = false;
       final controller = VoiceCommandController(

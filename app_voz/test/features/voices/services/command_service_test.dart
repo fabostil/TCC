@@ -146,6 +146,14 @@ void main() {
       expect(result.normalizedText, 'gravacao 1');
     });
 
+    test('item visual sem contexto nao vira playback global', () {
+      final result = service.interpret('item 1');
+
+      expect(result.type, VoiceCommandType.desconhecido);
+      expect(result.recognized, isFalse);
+      expect(result.normalizedText, 'item 1');
+    });
+
     test('reconhece comandos de navegacao', () {
       expect(
         service.interpret('dashboard').type,

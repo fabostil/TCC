@@ -32,7 +32,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Comandos em gravações'), findsOneWidget);
-    expect(find.text('Tocar'), findsOneWidget);
+    expect(find.text('Tocar item 1'), findsOneWidget);
     expect(find.text('Excluir gravação'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('voice_command_help_close_button')));
@@ -67,7 +67,7 @@ void main() {
     );
   });
 
-  testWidgets('cards mostram numeracao visual sem usar id do banco', (
+  testWidgets('cards mostram item visual sem conflitar com titulo', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -76,9 +76,9 @@ void main() {
           usuario: _usuario,
           recordingsController: _RecordingsHelpTestController(
             recordings: [
-              _recording(id: 4, name: 'Mais recente'),
-              _recording(id: 3, name: 'Segundo card'),
-              _recording(id: 2, name: 'Terceiro card'),
+              _recording(id: 4, name: 'Gravação 3'),
+              _recording(id: 3, name: 'Gravação 2'),
+              _recording(id: 2, name: 'Gravação 1'),
             ],
           ),
           enableVoiceListening: false,
@@ -87,13 +87,21 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Gravação 1'), findsOneWidget);
-    expect(find.text('Gravação 2'), findsOneWidget);
     expect(find.text('Gravação 3'), findsOneWidget);
+    expect(find.text('Gravação 2'), findsOneWidget);
+    expect(find.text('Item 1 da lista'), findsOneWidget);
+    expect(find.text('Item 2 da lista'), findsOneWidget);
+    expect(find.text('Diga: tocar item 1'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('Gravação 1')).dy,
-      lessThan(tester.getTopLeft(find.text('Gravação 2')).dy),
+      tester.getTopLeft(find.text('Item 1 da lista')).dy,
+      lessThan(tester.getTopLeft(find.text('Item 2 da lista')).dy),
     );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -260));
+    await tester.pump();
+
+    expect(find.text('Gravação 1'), findsOneWidget);
+    expect(find.text('Item 3 da lista'), findsOneWidget);
   });
 
   testWidgets('referencia parcial por voz toca indice visual atual', (
@@ -101,9 +109,9 @@ void main() {
   ) async {
     final controller = _RecordingsHelpTestController(
       recordings: [
-        _recording(id: 4, name: 'Mais recente'),
-        _recording(id: 3, name: 'Segundo card'),
-        _recording(id: 2, name: 'Terceiro card'),
+        _recording(id: 4, name: 'Gravação 3'),
+        _recording(id: 3, name: 'Gravação 2'),
+        _recording(id: 2, name: 'Gravação 1'),
       ],
     );
 
@@ -121,12 +129,38 @@ void main() {
     final state = tester.state(find.byType(MinhasGravacoesPage)) as dynamic;
     await state.debugHandleRecordingReferenceForTesting('gravação 1');
     await tester.pump();
-    await state.debugHandleRecordingReferenceForTesting('gravação dois');
+    await state.debugHandleRecordingReferenceForTesting('item 1');
+    await tester.pump();
+    await state.debugHandleRecordingReferenceForTesting('item 2');
     await tester.pump();
     await state.debugHandleRecordingReferenceForTesting('primeira gravação');
     await tester.pump();
 
-    expect(controller.playedIds, [4, 3, 4]);
+    expect(controller.playedIds, [2, 4, 3, 4]);
+  });
+
+  testWidgets('referencias locais de lista nao usam IA contextual', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MinhasGravacoesPage(
+          usuario: _usuarioSemId,
+          recordingsController: _RecordingsHelpTestController(
+            recordings: [_recording(id: 1, name: 'Gravação 1')],
+          ),
+          enableVoiceListening: false,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final state = tester.state(find.byType(MinhasGravacoesPage)) as dynamic;
+
+    expect(state.shouldUseAiForVoiceInput('item 1'), isFalse);
+    expect(state.shouldUseAiForVoiceInput('gravacao 1'), isFalse);
+    expect(state.shouldUseAiForVoiceInput('primeira gravacao'), isFalse);
+    expect(state.shouldUseAiForVoiceInput('abrir afinador'), isTrue);
   });
 
   testWidgets('play manual pausa escuta e stop manual solicita retomada', (
@@ -189,6 +223,33 @@ void main() {
 
     expect(resumed, 1);
   });
+
+  testWidgets('erro do player na lista solicita retomada da escuta', (
+    tester,
+  ) async {
+    final controller = _RecordingsHelpTestController(
+      recordings: [_recording(id: 1, name: 'Ideia')],
+    )..throwOnToggle = true;
+    var resumed = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MinhasGravacoesPage(
+          usuario: _usuarioSemId,
+          recordingsController: controller,
+          enableVoiceListening: false,
+          onVoicePlaybackResumeRequestedForTesting: () => resumed++,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.play_circle));
+    await tester.pump();
+
+    expect(resumed, 1);
+    expect(controller.playedIds, isEmpty);
+  });
 }
 
 final _usuario = Usuario(
@@ -219,6 +280,7 @@ class _RecordingsHelpTestController extends RecordingsListController {
   final _playerStateController = StreamController<PlayerState>.broadcast();
   final playedIds = <int?>[];
   var stopCalls = 0;
+  var throwOnToggle = false;
 
   @override
   RecordingsListState get state => _testState;
@@ -238,18 +300,32 @@ class _RecordingsHelpTestController extends RecordingsListController {
       );
     }
 
+    final titleReference = normalized
+        .replaceFirst(
+          RegExp(r'^(tocar|toque|reproduzir|reproduza|play) '),
+          '',
+        )
+        .replaceFirst(RegExp(r'^a '), '')
+        .trim();
+    for (final recording in _testState.recordings) {
+      if (_normalize(recording.nome) == _normalize(titleReference)) {
+        return RecordingPlaybackResolution.play(recording);
+      }
+    }
+
     final index = switch (normalized) {
       String text
-          when text.contains('1') ||
-              text.contains('um') ||
+          when text.contains('item 1') ||
+              text.contains('item um') ||
               text.contains('primeira') =>
         0,
       String text
-          when text.contains('2') ||
-              text.contains('dois') ||
+          when text.contains('item 2') ||
+              text.contains('item dois') ||
               text.contains('segunda') =>
         1,
-      String text when text.contains('3') || text.contains('tres') => 2,
+      String text when text.contains('item 3') || text.contains('item tres') =>
+        2,
       _ => -1,
     };
 
@@ -261,11 +337,35 @@ class _RecordingsHelpTestController extends RecordingsListController {
     return RecordingPlaybackResolution.play(_testState.recordings[index]);
   }
 
+  String _normalize(String text) {
+    return const <String, String>{
+      'ç': 'c',
+      'ã': 'a',
+      'á': 'a',
+      'à': 'a',
+      'â': 'a',
+      'é': 'e',
+      'ê': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ô': 'o',
+      'õ': 'o',
+      'ú': 'u',
+    }.entries.fold(
+      text.toLowerCase(),
+      (current, entry) => current.replaceAll(entry.key, entry.value),
+    );
+  }
+
   @override
   Future<void> togglePlayback(
     Gravacao gravacao, {
     required int? usuarioId,
   }) async {
+    if (throwOnToggle) {
+      throw StateError('player failure');
+    }
+
     if (_testState.playingRecordingId == gravacao.id) {
       await stopPlayback();
       return;

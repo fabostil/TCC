@@ -47,11 +47,17 @@ String? _validateRecordingName(String? value) {
 class ProjetoDetalhesPage extends StatefulWidget {
   final Usuario usuario;
   final Projeto projeto;
+  final RecordingsListController? recordingsController;
+  final bool enableVoiceListening;
+  final FutureOr<void> Function(Projeto projeto)? onOpenEditorForTesting;
 
   const ProjetoDetalhesPage({
     super.key,
     required this.usuario,
     required this.projeto,
+    @visibleForTesting this.recordingsController,
+    @visibleForTesting this.enableVoiceListening = true,
+    @visibleForTesting this.onOpenEditorForTesting,
   });
 
   @override
@@ -60,8 +66,7 @@ class ProjetoDetalhesPage extends StatefulWidget {
 
 class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
     with ContextualVoiceListeningMixin<ProjetoDetalhesPage> {
-  final RecordingsListController _recordingsController =
-      RecordingsListController();
+  late final RecordingsListController _recordingsController;
   final ScrollController _voiceScrollController = ScrollController();
 
   StreamSubscription? _playerStateSubscription;
@@ -88,6 +93,8 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
   @override
   void initState() {
     super.initState();
+    _recordingsController =
+        widget.recordingsController ?? RecordingsListController();
     voiceNavigationCommandHandler = VoiceNavigationCommandHandler(
       currentDestination: VoiceNavigationDestination.other,
       goHome: _handleIrParaHome,
@@ -96,6 +103,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       openDashboard: _handleAbrirDashboardGlobal,
       openHistory: _handleAbrirHistoricoGlobal,
       openSettings: _handleAbrirConfiguracoesGlobal,
+      openEditor: _handleAbrirEditorGlobal,
       openNewProject: _handleAbrirNovoProjetoGlobal,
       goBack: _handleVoltarGlobal,
     );
@@ -115,7 +123,9 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       }
     });
     _carregarGravacoes();
-    scheduleVoiceListeningOnFirstFrame();
+    if (widget.enableVoiceListening) {
+      scheduleVoiceListeningOnFirstFrame();
+    }
   }
 
   void _onRecordingsStateChanged() {
@@ -282,19 +292,37 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
   }
 
   Future<void> _abrirEditor() async {
+    assert(() {
+      debugPrint(
+        '[VoiceH9.2] abrir_editor tela=projeto_detalhes '
+        'projetoId=${widget.projeto.id} projetoNome="${widget.projeto.nome}"',
+      );
+      return true;
+    }());
     await suspendContextualVoiceListening();
 
     if (!mounted) {
+      assert(() {
+        debugPrint(
+          '[VoiceH9.2] abrir_editor recusado: tela descartada antes da navegacao',
+        );
+        return true;
+      }());
       return;
     }
 
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            EditorPage(usuario: widget.usuario, projeto: widget.projeto),
-      ),
-    );
+    final onOpenEditorForTesting = widget.onOpenEditorForTesting;
+    if (onOpenEditorForTesting != null) {
+      await onOpenEditorForTesting(widget.projeto);
+    } else {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              EditorPage(usuario: widget.usuario, projeto: widget.projeto),
+        ),
+      );
+    }
 
     if (mounted) {
       await _carregarGravacoes();
@@ -302,7 +330,9 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
         return;
       }
 
-      await startContinuousVoiceListeningIfActive();
+      if (widget.enableVoiceListening) {
+        await startContinuousVoiceListeningIfActive();
+      }
     }
   }
 
@@ -433,6 +463,13 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
     }
   }
 
+  @visibleForTesting
+  Future<VoiceCommandPageResult> debugHandleVoiceCommandForTesting(
+    String text,
+  ) {
+    return _dispatchContextualVoice(const CommandService().interpret(text));
+  }
+
   Future<VoiceCommandPageResult> _handleIrParaHome(CommandResult _) async {
     await suspendContextualVoiceListening();
     if (mounted) {
@@ -470,6 +507,13 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
         ),
       ),
     );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirEditorGlobal(
+    CommandResult _,
+  ) async {
+    await _abrirEditor();
+    return VoiceCommandPageResult.handled(restartListening: false);
   }
 
   Future<VoiceCommandPageResult> _handleAbrirGravacoesGlobal(
