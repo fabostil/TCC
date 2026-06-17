@@ -112,6 +112,9 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   void didPopNext() {
     _voiceRouteActive = true;
     _voiceRouteRecoveryAttempted = false;
+    _debugVoiceRouteResume(
+      'event=didPopNext owner=$voiceOwnerId action=resume',
+    );
     unawaited(_resumeContextualVoiceAfterRouteReturn());
   }
 
@@ -236,6 +239,9 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   Future<void> _resumeContextualVoiceAfterRouteReturn() async {
     await _voiceRoutePausePending;
     if (!mounted || !_voiceRouteActive) {
+      _debugVoiceRouteResume(
+        'skipped reason=disposed owner=$voiceOwnerId',
+      );
       return;
     }
     _debugVoice(
@@ -244,15 +250,41 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       'sessionOwner=${voiceSessionManager.activeOwnerId}',
     );
     await startContinuousVoiceListeningIfActive();
-    if (!mounted ||
-        !_voiceRouteActive ||
-        _voiceRouteRecoveryAttempted ||
-        voiceOuvindo ||
-        voiceParadaManual ||
-        voiceSessionManager.recordingActive) {
+    if (!mounted || !_voiceRouteActive) {
+      _debugVoiceRouteResume(
+        'skipped reason=disposed_after_start owner=$voiceOwnerId',
+      );
+      return;
+    }
+    if (_voiceRouteRecoveryAttempted || voiceOuvindo) {
+      _debugVoiceRouteResume(
+        'skipped reason=${_voiceRouteRecoveryAttempted ? 'already_attempted' : 'already_listening'} '
+        'owner=$voiceOwnerId',
+      );
+      return;
+    }
+    if (voiceParadaManual) {
+      _debugVoiceRouteResume(
+        'skipped reason=manual_pause owner=$voiceOwnerId',
+      );
+      return;
+    }
+    if (voiceSessionManager.recordingActive) {
+      _debugVoiceRouteResume(
+        'skipped reason=recording owner=$voiceOwnerId',
+      );
+      return;
+    }
+    if (voiceExecutandoComando) {
+      _debugVoiceRouteResume(
+        'skipped reason=processing owner=$voiceOwnerId',
+      );
       return;
     }
 
+    _debugVoiceRouteResume(
+      'action=schedule_fallback_recovery owner=$voiceOwnerId',
+    );
     _voiceRouteRecoveryAttempted = true;
     voiceCoordinator.scheduleContinuousRestart(
       ownerId: voiceOwnerId,
@@ -935,6 +967,13 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
 
   /// Helper para páginas com [Usuario].
   int? usuarioIdOf(Usuario? usuario) => usuario?.id;
+
+  void _debugVoiceRouteResume(String message) {
+    assert(() {
+      debugPrint('[VoiceRouteResume] $message');
+      return true;
+    }());
+  }
 
   void _debugVoice(String message) {
     assert(() {

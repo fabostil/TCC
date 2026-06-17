@@ -534,7 +534,47 @@ class VoiceSessionManager extends ChangeNotifier implements AudioOutputGuard {
   }
 
   void onRouteDidPop() {
-    invalidateRecovery();
+    if (_audioOwnerType == VoiceAudioOwnerType.stt) {
+      // Libera ownership do STT sincronamente para que a tela anterior
+      // possa reivindicar imediatamente em didPopNext, sem esperar pelo
+      // dispose da tela filha (que ocorre só após a animação ~300 ms).
+      final previousOwnerId = _activeOwnerId;
+      final previousOwnerType = _audioOwnerType;
+
+      invalidateRecovery();
+      _publishSpeechStopped(ownerId: previousOwnerId, reason: 'route_pop');
+      _activeOwnerId = null;
+      _listeningStartInProgress = false;
+      VoiceRuntimeRegistry.instance.setActiveOwner(null);
+      _audioOwnerType = VoiceAudioOwnerType.none;
+
+      diagnostics.record(
+        VoiceDiagnosticEventType.listeningStopped,
+        ownerId: previousOwnerId,
+        reason: 'route_pop',
+        message: 'Owner STT liberado sincronamente no pop da rota.',
+      );
+      _publishAudioOwnershipChanged(
+        previousOwnerType,
+        _audioOwnerType,
+        ownerId: previousOwnerId,
+        reason: 'route_pop',
+      );
+      if (stateMachine.state == VoiceState.listening) {
+        stateMachine.transitionTo(
+          VoiceState.idle,
+          ownerId: previousOwnerId,
+          reason: 'route_pop',
+        );
+      }
+
+      // Cancela o hardware em background; SpeechService.startListening()
+      // lida com isListening=true naturalmente (stop + delay 300ms interno).
+      unawaited(speech.cancelListening());
+      notifyListeners();
+    } else {
+      invalidateRecovery();
+    }
   }
 
   void enterRecordingMode({String ownerId = 'editor', String? reason}) {

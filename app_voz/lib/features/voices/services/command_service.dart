@@ -114,6 +114,7 @@ class CommandService {
           'nova gravacao',
           'registrar audio',
           'capturar audio',
+          'iniciar audio',
           'comecar recording',
         ]) ||
         (_containsWord(normalizedText, 'gravar') &&
@@ -182,6 +183,8 @@ class CommandService {
       'parar reproducao',
       'parar audio',
       'parar som',
+      'pausar reproducao',
+      'interromper reproducao',
       'parar',
     ])) {
       return _recognized(
@@ -190,6 +193,20 @@ class CommandService {
         VoiceCommandType.pararReproducao,
         tipoComando: 'parar_reproducao',
         acaoExecutada: 'Parar reprodução',
+      );
+    }
+
+    final ordinalGravacao = RegExp(
+      r'^(primeira|segunda|terceira|quarta|quinta) gravacao$',
+    ).firstMatch(normalizedText);
+    if (ordinalGravacao != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.reproduzirGravacao,
+        tipoComando: 'reproduzir_gravacao',
+        acaoExecutada: 'Reproduzir gravação',
+        parametro: ordinalGravacao.group(1),
       );
     }
 
@@ -1088,6 +1105,7 @@ class CommandService {
       'ir para o fim',
       'fim da lista',
       'final da lista',
+      'fim da pagina',
       'ultimos',
     ])) {
       return _recognized(
@@ -1188,6 +1206,8 @@ class CommandService {
       'entrar em meus projetos',
       'vai para projetos',
       'projetos',
+      'entrar em projetos',
+      'lista de projetos',
     ])) {
       return _recognized(
         originalText,
@@ -1202,6 +1222,9 @@ class CommandService {
       'minhas gravacoes',
       'abrir minhas gravacoes',
       'gravacoes',
+      'lista de gravacoes',
+      'audios',
+      'meus audios',
     ])) {
       return _recognized(
         originalText,
@@ -1217,6 +1240,7 @@ class CommandService {
       'painel',
       'meu painel',
       'indicadores',
+      'abrir painel',
     ])) {
       return _recognized(
         originalText,
@@ -1227,7 +1251,11 @@ class CommandService {
       );
     }
 
-    if (_equalsAny(normalizedText, const ['historico'])) {
+    if (_equalsAny(normalizedText, const [
+      'historico',
+      'acoes recentes',
+      'registro',
+    ])) {
       return _recognized(
         originalText,
         normalizedText,
@@ -1237,7 +1265,14 @@ class CommandService {
       );
     }
 
-    if (_equalsAny(normalizedText, const ['configuracoes', 'preferencias'])) {
+    if (_equalsAny(normalizedText, const [
+      'configuracoes',
+      'preferencias',
+      'opcoes',
+      'abrir opcoes',
+      'abrir preferencias',
+      'entrar em configuracoes',
+    ])) {
       return _recognized(
         originalText,
         normalizedText,
@@ -1320,6 +1355,9 @@ class CommandService {
       'abrir editor',
       'abre editor',
       'ir para o editor',
+      'entrar no editor',
+      'area de gravacao',
+      'tela de gravacao',
     ])) {
       return _recognized(
         originalText,
@@ -1335,6 +1373,7 @@ class CommandService {
       'criar projeto',
       'abrir novo projeto',
       'adicionar projeto',
+      'cadastrar projeto',
     ])) {
       return _recognized(
         originalText,
@@ -1420,6 +1459,7 @@ class CommandService {
     if (_equalsAny(normalizedText, const [
       'editar nome da gravacao',
       'renomear gravacao',
+      'mudar nome da gravacao',
     ])) {
       return _recognized(
         originalText,
@@ -1445,7 +1485,7 @@ class CommandService {
     }
 
     final excluirItem = RegExp(
-      r'^excluir item ([0-9]+)$',
+      r'^(excluir|apagar|remover) item ([0-9]+)$',
     ).firstMatch(normalizedText);
     if (excluirItem != null) {
       return _recognized(
@@ -1454,7 +1494,7 @@ class CommandService {
         VoiceCommandType.excluirGravacao,
         tipoComando: 'excluir_gravacao',
         acaoExecutada: 'Excluir gravacao',
-        parametro: 'item ${excluirItem.group(1)}',
+        parametro: 'item ${excluirItem.group(2)}',
       );
     }
 
@@ -1491,7 +1531,11 @@ class CommandService {
       );
     }
 
-    if (_equalsAny(normalizedText, const ['confirmar', 'sim'])) {
+    if (_equalsAny(normalizedText, const [
+      'confirmar',
+      'sim',
+      'confirmar acao',
+    ])) {
       return _recognized(
         originalText,
         normalizedText,
@@ -1501,7 +1545,12 @@ class CommandService {
       );
     }
 
-    if (_equalsAny(normalizedText, const ['cancelar', 'nao'])) {
+    if (_equalsAny(normalizedText, const [
+      'cancelar',
+      'nao',
+      'pode cancelar',
+      'deixa pra la',
+    ])) {
       return _recognized(
         originalText,
         normalizedText,

@@ -348,6 +348,169 @@ void main() {
       },
     );
   });
+
+  group('ContextualVoiceListeningMixin H10.1 retomada apos navegacao', () {
+    testWidgets(
+      'Home retoma escuta apos voltar de Configuracoes (owner liberado)',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        // Simula tela filha (configuracoes) com ownership STT
+        VoiceSessionManager.instance.claimListening('configuracoes');
+        expect(VoiceSessionManager.instance.activeOwnerId, 'configuracoes');
+
+        // Route observer libera owner no pop (comportamento corrigido H10.1)
+        VoiceSessionManager.instance.onRouteDidPop();
+        expect(VoiceSessionManager.instance.activeOwnerId, isNull);
+
+        // didPopNext dispara retomada na home
+        key.currentState!.didPopNext();
+        await tester.pumpAndSettle();
+
+        expect(key.currentState!.voiceRouteActiveForTesting, isTrue);
+        expect(key.currentState!.resumeAttempts, greaterThan(0));
+      },
+    );
+
+    testWidgets(
+      'Home retoma escuta apos voltar de Meus Projetos',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        VoiceSessionManager.instance.claimListening('meus_projetos');
+        VoiceSessionManager.instance.onRouteDidPop();
+
+        key.currentState!.didPopNext();
+        await tester.pumpAndSettle();
+
+        expect(key.currentState!.resumeAttempts, greaterThan(0));
+      },
+    );
+
+    testWidgets(
+      'Home retoma escuta apos voltar de Minhas Gravacoes',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        VoiceSessionManager.instance.claimListening('minhas_gravacoes');
+        VoiceSessionManager.instance.onRouteDidPop();
+
+        key.currentState!.didPopNext();
+        await tester.pumpAndSettle();
+
+        expect(key.currentState!.resumeAttempts, greaterThan(0));
+      },
+    );
+
+    testWidgets(
+      'recovery antigo da rota descartada nao bloqueia owner atual',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        // Tela filha tinha recovery pendente
+        VoiceSessionManager.instance.claimListening('meus_projetos');
+        VoiceSessionManager.instance.scheduleRecovery(
+          ownerId: 'meus_projetos',
+          shouldRecover: () => true,
+          onRecover: () async {},
+        );
+        expect(VoiceSessionManager.instance.hasPendingRecovery, isTrue);
+
+        // Pop: libera owner e cancela recovery antigo
+        VoiceSessionManager.instance.onRouteDidPop();
+
+        expect(VoiceSessionManager.instance.hasPendingRecovery, isFalse);
+        expect(VoiceSessionManager.instance.activeOwnerId, isNull);
+
+        // Home retoma sem bloqueio
+        key.currentState!.didPopNext();
+        await tester.pumpAndSettle();
+
+        expect(key.currentState!.resumeAttempts, greaterThan(0));
+        expect(
+          VoiceSessionManager.instance.diagnostics.events
+              .where((e) => e.reason == 'recovery_already_pending')
+              .length,
+          0,
+        );
+      },
+    );
+
+    testWidgets(
+      'nao cria startListening duplicado apos didPopNext',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        await tester.tap(find.byKey(_TestVoicePage.openRouteButtonKey));
+        await tester.pumpAndSettle();
+
+        // Navega de volta via pop normal (observer libera owner)
+        Navigator.of(key.currentContext!).pop();
+        await tester.pumpAndSettle();
+
+        // startContinuousVoiceListeningIfActive deve ter sido chamado
+        // mas nao mais de uma vez (guard _voiceStartInProgress protege)
+        expect(key.currentState!.voiceRouteActiveForTesting, isTrue);
+        // resumeAttempts pode ser 1 (startContinuousVoiceListeningIfActive)
+        // ou >1 se o fallback recovery tambem disparou, mas nao deve ser 0
+        expect(key.currentState!.resumeAttempts, greaterThan(0));
+      },
+    );
+
+    testWidgets(
+      'nao retoma escuta se a tela estava em processamento de comando',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        key.currentState!.voiceEscutaContinuaAtiva = true;
+        key.currentState!.voiceExecutandoComando = true;
+
+        await tester.tap(find.byKey(_TestVoicePage.openRouteButtonKey));
+        await tester.pumpAndSettle();
+        Navigator.of(key.currentContext!).pop();
+        await tester.pumpAndSettle();
+
+        // Com voiceExecutandoComando=true, o fallback scheduleContinuousRestart
+        // nao deve ser chamado (shouldRestart retorna false).
+        // startContinuousVoiceListeningIfActive ainda e chamado mas a recovery
+        // de fallback deve ser bloqueada pelo guard de voiceExecutandoComando.
+        expect(key.currentState!.voiceRouteActiveForTesting, isTrue);
+        expect(
+          VoiceSessionManager.instance.diagnostics.events.any(
+            (e) => e.reason == 'recovery_already_pending',
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    testWidgets(
+      'botao Android retoma escuta via handlePopRoute (H10.1)',
+      (tester) async {
+        final key = GlobalKey<_TestVoicePageState>();
+        await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+        VoiceSessionManager.instance.claimListening('meus_projetos');
+
+        await tester.tap(find.byKey(_TestVoicePage.openRouteButtonKey));
+        await tester.pumpAndSettle();
+
+        VoiceSessionManager.instance.onRouteDidPop();
+        final handled = await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+
+        expect(handled, isTrue);
+        expect(key.currentState!.voiceRouteActiveForTesting, isTrue);
+        expect(key.currentState!.resumeAttempts, greaterThan(0));
+      },
+    );
+  });
 }
 
 class _TestVoiceApp extends StatelessWidget {

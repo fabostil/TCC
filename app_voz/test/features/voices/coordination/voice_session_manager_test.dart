@@ -508,6 +508,121 @@ void main() {
       },
     );
   });
+
+  group('VoiceSessionManager onRouteDidPop H10.1', () {
+    test('libera owner STT sincronamente no pop da rota', () {
+      final speech = _FakeSpeechService();
+      final mgr = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(mgr.dispose);
+
+      mgr.claimListening('meus_projetos');
+      expect(mgr.activeOwnerId, 'meus_projetos');
+      expect(mgr.audioOwnerType, VoiceAudioOwnerType.stt);
+
+      mgr.onRouteDidPop();
+
+      expect(mgr.activeOwnerId, isNull);
+      expect(mgr.audioOwnerType, VoiceAudioOwnerType.none);
+    });
+
+    test('tela anterior pode reivindicar ownership imediatamente apos pop', () {
+      final speech = _FakeSpeechService();
+      final mgr = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(mgr.dispose);
+
+      mgr.claimListening('meus_projetos');
+
+      mgr.onRouteDidPop();
+
+      expect(mgr.claimListening('home'), isTrue);
+      expect(mgr.activeOwnerId, 'home');
+    });
+
+    test('cancela recovery pendente da rota descartada', () {
+      final speech = _FakeSpeechService();
+      final mgr = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(mgr.dispose);
+
+      mgr.claimListening('meus_projetos');
+      mgr.scheduleRecovery(
+        ownerId: 'meus_projetos',
+        shouldRecover: () => true,
+        onRecover: () async {},
+      );
+      expect(mgr.hasPendingRecovery, isTrue);
+
+      mgr.onRouteDidPop();
+
+      expect(mgr.hasPendingRecovery, isFalse);
+      expect(mgr.activeOwnerId, isNull);
+    });
+
+    test('sem owner STT ativo apenas invalida recovery', () {
+      final speech = _FakeSpeechService();
+      final mgr = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(mgr.dispose);
+
+      mgr.scheduleRecovery(
+        ownerId: 'home',
+        shouldRecover: () => true,
+        onRecover: () async {},
+      );
+      expect(mgr.hasPendingRecovery, isTrue);
+
+      mgr.onRouteDidPop();
+
+      expect(mgr.hasPendingRecovery, isFalse);
+      expect(mgr.activeOwnerId, isNull);
+    });
+
+    test('nao afeta modo gravacao ativo', () {
+      final speech = _FakeSpeechService();
+      final mgr = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(mgr.dispose);
+
+      mgr.enterRecordingMode(ownerId: 'editor');
+      expect(mgr.recordingActive, isTrue);
+
+      mgr.onRouteDidPop();
+
+      expect(mgr.recordingActive, isTrue);
+      expect(mgr.audioOwnerType, VoiceAudioOwnerType.recorder);
+    });
+
+    test('recovery antigo nao bloqueia owner atual apos pop', () {
+      final speech = _FakeSpeechService();
+      final mgr = VoiceSessionManager.forTesting(speechService: speech);
+      addTearDown(mgr.dispose);
+
+      // Tela filha (meus_projetos) tinha recovery pendente
+      mgr.claimListening('meus_projetos');
+      mgr.scheduleRecovery(
+        ownerId: 'meus_projetos',
+        shouldRecover: () => true,
+        onRecover: () async {},
+      );
+
+      // Pop: libera owner e cancela recovery antigo
+      mgr.onRouteDidPop();
+
+      expect(mgr.hasPendingRecovery, isFalse);
+
+      // Home agora pode agendar seu proprio recovery sem bloqueio
+      mgr.claimListening('home');
+      mgr.scheduleRecovery(
+        ownerId: 'home',
+        shouldRecover: () => true,
+        onRecover: () async {},
+      );
+      expect(mgr.hasPendingRecovery, isTrue);
+      expect(
+        mgr.diagnostics.events
+            .where((e) => e.reason == 'recovery_already_pending')
+            .length,
+        0,
+      );
+    });
+  });
 }
 
 

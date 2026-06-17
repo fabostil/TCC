@@ -70,6 +70,12 @@ class VoiceCommandDispatcher {
       return onFallback(result);
     }
 
+    if (result.type == VoiceCommandType.reproduzirGravacao) {
+      return VoiceCommandPageResult.handled(
+        message: 'Abra Minhas Gravações para escolher um item.',
+      );
+    }
+
     return VoiceCommandPageResult.unavailable(recognized: result.recognized);
   }
 }

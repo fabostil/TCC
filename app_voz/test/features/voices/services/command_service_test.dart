@@ -617,4 +617,232 @@ void main() {
       expect(result.statusReconhecimento, 'nao_reconhecido');
     });
   });
+
+  group('CommandService H10.2 aliases naturais', () {
+    test('configuracoes/opcoes/preferencias resolvem igual', () {
+      for (final cmd in [
+        'opções',
+        'abrir opções',
+        'abrir preferências',
+        'entrar em configurações',
+      ]) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.abrirConfiguracoes,
+          reason: cmd,
+        );
+        expect(service.interpret(cmd).recognized, isTrue, reason: cmd);
+      }
+    });
+
+    test('projetos: entrar em projetos e lista de projetos', () {
+      expect(
+        service.interpret('entrar em projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('lista de projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+    });
+
+    test('projetos e novo projeto nao entram em conflito', () {
+      expect(
+        service.interpret('projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('novo projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+      expect(
+        service.interpret('cadastrar projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+      expect(
+        service.interpret('lista de projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+    });
+
+    test('dashboard: abrir painel resolve localmente', () {
+      expect(
+        service.interpret('abrir painel').type,
+        VoiceCommandType.abrirDashboard,
+      );
+    });
+
+    test('historico: acoes recentes e registro', () {
+      expect(
+        service.interpret('ações recentes').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(
+        service.interpret('registro').type,
+        VoiceCommandType.abrirHistorico,
+      );
+    });
+
+    test('gravacoes: lista, audios e meus audios', () {
+      expect(
+        service.interpret('lista de gravações').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
+        service.interpret('áudios').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
+        service.interpret('meus áudios').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+    });
+
+    test('editor funciona como comando local com novos aliases', () {
+      for (final cmd in [
+        'entrar no editor',
+        'área de gravação',
+        'tela de gravação',
+      ]) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.abrirEditor,
+          reason: cmd,
+        );
+        expect(service.interpret(cmd).recognized, isTrue, reason: cmd);
+      }
+    });
+
+    test('confirmacao: confirmar acao, pode cancelar, deixa pra la', () {
+      expect(
+        service.interpret('confirmar ação').type,
+        VoiceCommandType.confirmarAcao,
+      );
+      expect(
+        service.interpret('pode cancelar').type,
+        VoiceCommandType.cancelarAcao,
+      );
+      expect(
+        service.interpret('deixa pra lá').type,
+        VoiceCommandType.cancelarAcao,
+      );
+    });
+
+    test('iniciar audio dispara gravacao', () {
+      expect(
+        service.interpret('iniciar áudio').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+    });
+
+    test('pausar e interromper reproducao param o player', () {
+      expect(
+        service.interpret('pausar reprodução').type,
+        VoiceCommandType.pararReproducao,
+      );
+      expect(
+        service.interpret('interromper reprodução').type,
+        VoiceCommandType.pararReproducao,
+      );
+    });
+
+    test('pausar reproducao nao conflita com pausar gravacao', () {
+      expect(
+        service.interpret('pausar reprodução').type,
+        VoiceCommandType.pararReproducao,
+      );
+      expect(
+        service.interpret('pausar gravação').type,
+        VoiceCommandType.pausarGravacao,
+      );
+    });
+
+    test('parar gravacao nao conflita com parar reproducao', () {
+      expect(
+        service.interpret('parar gravação').type,
+        VoiceCommandType.encerrarGravacao,
+      );
+      expect(
+        service.interpret('parar reprodução').type,
+        VoiceCommandType.pararReproducao,
+      );
+    });
+
+    test('primeira e segunda gravacao disparam reproducao com parametro', () {
+      final primeira = service.interpret('primeira gravação');
+      expect(primeira.type, VoiceCommandType.reproduzirGravacao);
+      expect(primeira.parametro, 'primeira');
+
+      final segunda = service.interpret('segunda gravação');
+      expect(segunda.type, VoiceCommandType.reproduzirGravacao);
+      expect(segunda.parametro, 'segunda');
+    });
+
+    test('scroll: fim da pagina resolve como scrollFim', () {
+      expect(
+        service.interpret('fim da página').type,
+        VoiceCommandType.scrollFim,
+      );
+    });
+
+    test('variacoes de exclusao de item funcionam', () {
+      final apagar = service.interpret('apagar item 1');
+      expect(apagar.type, VoiceCommandType.excluirGravacao);
+      expect(apagar.parametro, 'item 1');
+
+      final remover = service.interpret('remover item 2');
+      expect(remover.type, VoiceCommandType.excluirGravacao);
+      expect(remover.parametro, 'item 2');
+
+      final excluir = service.interpret('excluir item 3');
+      expect(excluir.type, VoiceCommandType.excluirGravacao);
+      expect(excluir.parametro, 'item 3');
+    });
+
+    test('mudar nome da gravacao resolve como renomear', () {
+      expect(
+        service.interpret('mudar nome da gravação').type,
+        VoiceCommandType.renomearGravacao,
+      );
+    });
+
+    test('contrato oficial H10.2 resolve localmente sem Gemini', () {
+      final cases = <String, VoiceCommandType>{
+        'opções': VoiceCommandType.abrirConfiguracoes,
+        'abrir opções': VoiceCommandType.abrirConfiguracoes,
+        'abrir preferências': VoiceCommandType.abrirConfiguracoes,
+        'entrar em configurações': VoiceCommandType.abrirConfiguracoes,
+        'entrar em projetos': VoiceCommandType.abrirProjetos,
+        'lista de projetos': VoiceCommandType.abrirProjetos,
+        'cadastrar projeto': VoiceCommandType.abrirNovoProjeto,
+        'abrir painel': VoiceCommandType.abrirDashboard,
+        'ações recentes': VoiceCommandType.abrirHistorico,
+        'registro': VoiceCommandType.abrirHistorico,
+        'lista de gravações': VoiceCommandType.abrirGravacoes,
+        'áudios': VoiceCommandType.abrirGravacoes,
+        'meus áudios': VoiceCommandType.abrirGravacoes,
+        'entrar no editor': VoiceCommandType.abrirEditor,
+        'área de gravação': VoiceCommandType.abrirEditor,
+        'tela de gravação': VoiceCommandType.abrirEditor,
+        'confirmar ação': VoiceCommandType.confirmarAcao,
+        'pode cancelar': VoiceCommandType.cancelarAcao,
+        'deixa pra lá': VoiceCommandType.cancelarAcao,
+        'iniciar áudio': VoiceCommandType.iniciarGravacao,
+        'pausar reprodução': VoiceCommandType.pararReproducao,
+        'interromper reprodução': VoiceCommandType.pararReproducao,
+        'fim da página': VoiceCommandType.scrollFim,
+        'mudar nome da gravação': VoiceCommandType.renomearGravacao,
+      };
+
+      for (final entry in cases.entries) {
+        final result = service.interpret(entry.key);
+        expect(result.recognized, isTrue, reason: entry.key);
+        expect(result.type, entry.value, reason: entry.key);
+      }
+    });
+  });
 }

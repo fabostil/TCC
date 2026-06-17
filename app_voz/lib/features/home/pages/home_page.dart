@@ -435,6 +435,12 @@ class _HomePageState extends State<HomePage>
       );
     }
 
+    if (result.type == VoiceCommandType.reproduzirGravacao) {
+      return VoiceCommandPageResult.handled(
+        message: 'Abra Minhas Gravações para escolher um item.',
+      );
+    }
+
     return VoiceCommandPageResult.handled(
       message: result.recognized
           ? 'Comando não executável nesta tela.'
