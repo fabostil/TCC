@@ -219,6 +219,31 @@ void main() {
         service.interpret('abrir editor').type,
         VoiceCommandType.abrirEditor,
       );
+      expect(service.interpret('editor').type, VoiceCommandType.abrirEditor);
+      expect(
+        service.interpret('abre editor').type,
+        VoiceCommandType.abrirEditor,
+      );
+      expect(
+        service.interpret('ir para o editor').type,
+        VoiceCommandType.abrirEditor,
+      );
+      expect(
+        service.interpret('abrir meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('abre meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('entrar em meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('abrir minhas grava\u00e7\u00f5es').type,
+        VoiceCommandType.abrirGravacoes,
+      );
       expect(service.interpret('voltar').type, VoiceCommandType.voltar);
       expect(service.interpret('volta').type, VoiceCommandType.voltar);
       expect(service.interpret('home').type, VoiceCommandType.voltar);
@@ -276,6 +301,10 @@ void main() {
       expect(
         service.interpret('ir para o topo').type,
         VoiceCommandType.scrollTopo,
+      );
+      expect(
+        service.interpret('ir para o fim').type,
+        VoiceCommandType.scrollFim,
       );
       expect(
         service.interpret('fim da lista').type,
@@ -385,6 +414,10 @@ void main() {
       final buscarProjeto = service.interpret('buscar projeto demo');
       expect(buscarProjeto.type, VoiceCommandType.buscarProjetos);
       expect(buscarProjeto.parametro, 'demo');
+
+      final buscarProjetos = service.interpret('buscar projetos demo');
+      expect(buscarProjetos.type, VoiceCommandType.buscarProjetos);
+      expect(buscarProjetos.parametro, 'demo');
 
       final buscarGravacao = service.interpret('filtrar gravacoes refrao');
       expect(buscarGravacao.type, VoiceCommandType.buscarGravacoes);

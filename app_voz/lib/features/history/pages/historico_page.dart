@@ -11,6 +11,7 @@ import '../../../models/historico_acao.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/historico_repository.dart';
 import '../../dashboard/pages/dashboard_page.dart';
+import '../../editor/pages/editor_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
@@ -64,6 +65,7 @@ class _HistoricoPageState extends State<HistoricoPage>
       openRecordings: _handleAbrirGravacoesGlobal,
       openDashboard: _handleAbrirDashboard,
       openSettings: _handleAbrirConfiguracoesGlobal,
+      openEditor: _handleAbrirEditorGlobal,
       openNewProject: _handleAbrirNovoProjetoGlobal,
       goBack: _handleVoltar,
     );
@@ -163,6 +165,14 @@ class _HistoricoPageState extends State<HistoricoPage>
       MaterialPageRoute(
         builder: (_) => ConfiguracoesPage(usuario: widget.usuario),
       ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirEditorGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      MaterialPageRoute(builder: (_) => EditorPage(usuario: widget.usuario)),
     );
   }
 

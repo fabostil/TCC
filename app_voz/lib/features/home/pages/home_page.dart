@@ -8,6 +8,7 @@ import '../../../models/configuracao_app.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/configuracao_app_repository.dart';
 import '../../dashboard/pages/dashboard_page.dart';
+import '../../editor/pages/editor_page.dart';
 import '../../history/pages/historico_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
@@ -109,6 +110,7 @@ class _HomePageState extends State<HomePage>
       openDashboard: _handleAbrirDashboard,
       openHistory: _handleAbrirHistorico,
       openSettings: _handleAbrirConfiguracoes,
+      openEditor: _handleAbrirEditor,
       openNewProject: _handleAbrirNovoProjeto,
       goBack: _handleVoltar,
     );
@@ -122,6 +124,7 @@ class _HomePageState extends State<HomePage>
         VoiceCommandType.abrirConfiguracoes: _handleAbrirConfiguracoes,
         VoiceCommandType.abrirAssistente: _handleAssistenteAtivo,
         VoiceCommandType.abrirHistorico: _handleAbrirHistorico,
+        VoiceCommandType.abrirEditor: _handleAbrirEditor,
         VoiceCommandType.voltar: _handleVoltar,
         VoiceCommandType.scrollBaixo: _handleScrollPorVoz,
         VoiceCommandType.scrollCima: _handleScrollPorVoz,
@@ -382,6 +385,19 @@ class _HomePageState extends State<HomePage>
     return VoiceCommandPageResult.handled(restartListening: false);
   }
 
+  Future<VoiceCommandPageResult> _handleAbrirEditor(
+    CommandResult result,
+  ) async {
+    if (_ignorarComandoDuplicado(result)) {
+      return VoiceCommandPageResult.handled(restartListening: false);
+    }
+
+    await _navegarERetomar(
+      MaterialPageRoute(builder: (_) => EditorPage(usuario: widget.usuario)),
+    );
+    return VoiceCommandPageResult.handled(restartListening: false);
+  }
+
   Future<VoiceCommandPageResult> _handleAssistenteAtivo(CommandResult _) async {
     return VoiceCommandPageResult.handled(
       message: 'Assistente de voz já está ativo na tela inicial.',
@@ -412,6 +428,13 @@ class _HomePageState extends State<HomePage>
   Future<VoiceCommandPageResult> _handleComandoIndisponivel(
     CommandResult result,
   ) async {
+    if (result.type == VoiceCommandType.definirDescricaoProjeto ||
+        result.type == VoiceCommandType.substituirDescricaoProjeto) {
+      return VoiceCommandPageResult.handled(
+        message: 'Esse comando so esta disponivel ao editar um projeto.',
+      );
+    }
+
     return VoiceCommandPageResult.handled(
       message: result.recognized
           ? 'Comando não executável nesta tela.'
@@ -510,7 +533,9 @@ class _HomePageState extends State<HomePage>
       _configuracao = configuracao;
     });
 
-    await startContinuousVoiceListeningIfActive();
+    if (voiceEscutaContinuaAtiva) {
+      await startContinuousVoiceListeningIfActive();
+    }
   }
 
   @override

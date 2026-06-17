@@ -221,6 +221,27 @@ void main() {
         expect(result.usedAi, isFalse);
       },
     );
+
+    test(
+      'comando essencial reservado tem prioridade sobre personalizado',
+      () async {
+        final repository = FakeComandoRepository()
+          ..commands = [
+            _customCommand(frase: 'editor', tipoComando: 'abrir_dashboard'),
+          ];
+        final controller = VoiceCommandController(
+          aiCommandService: AiCommandService(apiKey: ''),
+          customCommandService: CustomCommandService(repository: repository),
+          feedbackService: const NoopVoiceFeedbackService(),
+        );
+
+        final result = await controller.interpret('editor', usuarioId: 7);
+
+        expect(result.commandResult.type, VoiceCommandType.abrirEditor);
+        expect(result.commandResult.tipoComando, 'abrir_editor');
+        expect(result.usedAi, isFalse);
+      },
+    );
   });
 }
 

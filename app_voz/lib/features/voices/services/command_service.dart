@@ -91,6 +91,11 @@ class CommandService {
       return _unknown(text, normalizedText);
     }
 
+    final essentialCommand = _interpretEssentialCommand(text, normalizedText);
+    if (essentialCommand != null) {
+      return essentialCommand;
+    }
+
     if (_containsAny(normalizedText, const [
           'iniciar gravacao',
           'comecar gravacao',
@@ -1129,6 +1134,214 @@ class CommandService {
     return _unknown(text, normalizedText);
   }
 
+  CommandResult? _interpretEssentialCommand(
+    String originalText,
+    String normalizedText,
+  ) {
+    if (_equalsAny(normalizedText, const [
+      'meus projetos',
+      'abrir meus projetos',
+      'abre meus projetos',
+      'entrar em meus projetos',
+      'vai para projetos',
+      'projetos',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.abrirProjetos,
+        tipoComando: 'abrir_projetos',
+        acaoExecutada: 'Abrir projetos',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
+      'minhas gravacoes',
+      'abrir minhas gravacoes',
+      'gravacoes',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.abrirGravacoes,
+        tipoComando: 'abrir_gravacoes',
+        acaoExecutada: 'Abrir gravacoes',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
+      'dashboard',
+      'painel',
+      'meu painel',
+      'indicadores',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.abrirDashboard,
+        tipoComando: 'abrir_dashboard',
+        acaoExecutada: 'Abrir dashboard',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['historico'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.abrirHistorico,
+        tipoComando: 'abrir_historico',
+        acaoExecutada: 'Abrir historico',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['configuracoes', 'preferencias'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.abrirConfiguracoes,
+        tipoComando: 'abrir_configuracoes',
+        acaoExecutada: 'Abrir configuracoes',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
+      'home',
+      'inicio',
+      'tela inicial',
+      'voltar para tela inicial',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.voltar,
+        tipoComando: 'voltar',
+        acaoExecutada: 'Voltar tela',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['voltar'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.voltar,
+        tipoComando: 'voltar',
+        acaoExecutada: 'Voltar tela',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
+      'editor',
+      'abrir editor',
+      'abre editor',
+      'ir para o editor',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.abrirEditor,
+        tipoComando: 'abrir_editor',
+        acaoExecutada: 'Abrir editor',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
+      'novo projeto',
+      'criar projeto',
+      'adicionar projeto',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        normalizedText == 'criar projeto'
+            ? VoiceCommandType.criarProjeto
+            : VoiceCommandType.abrirNovoProjeto,
+        tipoComando: normalizedText == 'criar projeto'
+            ? 'criar_projeto'
+            : 'abrir_novo_projeto',
+        acaoExecutada: normalizedText == 'criar projeto'
+            ? 'Criar projeto'
+            : 'Abrir novo projeto',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
+      'abrir projeto',
+      'excluir projeto',
+    ])) {
+      return null;
+    }
+
+    if (_equalsAny(normalizedText, const [
+      'descricao do projeto',
+      'descricao',
+      'editar descricao',
+      'campo descricao',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.definirDescricaoProjeto,
+        tipoComando: 'definir_descricao_projeto',
+        acaoExecutada: 'Definir descricao do projeto',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
+      'descer',
+      'subir',
+      'ir para o fim',
+      'ir para o topo',
+    ])) {
+      final type = switch (normalizedText) {
+        'descer' => VoiceCommandType.scrollBaixo,
+        'subir' => VoiceCommandType.scrollCima,
+        'ir para o fim' => VoiceCommandType.scrollFim,
+        _ => VoiceCommandType.scrollTopo,
+      };
+      final tipoComando = switch (type) {
+        VoiceCommandType.scrollBaixo => 'scroll_baixo',
+        VoiceCommandType.scrollCima => 'scroll_cima',
+        VoiceCommandType.scrollFim => 'scroll_fim',
+        _ => 'scroll_topo',
+      };
+      final acaoExecutada = switch (type) {
+        VoiceCommandType.scrollBaixo => 'Rolar para baixo',
+        VoiceCommandType.scrollCima => 'Rolar para cima',
+        VoiceCommandType.scrollFim => 'Ir para o fim',
+        _ => 'Ir para o topo',
+      };
+      return _recognized(
+        originalText,
+        normalizedText,
+        type,
+        tipoComando: tipoComando,
+        acaoExecutada: acaoExecutada,
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['confirmar', 'sim'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.confirmarAcao,
+        tipoComando: 'confirmar_acao',
+        acaoExecutada: 'Confirmar acao',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['cancelar', 'nao'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.cancelarAcao,
+        tipoComando: 'cancelar_acao',
+        acaoExecutada: 'Cancelar acao',
+      );
+    }
+
+    return null;
+  }
+
   String normalize(String text) {
     final lower = text.toLowerCase().trim();
     final withoutAccents = lower
@@ -1184,6 +1397,10 @@ class CommandService {
 
   bool _matchesAny(String text, List<String> patterns) {
     return patterns.any((pattern) => text == pattern || text.contains(pattern));
+  }
+
+  bool _equalsAny(String text, List<String> patterns) {
+    return patterns.contains(text);
   }
 
   bool _containsWord(String text, String word) {

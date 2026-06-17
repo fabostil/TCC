@@ -2404,3 +2404,99 @@ Testes criados ou alterados:
 14. Confirmar que cancela.
 15. Fora de modal, dizer `excluir`.
 16. Confirmar que nada e apagado diretamente.
+
+## H.8 — Correção da confiabilidade dos comandos de voz essenciais
+
+### Problemas corrigidos
+
+* Escuta intermitente após navegação manual.
+* Comandos globais falhando ou demorando por cair em fallback/IA.
+* `abrir editor` não funcionando como navegação global confiável.
+* `abrir meus projetos` e aliases equivalentes inconsistentes.
+* `descrição` abrindo ação errada fora de contexto.
+* Retomada após modal, ajuda, formulário e retorno de tela.
+
+### Diagnóstico raiz
+
+* Comandos personalizados curtos, como `escudo`, eram rápidos porque chegam ao
+  fluxo como frases curtas, com baixa ambiguidade, e quando não conflitam com
+  comandos locais são resolvidos diretamente pelo catálogo personalizado, sem
+  depender de IA.
+* Comandos naturais multi-palavra eram mais inconsistentes porque a resolução
+  local aceitava algumas frases por `contains`, deixava outros aliases fora da
+  lista determinística e, em alguns casos, só executava a ação se a página atual
+  tivesse tratado manualmente aquele comando.
+* O STT podia reconhecer a fala corretamente, mas a ação final falhava por
+  roteamento: `editor` e `ir para o editor` não eram comandos locais
+  essenciais; `abrir editor` não era tratado pelo handler global de navegação.
+* A retomada de voz após navegação/modal era afetada por uma pausa temporária
+  que zerava `voiceEscutaContinuaAtiva`. Quando a rota voltava, a tela visível
+  podia estar ativa, mas sem elegibilidade para reiniciar a escuta.
+* Não havia evidência de duas telas executando ações ao mesmo tempo no fluxo
+  corrigido; o risco principal era listener liberado sem retomada posterior.
+* `descrição` fora de projetos era reconhecido como intenção de descrição, mas
+  a Home devolvia mensagem genérica. Agora não cria projeto fora de contexto.
+
+### Correções realizadas
+
+* `CommandService` recebeu uma camada determinística de comandos essenciais,
+  executada antes de IA/fallback, com normalização de acento, caixa, pontuação e
+  espaços.
+* A camada essencial cobre navegação, Editor, projeto, descrição, scroll e
+  confirmação segura sem usar substring perigosa.
+* Comandos reservados continuam vencendo comandos personalizados conflitantes.
+* `VoiceNavigationCommandHandler` passou a conhecer o destino `editor`.
+* Home, Dashboard, Histórico, Minhas Gravações e Configurações passaram a abrir
+  o Editor por navegação global quando há usuário autenticado.
+* `ContextualVoiceListeningMixin` passou a preservar `voiceEscutaContinuaAtiva`
+  em pausas temporárias de navegação/modal e a fazer uma recuperação segura
+  única quando o retorno de rota não deixa o STT ativo.
+* Logs de debug seguros foram adicionados para texto final reconhecido, texto
+  normalizado, tipo resolvido, dono ativo e decisão do pipeline
+  (confirmação/global/navegação/página).
+* A Home agora responde `Esse comando so esta disponivel ao editar um projeto.`
+  quando `descrição` é dito fora do contexto correto.
+* A retomada da Home após navegação não força busca real de configuração quando
+  a escuta contínua está desativada.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/voices/services/command_service_test.dart`
+  * valida aliases essenciais de navegação;
+  * valida `editor`, `abrir editor`, `abre editor` e `ir para o editor`;
+  * valida `abrir meus projetos`, `abre meus projetos`,
+    `entrar em meus projetos` e `abrir minhas gravações`;
+  * valida `ir para o topo`, `ir para o fim` e ausência de conflito com
+    `tela inicial`;
+  * valida que busca de projetos continua contextual e não vira navegação.
+* `test/features/voices/coordination/voice_navigation_command_handler_test.dart`
+  * valida o roteamento global para Editor.
+* `test/features/voices/controllers/voice_command_controller_test.dart`
+  * valida que comando essencial reservado vence comando personalizado
+    conflitante.
+* `test/features/voices/coordination/contextual_voice_listening_mixin_test.dart`
+  * valida que suspensão temporária preserva escuta contínua;
+  * valida que pausa manual bloqueia retomada automática.
+* `test/features/home/pages/home_page_test.dart`
+  * valida mensagem contextual para `descrição` na Home;
+  * valida abertura do Editor por comando de voz.
+
+### Validação automatizada
+
+* `dart analyze` inicial: comando via wrapper travou por timeout.
+* `flutter test --reporter compact` inicial: comando via wrapper travou por
+  timeout.
+* Validação final via SDK direto:
+  * `flutter analyze`: passou, sem issues.
+  * `flutter test --reporter compact`: passou, 542 testes.
+
+### Itens ainda pendentes
+
+Ficam explicitamente para próximas etapas:
+
+* Player em loop.
+* Ordem de `reproduzir gravação 1/2`.
+* Path técnico em detalhes.
+* Abertura lenta.

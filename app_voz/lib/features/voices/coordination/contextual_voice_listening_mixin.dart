@@ -44,6 +44,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   bool _voiceRouteObserverRegistered = false;
   bool _voiceRouteActive = true;
   bool _voiceStartInProgress = false;
+  bool _voiceRouteRecoveryAttempted = false;
   Future<void> _voiceRoutePausePending = Future<void>.value();
   AppLifecycleListener? _voiceLifecycleListener;
   PageRoute<dynamic>? _voiceRoute;
@@ -93,23 +94,27 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   @override
   void didPush() {
     _voiceRouteActive = true;
+    _voiceRouteRecoveryAttempted = false;
   }
 
   @override
   void didPushNext() {
     _voiceRouteActive = false;
+    _voiceRouteRecoveryAttempted = false;
     _voiceRoutePausePending = pauseContextualVoiceForCoveredRoute();
   }
 
   @override
   void didPopNext() {
     _voiceRouteActive = true;
+    _voiceRouteRecoveryAttempted = false;
     unawaited(_resumeContextualVoiceAfterRouteReturn());
   }
 
   @override
   void didPop() {
     _voiceRouteActive = false;
+    _voiceRouteRecoveryAttempted = false;
   }
 
   void setVoiceSession(
@@ -229,7 +234,35 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
     if (!mounted || !_voiceRouteActive) {
       return;
     }
+    _debugVoice(
+      'route_return owner=$voiceOwnerId active=$_voiceRouteActive '
+      'continuous=$voiceEscutaContinuaAtiva listening=$voiceOuvindo '
+      'sessionOwner=${voiceSessionManager.activeOwnerId}',
+    );
     await startContinuousVoiceListeningIfActive();
+    if (!mounted ||
+        !_voiceRouteActive ||
+        _voiceRouteRecoveryAttempted ||
+        voiceOuvindo ||
+        voiceParadaManual ||
+        voiceSessionManager.recordingActive) {
+      return;
+    }
+
+    _voiceRouteRecoveryAttempted = true;
+    voiceCoordinator.scheduleContinuousRestart(
+      ownerId: voiceOwnerId,
+      reason: VoiceRestartReason.normal,
+      shouldRestart: () =>
+          mounted &&
+          _voiceRouteActive &&
+          voiceEscutaContinuaAtiva &&
+          !voiceParadaManual &&
+          !voiceExecutandoComando &&
+          !voiceOuvindo &&
+          !voiceSessionManager.recordingActive,
+      onRestart: startContextualVoiceListening,
+    );
   }
 
   Future<void> toggleContextualVoiceListening() async {
@@ -432,6 +465,11 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       },
     );
     final resultado = resultadoController.commandResult;
+    _debugVoice(
+      'recognized owner=$voiceOwnerId raw="$texto" '
+      'normalized="${resultado.normalizedText}" type=${resultado.type.name} '
+      'recognized=${resultado.recognized} usedAi=${resultadoController.usedAi}',
+    );
 
     if (voiceRegistersCommands) {
       unawaited(registerVoiceCommand(resultado));
@@ -461,6 +499,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       resultado,
     );
     if (confirmationResult.handled) {
+      _debugVoice(
+        'decision owner=$voiceOwnerId type=${resultado.type.name} '
+        'target=confirmation action=${confirmationResult.action.name}',
+      );
       if (mounted && confirmationResult.message.isNotEmpty) {
         voiceSetState(() {
           voiceStatusMessage = confirmationResult.message;
@@ -484,6 +526,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         return;
       }
       if (globalResult.handled) {
+        _debugVoice(
+          'decision owner=$voiceOwnerId type=${resultado.type.name} '
+          'target=global stop=${globalResult.shouldStopListening}',
+        );
         voiceSessionManager.markExecuting(
           ownerId: voiceOwnerId,
           message: globalResult.message,
@@ -526,6 +572,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         return;
       }
       if (navigationResult != null) {
+        _debugVoice(
+          'decision owner=$voiceOwnerId type=${resultado.type.name} '
+          'target=navigation handled=${navigationResult.handled}',
+        );
         await _completePageCommandResult(navigationResult);
         return;
       }
@@ -536,6 +586,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       message: voiceStatusMessage,
     );
     final pageResult = await voiceCommandDispatcher.dispatch(resultado);
+    _debugVoice(
+      'decision owner=$voiceOwnerId type=${resultado.type.name} '
+      'target=page handled=${pageResult.handled}',
+    );
     if (!_voiceRouteActive) {
       voiceExecutandoComando = false;
       voiceIaPensando = false;
@@ -590,7 +644,9 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
     bool keepManualPause = false,
   }) async {
     voiceParadaManual = keepManualPause;
-    voiceEscutaContinuaAtiva = false;
+    if (keepManualPause) {
+      voiceEscutaContinuaAtiva = false;
+    }
 
     if (voiceOuvindo || voiceSessionManager.isSpeechListening) {
       await voiceSessionManager.cancelListening(
@@ -710,6 +766,13 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
 
   /// Helper para páginas com [Usuario].
   int? usuarioIdOf(Usuario? usuario) => usuario?.id;
+
+  void _debugVoice(String message) {
+    assert(() {
+      debugPrint('[VoiceH8] $message');
+      return true;
+    }());
+  }
 }
 
 extension on VoiceSessionPhase {

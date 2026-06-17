@@ -10,6 +10,7 @@ import '../../../models/comando_personalizado.dart';
 import '../../../models/configuracao_app.dart';
 import '../../../models/usuario.dart';
 import '../../dashboard/pages/dashboard_page.dart';
+import '../../editor/pages/editor_page.dart';
 import '../../history/pages/historico_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
@@ -103,6 +104,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       openRecordings: _handleAbrirGravacoesGlobal,
       openDashboard: _handleAbrirDashboardGlobal,
       openHistory: _handleAbrirHistoricoGlobal,
+      openEditor: _handleAbrirEditorGlobal,
       openNewProject: _handleAbrirNovoProjetoGlobal,
       goBack: _handleVoltarGlobal,
     );
@@ -598,6 +600,21 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
 
     return _navegarGlobal(
       MaterialPageRoute(builder: (_) => HistoricoPage(usuario: usuario)),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirEditorGlobal(
+    CommandResult _,
+  ) async {
+    final usuario = widget.usuario;
+    if (usuario == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Usuario sem sessao autenticada.',
+      );
+    }
+
+    return _navegarGlobal(
+      MaterialPageRoute(builder: (_) => EditorPage(usuario: usuario)),
     );
   }
 

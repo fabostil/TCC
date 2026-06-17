@@ -10,6 +10,7 @@ import '../../../models/dashboard_action_metric.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/historico_acao.dart';
 import '../../../models/usuario.dart';
+import '../../editor/pages/editor_page.dart';
 import '../../history/pages/historico_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
@@ -65,6 +66,7 @@ class _DashboardPageState extends State<DashboardPage>
       openRecordings: _handleAbrirGravacoesGlobal,
       openHistory: _handleAbrirHistoricoGlobal,
       openSettings: _handleAbrirConfiguracoesGlobal,
+      openEditor: _handleAbrirEditorGlobal,
       openNewProject: _handleAbrirNovoProjetoGlobal,
       goBack: _handleVoltar,
     );
@@ -159,6 +161,14 @@ class _DashboardPageState extends State<DashboardPage>
       MaterialPageRoute(
         builder: (_) => ConfiguracoesPage(usuario: widget.usuario),
       ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirEditorGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      MaterialPageRoute(builder: (_) => EditorPage(usuario: widget.usuario)),
     );
   }
 

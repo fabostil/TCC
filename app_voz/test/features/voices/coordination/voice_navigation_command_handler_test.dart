@@ -17,6 +17,7 @@ void main() {
         openDashboard: _record(calls, 'dashboard'),
         openHistory: _record(calls, 'history'),
         openSettings: _record(calls, 'settings'),
+        openEditor: _record(calls, 'editor'),
         openNewProject: _record(calls, 'new_project'),
         goBack: _record(calls, 'back'),
       );
@@ -26,6 +27,7 @@ void main() {
       await handler.handle(commandService.interpret('configuracoes'));
       await handler.handle(commandService.interpret('projetos'));
       await handler.handle(commandService.interpret('gravacoes'));
+      await handler.handle(commandService.interpret('abrir editor'));
       await handler.handle(commandService.interpret('novo projeto'));
       await handler.handle(commandService.interpret('tela inicial'));
       await handler.handle(commandService.interpret('voltar'));
@@ -36,6 +38,7 @@ void main() {
         'settings',
         'projects',
         'recordings',
+        'editor',
         'new_project',
         'home',
         'back',

@@ -8,6 +8,7 @@ enum VoiceNavigationDestination {
   dashboard,
   history,
   settings,
+  editor,
   other,
 }
 
@@ -23,6 +24,7 @@ class VoiceNavigationCommandHandler {
     this.openDashboard,
     this.openHistory,
     this.openSettings,
+    this.openEditor,
     this.openNewProject,
     this.goBack,
     this.handleCreateProjectCommand = true,
@@ -35,6 +37,7 @@ class VoiceNavigationCommandHandler {
   final VoiceNavigationAction? openDashboard;
   final VoiceNavigationAction? openHistory;
   final VoiceNavigationAction? openSettings;
+  final VoiceNavigationAction? openEditor;
   final VoiceNavigationAction? openNewProject;
   final VoiceNavigationAction? goBack;
   final bool handleCreateProjectCommand;
@@ -77,6 +80,11 @@ class VoiceNavigationCommandHandler {
         VoiceNavigationDestination.history,
         openHistory,
         'Histórico já está aberto.',
+      ),
+      VoiceCommandType.abrirEditor => _targetAction(
+        VoiceNavigationDestination.editor,
+        openEditor,
+        'Editor ja esta aberto.',
       ),
       VoiceCommandType.abrirNovoProjeto => openNewProject,
       VoiceCommandType.criarProjeto when handleCreateProjectCommand =>

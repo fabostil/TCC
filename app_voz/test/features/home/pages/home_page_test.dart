@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:app_voz/features/editor/pages/editor_page.dart';
 import 'package:app_voz/features/home/pages/home_page.dart';
 import 'package:app_voz/features/voices/coordination/voice_command_dispatcher.dart';
 import 'package:app_voz/features/voices/services/auth_session_service.dart';
@@ -247,8 +248,28 @@ void main() {
       expect(result.handled, isTrue);
       expect(
         result.statusMessage,
-        'Comando não executável nesta tela.',
+        'Esse comando so esta disponivel ao editar um projeto.',
       );
+    });
+
+    testWidgets('abrir editor por voz navega para o Editor', (tester) async {
+      await _pumpHome(tester);
+      await tester.pump();
+
+      final state = tester.state(find.byType(HomePage)) as dynamic;
+      final command = const CommandService().interpret('abrir editor');
+      final future =
+          state.voiceCommandDispatcher.dispatch(command)
+              as Future<VoiceCommandPageResult>;
+      await tester.pumpAndSettle();
+
+      expect(find.byType(EditorPage), findsOneWidget);
+
+      Navigator.of(tester.element(find.byType(EditorPage))).pop();
+      await tester.pumpAndSettle();
+
+      final result = await future;
+      expect(result.handled, isTrue);
     });
   });
 }

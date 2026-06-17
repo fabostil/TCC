@@ -12,6 +12,7 @@ import '../../../core/ui/voice_status_bar.dart';
 import '../../../models/gravacao.dart';
 import '../../../models/usuario.dart';
 import '../../dashboard/pages/dashboard_page.dart';
+import '../../editor/pages/editor_page.dart';
 import '../../history/pages/historico_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
@@ -100,6 +101,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       openDashboard: _handleAbrirDashboardGlobal,
       openHistory: _handleAbrirHistoricoGlobal,
       openSettings: _handleAbrirConfiguracoesGlobal,
+      openEditor: _handleAbrirEditorGlobal,
       openNewProject: _handleAbrirNovoProjetoGlobal,
       goBack: _handleVoltarGlobal,
     );
@@ -527,6 +529,14 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       MaterialPageRoute(
         builder: (_) => ConfiguracoesPage(usuario: widget.usuario),
       ),
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirEditorGlobal(
+    CommandResult _,
+  ) async {
+    return _navegarGlobal(
+      MaterialPageRoute(builder: (_) => EditorPage(usuario: widget.usuario)),
     );
   }
 

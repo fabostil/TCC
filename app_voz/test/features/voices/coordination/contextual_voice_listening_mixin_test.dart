@@ -97,6 +97,36 @@ void main() {
       expect(key.currentState!.resumeAttempts, 1);
     });
 
+    testWidgets('suspensao temporaria preserva escuta continua', (
+      tester,
+    ) async {
+      final key = GlobalKey<_TestVoicePageState>();
+
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+      key.currentState!.voiceEscutaContinuaAtiva = true;
+
+      await key.currentState!.suspendContextualVoiceListening();
+      await tester.pump();
+
+      expect(key.currentState!.voiceEscutaContinuaAtiva, isTrue);
+      expect(key.currentState!.voiceParadaManual, isFalse);
+    });
+
+    testWidgets('pausa manual desativa retomada automatica', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+      key.currentState!.voiceEscutaContinuaAtiva = true;
+
+      await key.currentState!.suspendContextualVoiceListening(
+        keepManualPause: true,
+      );
+      await tester.pump();
+
+      expect(key.currentState!.voiceEscutaContinuaAtiva, isFalse);
+      expect(key.currentState!.voiceParadaManual, isTrue);
+    });
+
     testWidgets('dispose remove registro de rota e libera owner', (
       tester,
     ) async {
