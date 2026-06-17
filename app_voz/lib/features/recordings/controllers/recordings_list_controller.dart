@@ -188,7 +188,7 @@ class RecordingsListController extends ChangeNotifier {
     Gravacao gravacao, {
     required int? usuarioId,
   }) async {
-    if (state.playingRecordingId == gravacao.id && _playerService.isPlaying) {
+    if (state.playingRecordingId == gravacao.id) {
       await stopPlayback();
       return;
     }
@@ -415,6 +415,26 @@ class RecordingsListController extends ChangeNotifier {
     final numericValue = int.tryParse(numberMatch?.group(2) ?? '');
     if (numericValue != null) {
       return numericValue - 1;
+    }
+
+    const numberWords = {
+      'um': 0,
+      'uma': 0,
+      'dois': 1,
+      'duas': 1,
+      'tres': 2,
+      'quatro': 3,
+      'cinco': 4,
+      'seis': 5,
+      'sete': 6,
+      'oito': 7,
+      'nove': 8,
+    };
+
+    for (final entry in numberWords.entries) {
+      if (RegExp('(^| )${entry.key}( |\$)').hasMatch(reference)) {
+        return entry.value;
+      }
     }
 
     const ordinals = {

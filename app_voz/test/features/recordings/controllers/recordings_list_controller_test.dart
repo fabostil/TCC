@@ -126,6 +126,23 @@ void main() {
       },
     );
 
+    test(
+      'stop usa estado visual mesmo se player ja nao reporta playing',
+      () async {
+        final recording = _recording(id: 1, name: 'Take');
+        recordingService.recordings = [recording];
+        await controller.load(usuarioId: 10);
+        await controller.togglePlayback(recording, usuarioId: null);
+        playerService.playing = false;
+
+        await controller.togglePlayback(recording, usuarioId: null);
+
+        expect(controller.state.playingRecordingId, isNull);
+        expect(playerService.stopCalls, 1);
+        expect(playerService.playedPaths, ['/tmp/1.m4a']);
+      },
+    );
+
     test('conclusao limpa estado sem reiniciar reproducao', () async {
       final recording = _recording(id: 1, name: 'Take');
       recordingService.recordings = [recording];
@@ -204,6 +221,30 @@ void main() {
       expect(
         controller.resolvePlaybackCommand('tocar a segunda gravacao').recording,
         visualOrder[1],
+      );
+      expect(
+        controller.resolvePlaybackCommand('gravacao 1').recording,
+        visualOrder[0],
+      );
+      expect(
+        controller.resolvePlaybackCommand('gravacao um').recording,
+        visualOrder[0],
+      );
+      expect(
+        controller.resolvePlaybackCommand('primeira gravacao').recording,
+        visualOrder[0],
+      );
+      expect(
+        controller.resolvePlaybackCommand('gravacao dois').recording,
+        visualOrder[1],
+      );
+      expect(
+        controller.resolvePlaybackCommand('gravacao 3').recording,
+        visualOrder[2],
+      );
+      expect(
+        controller.resolvePlaybackCommand('a primeira').recording,
+        visualOrder[0],
       );
     });
 

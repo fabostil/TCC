@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 
 import '../../../core/ui/app_empty_state.dart';
 import '../../../core/ui/app_feedback.dart';
@@ -30,6 +31,8 @@ import 'detalhes_gravacao_page.dart';
 const int _minRecordingNameLength = 2;
 const int _maxRecordingNameLength = 80;
 
+enum _PlaybackAction { none, started, stopped }
+
 String? _validateRecordingName(String? value) {
   final trimmed = value?.trim() ?? '';
   if (trimmed.isEmpty) {
@@ -48,12 +51,16 @@ class MinhasGravacoesPage extends StatefulWidget {
   final Usuario usuario;
   final RecordingsListController? recordingsController;
   final bool enableVoiceListening;
+  final FutureOr<void> Function()? onVoicePlaybackSuspendedForTesting;
+  final FutureOr<void> Function()? onVoicePlaybackResumeRequestedForTesting;
 
   const MinhasGravacoesPage({
     super.key,
     required this.usuario,
     @visibleForTesting this.recordingsController,
     @visibleForTesting this.enableVoiceListening = true,
+    @visibleForTesting this.onVoicePlaybackSuspendedForTesting,
+    @visibleForTesting this.onVoicePlaybackResumeRequestedForTesting,
   });
 
   @override
@@ -71,6 +78,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   int? _renomeandoGravacaoId;
   int? _excluindoGravacaoId;
   bool _confirmandoExclusaoPendente = false;
+  bool _retomadaEscutaPlaybackPendente = false;
 
   RecordingsListState get _recordingsState => _recordingsController.state;
 
@@ -117,6 +125,10 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       }
 
       _recordingsController.handlePlayerState(state);
+      if (state.processingState == ProcessingState.completed ||
+          (!state.playing && state.processingState == ProcessingState.idle)) {
+        unawaited(_retomarEscutaAposPlayback());
+      }
     });
     _carregarGravacoes();
     if (widget.enableVoiceListening) {
@@ -187,29 +199,67 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         '${segundosRestantes.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _alternarReproducao(Gravacao gravacao) async {
+  Future<_PlaybackAction> _alternarReproducao(Gravacao gravacao) async {
     if (gravacao.status == GravacaoStatus.arquivoAusente ||
         gravacao.tamanhoBytes <= 0) {
       AppFeedback.showMessage(
         context,
         'Arquivo de áudio indisponível para reprodução.',
       );
-      return;
+      return _PlaybackAction.none;
     }
 
     try {
+      final jaEstavaReproduzindo =
+          _recordingsController.state.playingRecordingId == gravacao.id;
+      if (!jaEstavaReproduzindo) {
+        await _pausarEscutaParaPlayback();
+      }
+
       await _recordingsController.togglePlayback(
         gravacao,
         usuarioId: widget.usuario.id,
       );
+      if (jaEstavaReproduzindo) {
+        await _retomarEscutaAposPlayback();
+        return _PlaybackAction.stopped;
+      }
+
+      return _PlaybackAction.started;
     } catch (e) {
       if (!mounted) {
-        return;
+        return _PlaybackAction.none;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text(UserFacingMessages.playbackError)),
       );
+      await _retomarEscutaAposPlayback();
+      return _PlaybackAction.none;
+    }
+  }
+
+  Future<void> _pausarEscutaParaPlayback() async {
+    if (voiceOuvindo || voiceSessionManager.isSpeechListening) {
+      await suspendContextualVoiceListening();
+    }
+    await widget.onVoicePlaybackSuspendedForTesting?.call();
+  }
+
+  Future<void> _retomarEscutaAposPlayback() async {
+    if (_retomadaEscutaPlaybackPendente) {
+      return;
+    }
+
+    _retomadaEscutaPlaybackPendente = true;
+    try {
+      await widget.onVoicePlaybackResumeRequestedForTesting?.call();
+      if (!mounted || voiceParadaManual) {
+        return;
+      }
+      scheduleVoiceContinuousRestart();
+    } finally {
+      _retomadaEscutaPlaybackPendente = false;
     }
   }
 
@@ -386,6 +436,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         return _handleReproduzirPorNome(resultado.parametro);
       case VoiceCommandType.pararReproducao:
         await _recordingsController.stopPlayback();
+        await _retomarEscutaAposPlayback();
         return VoiceCommandPageResult.handled(message: 'Reprodução parada.');
       case VoiceCommandType.buscarGravacoes:
         return _buscarGravacoesPorVoz(resultado.parametro);
@@ -459,8 +510,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       case VoiceCommandType.ativarParadaSilencio:
       case VoiceCommandType.desativarParadaSilencio:
       case VoiceCommandType.definirTempoSilencio:
-      case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
+        return _handleReferenciaParcialDeGravacao(resultado.normalizedText);
+      case VoiceCommandType.sair:
         return VoiceCommandPageResult.unavailable(
           recognized: resultado.recognized,
         );
@@ -555,8 +607,43 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       return VoiceCommandPageResult.handled(message: resolution.message);
     }
 
-    await _alternarReproducao(gravacao);
-    return VoiceCommandPageResult.handled();
+    final action = await _alternarReproducao(gravacao);
+    return VoiceCommandPageResult.handled(
+      restartListening: action != _PlaybackAction.started,
+    );
+  }
+
+  Future<VoiceCommandPageResult> _handleReferenciaParcialDeGravacao(
+    String referencia,
+  ) async {
+    final resolution = _recordingsController.resolvePlaybackCommand(referencia);
+    final gravacao = resolution.recording;
+    if (gravacao == null) {
+      if (_pareceReferenciaVisualDeGravacao(referencia)) {
+        return VoiceCommandPageResult.handled(message: resolution.message);
+      }
+      return VoiceCommandPageResult.unavailable(recognized: false);
+    }
+
+    final action = await _alternarReproducao(gravacao);
+    return VoiceCommandPageResult.handled(
+      restartListening: action != _PlaybackAction.started,
+    );
+  }
+
+  bool _pareceReferenciaVisualDeGravacao(String referencia) {
+    return RegExp(
+      r'(^| )(gravacao|primeira|primeiro|segunda|segundo|terceira|terceiro|quarta|quarto|quinta|quinto|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove)( |$)',
+    ).hasMatch(referencia);
+  }
+
+  @visibleForTesting
+  Future<VoiceCommandPageResult> debugHandleRecordingReferenceForTesting(
+    String referencia,
+  ) {
+    return _handleReferenciaParcialDeGravacao(
+      const CommandService().normalize(referencia),
+    );
   }
 
   Future<VoiceCommandPageResult> _handleAbrirDetalhesPorVoz(
@@ -841,6 +928,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                     ? index - 2
                     : index - 1;
                 final gravacao = gravacoes[gravacaoIndex];
+                final numeroVisual = gravacaoIndex + 1;
                 final reproduzindo =
                     recordingsState.playingRecordingId == gravacao.id;
                 final renomeando = _renomeandoGravacaoId == gravacao.id;
@@ -881,6 +969,15 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Text(
+                            'Gravação $numeroVisual',
+                            key: Key('recording_visual_number_$numeroVisual'),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
                           Text('Data: ${_formatarData(gravacao.dataCriacao)}'),
                           const SizedBox(height: 4),
                           Text(

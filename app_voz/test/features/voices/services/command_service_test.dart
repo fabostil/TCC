@@ -138,6 +138,14 @@ void main() {
       );
     });
 
+    test('referencia visual sem verbo nao vira playback global', () {
+      final result = service.interpret('grava\u00e7\u00e3o 1');
+
+      expect(result.type, VoiceCommandType.desconhecido);
+      expect(result.recognized, isFalse);
+      expect(result.normalizedText, 'gravacao 1');
+    });
+
     test('reconhece comandos de navegacao', () {
       expect(
         service.interpret('dashboard').type,

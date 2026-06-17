@@ -31,6 +31,8 @@ import 'minhas_gravacoes_page.dart';
 const int _minRecordingNameLength = 2;
 const int _maxRecordingNameLength = 80;
 
+enum _PlaybackAction { none, started, stopped }
+
 String? _validateRecordingName(String? value) {
   final trimmed = value?.trim() ?? '';
   if (trimmed.isEmpty) {
@@ -53,6 +55,8 @@ class DetalhesGravacaoPage extends StatefulWidget {
     @visibleForTesting this.recordingService,
     @visibleForTesting this.playerService,
     @visibleForTesting this.enableVoiceListening = true,
+    @visibleForTesting this.onVoicePlaybackSuspendedForTesting,
+    @visibleForTesting this.onVoicePlaybackResumeRequestedForTesting,
   });
 
   final Usuario usuario;
@@ -60,6 +64,8 @@ class DetalhesGravacaoPage extends StatefulWidget {
   final RecordingManagementService? recordingService;
   final AudioPlayerService? playerService;
   final bool enableVoiceListening;
+  final FutureOr<void> Function()? onVoicePlaybackSuspendedForTesting;
+  final FutureOr<void> Function()? onVoicePlaybackResumeRequestedForTesting;
 
   @override
   State<DetalhesGravacaoPage> createState() => _DetalhesGravacaoPageState();
@@ -79,6 +85,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   bool _alternandoReproducao = false;
   bool _salvandoNome = false;
   bool _excluindo = false;
+  bool _retomadaEscutaPlaybackPendente = false;
   String? _erro;
   StreamSubscription? _playerStateSubscription;
 
@@ -128,6 +135,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         setState(() {
           _reproduzindo = false;
         });
+        unawaited(_retomarEscutaAposPlayback());
       }
     });
     _carregarDados();
@@ -209,10 +217,10 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     return _recordingService.listByUserWithFileState(gravacao.usuarioId);
   }
 
-  Future<void> _alternarReproducao() async {
+  Future<_PlaybackAction> _alternarReproducao() async {
     final gravacao = _details?.gravacao;
     if (gravacao == null) {
-      return;
+      return _PlaybackAction.none;
     }
 
     if (gravacao.status == GravacaoStatus.arquivoAusente ||
@@ -221,7 +229,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         context,
         'Arquivo de áudio indisponível para reprodução.',
       );
-      return;
+      return _PlaybackAction.none;
     }
 
     setState(() {
@@ -229,7 +237,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     });
 
     try {
-      if (_reproduzindo && _playerService.isPlaying) {
+      if (_reproduzindo || _playerService.isPlaying) {
         await _playerService.stop();
         if (mounted) {
           setState(() {
@@ -239,13 +247,15 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
             voiceStatusMessage = 'Reprodução parada.';
           });
         }
-        return;
+        await _retomarEscutaAposPlayback();
+        return _PlaybackAction.stopped;
       }
 
+      await _pausarEscutaParaPlayback();
       await _playerService.play(gravacao.caminhoArquivo);
 
       if (!mounted) {
-        return;
+        return _PlaybackAction.started;
       }
 
       setState(() {
@@ -263,18 +273,45 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
           projetoId: gravacao.projetoId,
         ),
       );
+      return _PlaybackAction.started;
     } catch (e) {
       if (!mounted) {
-        return;
+        return _PlaybackAction.none;
       }
 
       AppFeedback.showMessage(context, UserFacingMessages.playbackError);
+      await _retomarEscutaAposPlayback();
+      return _PlaybackAction.none;
     } finally {
       if (mounted) {
         setState(() {
           _alternandoReproducao = false;
         });
       }
+    }
+  }
+
+  Future<void> _pausarEscutaParaPlayback() async {
+    if (voiceOuvindo || voiceSessionManager.isSpeechListening) {
+      await suspendContextualVoiceListening();
+    }
+    await widget.onVoicePlaybackSuspendedForTesting?.call();
+  }
+
+  Future<void> _retomarEscutaAposPlayback() async {
+    if (_retomadaEscutaPlaybackPendente) {
+      return;
+    }
+
+    _retomadaEscutaPlaybackPendente = true;
+    try {
+      await widget.onVoicePlaybackResumeRequestedForTesting?.call();
+      if (!mounted || voiceParadaManual) {
+        return;
+      }
+      scheduleVoiceContinuousRestart();
+    } finally {
+      _retomadaEscutaPlaybackPendente = false;
     }
   }
 
@@ -427,8 +464,10 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   ) async {
     switch (resultado.type) {
       case VoiceCommandType.reproduzirGravacao:
-        await _alternarReproducao();
-        return VoiceCommandPageResult.handled();
+        final action = await _alternarReproducao();
+        return VoiceCommandPageResult.handled(
+          restartListening: action != _PlaybackAction.started,
+        );
       case VoiceCommandType.pararReproducao:
         await _playerService.stop();
         if (mounted) {
@@ -436,6 +475,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
             _reproduzindo = false;
           });
         }
+        await _retomarEscutaAposPlayback();
         return VoiceCommandPageResult.handled(message: 'Reprodução parada.');
       case VoiceCommandType.renomearGravacao:
         final novoNome = resultado.parametroSecundario;

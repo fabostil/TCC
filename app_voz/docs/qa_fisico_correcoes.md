@@ -2592,3 +2592,107 @@ Ficam explicitamente para proximas etapas:
 * Documentacao final.
 * Roteiro de apresentacao.
 * Exclusao avancada de projeto com gravacoes.
+
+## H.9.1 - Correcao da integracao voz, player e numeracao visual
+
+### Problemas encontrados no teste fisico pos-H.9
+
+* `reproduzir gravacao 1` ainda podia tocar item diferente do esperado no teste
+  fisico.
+* O numero falado nao correspondia claramente a um marcador visivel no card.
+* Fala parcial do STT, como `gravacao 1`, nao era tratada pela tela de Minhas
+  Gravacoes porque nao virava comando global de reproducao.
+* Stop manual podia cancelar a escuta durante o preemption do player e nao
+  retomar a escuta continua.
+* Em detalhes, a tela podia ficar em `Reproducao parada.` sem nova retomada de
+  escuta apos stop manual.
+
+### Diagnostico raiz
+
+* A ordem visual de Minhas Gravacoes e `RecordingsListController.state.recordings`
+  apos carregamento/filtro; o primeiro card renderizado e `recordings[0]`.
+* Os cards exibiam nome, data, duracao e status, mas nao exibiam o indice visual.
+  Com ids recentes como `4, 3, 2, 1`, o usuario nao tinha confirmacao visual de
+  que `gravacao 1` significa o primeiro card, nao o id `1`.
+* O controller ja resolvia numeros quando recebia `parametro=1/2`, mas a fala
+  parcial `gravacao 1` ficava como `desconhecido` no `CommandService`; por isso
+  a pagina nao chamava o resolver por indice visual.
+* A reproducao chama `AudioPlayerService.play()`, que usa `VoiceSessionManager`
+  para cancelar STT antes do playback. Isso evita captar o proprio audio, mas as
+  paginas nao tinham retomada explicita apos stop/completed/erro.
+* Completed era parcialmente melhor porque o stream do player limpava estado; o
+  stop manual dependia do caminho do botao/comando e nao agendava retomada.
+
+### Correcoes realizadas
+
+* Minhas Gravacoes passou a mostrar `Gravacao 1`, `Gravacao 2`, `Gravacao 3`,
+  etc. em cada card, usando `gravacaoIndex + 1`, isto e, o indice visual real.
+* O resolver do controller passou a aceitar numeros por extenso (`um`, `dois`,
+  `tres`, etc.) alem de numeros e ordinais.
+* Na tela de Minhas Gravacoes, `desconhecido` agora tenta resolver referencias
+  visuais seguras somente no contexto da lista, cobrindo `gravacao 1`,
+  `gravacao um`, `primeira gravacao`, `a primeira`, `segunda` e similares.
+* Fora da tela de lista, `gravacao 1` continua nao sendo comando global de
+  playback; isso evita acao invisivel fora de contexto.
+* Ao iniciar playback pela lista ou detalhes, a escuta e suspensa antes do
+  player assumir audio, evitando captar a propria reproducao.
+* Ao parar manualmente, concluir naturalmente ou falhar no player, lista e
+  detalhes solicitam retomada da escuta continua se a tela ainda esta montada e
+  nao houve pausa manual.
+* Comando de voz que inicia playback retorna `restartListening: false`, para nao
+  reiniciar STT enquanto o audio esta tocando. A retomada fica centralizada no
+  stop/completed/erro.
+* Detalhes e lista agora usam o mesmo padrao de retomada apos stop/completed.
+
+### Teste fisico recomendado
+
+1. Criar 4 gravacoes.
+2. Abrir Minhas Gravacoes.
+3. Conferir cards `Gravacao 1`, `Gravacao 2`, `Gravacao 3`, `Gravacao 4`.
+4. Dizer `gravacao 1`.
+5. Confirmar que toca o card `Gravacao 1`.
+6. Dizer `gravacao 2`.
+7. Confirmar que toca o card `Gravacao 2`.
+8. Dizer `primeira gravacao`.
+9. Confirmar que toca o card `Gravacao 1`.
+10. Dizer `gravacao 9`.
+11. Confirmar mensagem amigavel e nenhum item errado tocando.
+12. Tocar play e parar manualmente.
+13. Confirmar que a escuta volta.
+14. Abrir detalhes.
+15. Tocar play/parar.
+16. Confirmar que a escuta volta.
+17. Deixar um audio terminar naturalmente.
+18. Confirmar que o botao volta para tocar e a escuta continua volta.
+
+### Testes automatizados
+
+Testes criados ou alterados:
+
+* `test/features/recordings/controllers/recordings_list_controller_test.dart`
+  * valida que stop segue o estado visual mesmo se o player ja nao reporta
+    `playing`;
+  * valida `gravacao 1`, `gravacao um`, `primeira gravacao`, `gravacao dois`,
+    `gravacao 3` e `a primeira` contra a lista visual.
+* `test/features/recordings/pages/minhas_gravacoes_page_test.dart`
+  * valida badges `Gravacao 1`, `Gravacao 2`, `Gravacao 3` com ids `4, 3, 2`;
+  * valida referencia parcial por voz tocando o indice visual atual;
+  * valida play manual suspendendo escuta e stop manual solicitando retomada;
+  * valida completed solicitando retomada.
+* `test/features/recordings/pages/detalhes_gravacao_page_test.dart`
+  * valida stop dos detalhes solicitando retomada;
+  * valida completed dos detalhes solicitando retomada.
+* `test/features/voices/services/command_service_test.dart`
+  * valida que `gravacao 1` sem verbo continua fora do playback global e fica
+    para tratamento contextual.
+
+### Itens ainda pendentes
+
+Ficam explicitamente para proximas etapas:
+
+* Abertura lenta.
+* Boas-vindas/onboarding.
+* README e documentacao final.
+* Roteiro de apresentacao.
+* Recuperacao real de senha.
+* Exclusao avancada de projeto com gravacoes.

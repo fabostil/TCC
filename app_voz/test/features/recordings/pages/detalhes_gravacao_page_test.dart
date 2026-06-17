@@ -45,6 +45,8 @@ void main() {
   ) async {
     final playerService = _FakeAudioPlayerService();
     addTearDown(playerService.close);
+    var suspended = 0;
+    var resumed = 0;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -56,6 +58,8 @@ void main() {
           ),
           playerService: playerService,
           enableVoiceListening: false,
+          onVoicePlaybackSuspendedForTesting: () => suspended++,
+          onVoicePlaybackResumeRequestedForTesting: () => resumed++,
         ),
       ),
     );
@@ -71,6 +75,40 @@ void main() {
     await tester.pump();
 
     expect(playerService.stopCalls, 1);
+    expect(suspended, 1);
+    expect(resumed, 1);
+    expect(find.widgetWithText(FilledButton, 'Tocar'), findsOneWidget);
+  });
+
+  testWidgets('completed nos detalhes solicita retomada da escuta', (
+    tester,
+  ) async {
+    final playerService = _FakeAudioPlayerService();
+    addTearDown(playerService.close);
+    var resumed = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DetalhesGravacaoPage(
+          usuario: _usuario,
+          gravacaoId: 1,
+          recordingService: _FakeRecordingManagementService(
+            details: _details(path: '/tmp/gravacao_123.m4a'),
+          ),
+          playerService: playerService,
+          enableVoiceListening: false,
+          onVoicePlaybackResumeRequestedForTesting: () => resumed++,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Tocar'));
+    await tester.pump();
+    playerService.emitCompleted();
+    await tester.pump();
+
+    expect(resumed, 1);
     expect(find.widgetWithText(FilledButton, 'Tocar'), findsOneWidget);
   });
 }
@@ -165,6 +203,11 @@ class _FakeAudioPlayerService implements AudioPlayerService {
     stopCalls += 1;
     playing = false;
     _playerStateController.add(PlayerState(false, ProcessingState.idle));
+  }
+
+  void emitCompleted() {
+    playing = false;
+    _playerStateController.add(PlayerState(false, ProcessingState.completed));
   }
 
   @override
