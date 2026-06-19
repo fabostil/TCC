@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
@@ -176,15 +177,18 @@ class SpeechService {
 class SpeechResultGate {
   SpeechResultGate({
     this.duplicateCooldown = const Duration(seconds: 2),
+    this.debounceDuration = const Duration(milliseconds: 300),
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
 
   final Duration duplicateCooldown;
+  final Duration debounceDuration;
   final DateTime Function() _now;
 
   String? _pendingText;
   String? _lastDeliveredText;
   DateTime? _lastDeliveredAt;
+  Timer? _debounceTimer;
 
   void add(
     String text, {
@@ -198,16 +202,29 @@ class SpeechResultGate {
 
     _pendingText = trimmed;
     if (isFinal) {
-      finalizePending(onResult);
+      _debounceTimer?.cancel();
+      developer.log(
+        "[SpeechGate] isFinal='$trimmed' debounce=${debounceDuration.inMilliseconds}ms",
+        name: 'SpeechService',
+      );
+      _debounceTimer = Timer(debounceDuration, () => finalizePending(onResult));
     }
   }
 
   void finalizePending(void Function(String text) onResult) {
+    final hadTimer = _debounceTimer != null;
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
     final text = _pendingText;
     _pendingText = null;
     if (text == null || text.isEmpty) {
       return;
     }
+
+    developer.log(
+      "[SpeechGate] flush='$text' cancelledTimer=$hadTimer",
+      name: 'SpeechService',
+    );
 
     final now = _now();
     final normalized = _normalize(text);
@@ -215,11 +232,19 @@ class SpeechResultGate {
     if (_lastDeliveredText == normalized &&
         lastDeliveredAt != null &&
         now.difference(lastDeliveredAt) < duplicateCooldown) {
+      developer.log(
+        "[SpeechGate] duplicate_suppressed='$text'",
+        name: 'SpeechService',
+      );
       return;
     }
 
     _lastDeliveredText = normalized;
     _lastDeliveredAt = now;
+    developer.log(
+      "[SpeechGate] delivering='$text'",
+      name: 'SpeechService',
+    );
     onResult(text);
   }
 
@@ -230,6 +255,8 @@ class SpeechResultGate {
   }
 
   void clearPending() {
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
     _pendingText = null;
   }
 

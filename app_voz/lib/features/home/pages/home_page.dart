@@ -8,7 +8,6 @@ import '../../../models/configuracao_app.dart';
 import '../../../models/usuario.dart';
 import '../../../repositories/configuracao_app_repository.dart';
 import '../../dashboard/pages/dashboard_page.dart';
-import '../../editor/pages/editor_page.dart';
 import '../../history/pages/historico_page.dart';
 import '../../projects/pages/meus_projetos_page.dart';
 import '../../recordings/pages/minhas_gravacoes_page.dart';
@@ -392,15 +391,16 @@ class _HomePageState extends State<HomePage>
       return VoiceCommandPageResult.handled(restartListening: false);
     }
 
-    await _navegarERetomar(
-      MaterialPageRoute(builder: (_) => EditorPage(usuario: widget.usuario)),
+    return VoiceCommandPageResult.handled(
+      message: 'Crie ou abra um projeto antes de acessar o editor.',
     );
-    return VoiceCommandPageResult.handled(restartListening: false);
   }
 
   Future<VoiceCommandPageResult> _handleAssistenteAtivo(CommandResult _) async {
+    unawaited(_abrirAjudaComandosVoz());
     return VoiceCommandPageResult.handled(
-      message: 'Assistente de voz já está ativo na tela inicial.',
+      message: 'Aqui estão os comandos disponíveis.',
+      restartListening: false,
     );
   }
 
@@ -566,12 +566,6 @@ class _HomePageState extends State<HomePage>
             tooltip: 'Configurações',
             onPressed: _abrirConfiguracoes,
             icon: const Icon(Icons.settings_rounded),
-          ),
-          IconButton(
-            key: const Key('home_logout_button'),
-            tooltip: 'Sair',
-            onPressed: _sairDaConta,
-            icon: const Icon(Icons.logout_rounded),
           ),
         ],
       ),

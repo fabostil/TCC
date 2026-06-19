@@ -1146,6 +1146,15 @@ class _EditorPageState extends State<EditorPage>
   }
 
   Future<void> iniciarGravacao(String comando) async {
+    if (widget.projeto == null) {
+      if (mounted) {
+        setState(() {
+          statusProjeto = 'Abra ou crie um projeto antes de gravar uma ideia.';
+        });
+      }
+      return;
+    }
+
     _executandoComandoVoz = true;
 
     try {

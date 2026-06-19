@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:app_voz/features/editor/pages/editor_page.dart';
 import 'package:app_voz/features/home/pages/home_page.dart';
 import 'package:app_voz/features/voices/coordination/voice_command_dispatcher.dart';
 import 'package:app_voz/features/voices/services/auth_session_service.dart';
@@ -252,25 +251,25 @@ void main() {
       );
     });
 
-    testWidgets('abrir editor por voz navega para o Editor', (tester) async {
-      await _pumpHome(tester);
-      await tester.pump();
+    // ── H11.4: abrir editor sem projeto retorna mensagem ─────────────────────
+    testWidgets(
+      'abrir editor por voz retorna mensagem quando nao ha projeto (H11.4)',
+      (tester) async {
+        await _pumpHome(tester);
+        await tester.pump();
 
-      final state = tester.state(find.byType(HomePage)) as dynamic;
-      final command = const CommandService().interpret('abrir editor');
-      final future =
-          state.voiceCommandDispatcher.dispatch(command)
-              as Future<VoiceCommandPageResult>;
-      await tester.pumpAndSettle();
+        final result = await _dispatchHomeCommandAndSettle(
+          tester,
+          'abrir editor',
+        );
 
-      expect(find.byType(EditorPage), findsOneWidget);
-
-      Navigator.of(tester.element(find.byType(EditorPage))).pop();
-      await tester.pumpAndSettle();
-
-      final result = await future;
-      expect(result.handled, isTrue);
-    });
+        expect(result.handled, isTrue);
+        expect(
+          result.statusMessage,
+          'Crie ou abra um projeto antes de acessar o editor.',
+        );
+      },
+    );
   });
 
   // ── H11.3: inicio de escuta apos fluxo premium ────────────────────────────
@@ -419,6 +418,102 @@ void main() {
       },
     );
   });
+
+  // ── H11.4: editor sem projeto ─────────────────────────────────────────────
+  group('H11.4 - abrir editor sem projeto', () {
+    test('CommandService reconhece abrir editor como abrirEditor', () {
+      final command = const CommandService().interpret('abrir editor');
+      expect(command.type, VoiceCommandType.abrirEditor);
+      expect(command.recognized, isTrue);
+    });
+
+    test('CommandService reconhece editor como abrirEditor', () {
+      final command = const CommandService().interpret('editor');
+      expect(command.type, VoiceCommandType.abrirEditor);
+      expect(command.recognized, isTrue);
+    });
+
+    testWidgets('abrir editor handled=true sem projeto', (tester) async {
+      await _pumpHome(tester);
+      await tester.pump();
+
+      final result = await _dispatchHomeCommandAndSettle(
+        tester,
+        'abrir editor',
+      );
+
+      expect(result.handled, isTrue);
+    });
+
+    testWidgets('abrir editor retorna mensagem nao vazia', (tester) async {
+      await _pumpHome(tester);
+      await tester.pump();
+
+      final result = await _dispatchHomeCommandAndSettle(
+        tester,
+        'abrir editor',
+      );
+
+      expect(result.statusMessage, isNotEmpty);
+    });
+
+    testWidgets(
+      'abrir editor retorna mensagem especifica sobre projeto',
+      (tester) async {
+        await _pumpHome(tester);
+        await tester.pump();
+
+        final result = await _dispatchHomeCommandAndSettle(
+          tester,
+          'abrir editor',
+        );
+
+        expect(
+          result.statusMessage,
+          contains('projeto'),
+        );
+      },
+    );
+
+    testWidgets(
+      'abrir editor nao navega para fora da Home',
+      (tester) async {
+        await _pumpHome(tester);
+        await tester.pump();
+
+        await _dispatchHomeCommandAndSettle(tester, 'abrir editor');
+
+        expect(find.byType(HomePage), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'abrir editor duplicado retorna handled sem erro',
+      (tester) async {
+        await _pumpHome(tester);
+        await tester.pump();
+
+        final r1 = await _dispatchHomeCommandAndSettle(tester, 'abrir editor');
+        final r2 = await _dispatchHomeCommandAndSettle(tester, 'abrir editor');
+
+        expect(r1.handled, isTrue);
+        expect(r2.handled, isTrue);
+      },
+    );
+
+    testWidgets(
+      'abrir editor nao deixa HomePage em estado de erro',
+      (tester) async {
+        await _pumpHome(tester);
+        await tester.pump();
+
+        await _dispatchHomeCommandAndSettle(tester, 'abrir editor');
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(HomePage), findsOneWidget);
+      },
+    );
+  });
 }
 
 Future<void> _pumpHome(
@@ -468,17 +563,13 @@ Future<VoiceCommandPageResult> _dispatchHomeCommandAndSettle(
 }
 
 Future<void> _triggerLogout(WidgetTester tester) async {
-  final button = tester.widget<IconButton>(
-    find.byKey(const Key('home_logout_button')),
-  );
-  expect(button.tooltip, 'Sair');
+  // O botão de logout foi removido da Home (fica só em Configurações).
+  // Acessa o dispatcher do mixin via dynamic para disparar o mesmo fluxo de
+  // sair, usando runAsync para que as operações async concluam sem pump.
+  final state = tester.state(find.byType(HomePage)) as dynamic;
+  final result = const CommandService().interpret('sair');
   await tester.runAsync(() async {
-    final result = Function.apply(button.onPressed!, const []);
-    if (result is Future<void>) {
-      await result;
-    } else {
-      await Future<void>.delayed(Duration.zero);
-    }
+    await (state.voiceCommandDispatcher.dispatch(result) as Future);
   });
   await tester.pump();
 }

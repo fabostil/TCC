@@ -51,5 +51,47 @@ void main() {
       expect(snapshot.state, VoiceState.disabled);
       expect(diagnostics.latest?.type, VoiceDiagnosticEventType.error);
     });
+
+    // ── H11.4: recovering → processing ───────────────────────────────────────
+    test('recovering permite transicao para processing (H11.4)', () {
+      final machine = VoiceStateMachine();
+      machine.transitionTo(VoiceState.recovering, reason: 'network_error');
+
+      final snapshot = machine.transitionTo(
+        VoiceState.processing,
+        ownerId: 'home',
+        reason: 'command_received',
+      );
+
+      expect(snapshot.state, VoiceState.processing);
+    });
+
+    test('recovering permite transicao para listening', () {
+      final machine = VoiceStateMachine();
+      machine.transitionTo(VoiceState.recovering, reason: 'timeout');
+
+      final snapshot = machine.transitionTo(
+        VoiceState.listening,
+        ownerId: 'home',
+        reason: 'recovery_ok',
+      );
+
+      expect(snapshot.state, VoiceState.listening);
+    });
+
+    test('recovering bloqueia transicao para executing sem force', () {
+      final diagnostics = VoiceDiagnostics();
+      final machine = VoiceStateMachine(diagnostics: diagnostics);
+      machine.transitionTo(VoiceState.recovering, reason: 'timeout');
+
+      final snapshot = machine.transitionTo(
+        VoiceState.executing,
+        ownerId: 'home',
+        reason: 'invalid',
+      );
+
+      expect(snapshot.state, VoiceState.recovering);
+      expect(diagnostics.latest?.type, VoiceDiagnosticEventType.error);
+    });
   });
 }

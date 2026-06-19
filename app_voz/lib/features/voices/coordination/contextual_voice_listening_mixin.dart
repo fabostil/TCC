@@ -47,6 +47,8 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   bool _voiceRouteRecoveryAttempted = false;
   bool _voiceRecoveryPending = false;
   bool _voiceSpeechResultReceived = false;
+  String? _voiceResultPending;
+  Timer? _voiceCoalescingTimer;
   Future<void> _voiceRoutePausePending = Future<void>.value();
   AppLifecycleListener? _voiceLifecycleListener;
   PageRoute<dynamic>? _voiceRoute;
@@ -160,6 +162,9 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   }
 
   void disposeContextualVoiceListening() {
+    _voiceCoalescingTimer?.cancel();
+    _voiceCoalescingTimer = null;
+    _voiceResultPending = null;
     voiceConfirmationController.clear();
     if (_voiceRouteObserverRegistered) {
       voiceRouteObserver.unsubscribe(this);
@@ -490,15 +495,31 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
     final started = await voiceSessionManager.startListening(
       ownerId: voiceOwnerId,
       onResult: (texto) {
-        if (!_voiceRouteActive) {
-          return;
-        }
-        // Sinalizar que resultado chegou antes de processContextualVoiceInput
-        // iniciar — evita que recovery dispare na janela entre done e resultado.
+        if (!_voiceRouteActive) return;
+        // Sinaliza imediatamente — impede que onStatus("done") agende recovery
+        // antes do texto chegar em processContextualVoiceInput.
         _voiceSpeechResultReceived = true;
         voiceRecognitionErrorGuard.reset();
-        _debugVoiceCommandFlow('finalText="$texto" owner=$voiceOwnerId');
-        unawaited(processContextualVoiceInput(texto));
+        _debugVoiceCommandFlow(
+          '[SpeechGate] received="$texto" owner=$voiceOwnerId',
+        );
+        // Janela de coalescência de 250ms: Android (modo dictation) emite
+        // isFinal prematuro para fragmentos como "meus" antes de entregar
+        // "meus projetos". Se um resultado novo chegar dentro da janela ele
+        // substitui o anterior; só o texto coalescido chega em
+        // processContextualVoiceInput — nunca o fragmento isolado.
+        _voiceCoalescingTimer?.cancel();
+        _voiceResultPending = texto;
+        _voiceCoalescingTimer = Timer(const Duration(milliseconds: 250), () {
+          _voiceCoalescingTimer = null;
+          final pending = _voiceResultPending;
+          _voiceResultPending = null;
+          if (pending == null || !_voiceRouteActive) return;
+          _debugVoiceCommandFlow(
+            '[SpeechGate] coalesced="$pending" owner=$voiceOwnerId',
+          );
+          unawaited(processContextualVoiceInput(pending));
+        });
       },
       onStatus: (status) {
         if (!mounted || !_voiceRouteActive) {
@@ -507,7 +528,9 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         _debugVoiceCommandFlow('sttStatus=$status owner=$voiceOwnerId');
 
         if (status == 'done' || status == 'notListening') {
-          if (voiceExecutandoComando || _voiceSpeechResultReceived) {
+          if (voiceExecutandoComando ||
+              _voiceSpeechResultReceived ||
+              _voiceResultPending != null) {
             _debugVoiceCommandFlow(
               'recoveryScheduled allowed=false '
               'reason=${voiceExecutandoComando ? 'command_processing' : 'result_pending'} '

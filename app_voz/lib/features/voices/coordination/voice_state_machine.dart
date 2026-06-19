@@ -118,7 +118,8 @@ class VoiceStateMachine extends ChangeNotifier {
           next == VoiceState.idle ||
           next == VoiceState.error ||
           next == VoiceState.disabled ||
-          next == VoiceState.recording;
+          next == VoiceState.recording ||
+          next == VoiceState.processing;
     }
 
     return true;

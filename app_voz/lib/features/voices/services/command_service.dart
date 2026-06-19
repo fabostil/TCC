@@ -1336,6 +1336,27 @@ class CommandService {
     }
 
     if (_equalsAny(normalizedText, const [
+      'ajuda',
+      'me ajuda',
+      'preciso de ajuda',
+      'comandos',
+      'comandos disponiveis',
+      'o que posso falar',
+      'o que posso dizer',
+      'ver ajuda',
+      'mostrar ajuda',
+      'abrir ajuda',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.abrirAssistente,
+        tipoComando: 'abrir_assistente',
+        acaoExecutada: 'Mostrar ajuda',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
       'criar comando personalizado',
       'comando personalizado',
     ])) {
