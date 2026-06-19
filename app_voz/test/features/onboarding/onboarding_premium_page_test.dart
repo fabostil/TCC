@@ -1,5 +1,6 @@
 import 'package:app_voz/core/ui/voice_status_bar.dart';
 import 'package:app_voz/features/onboarding/pages/onboarding_premium_page.dart';
+import 'package:app_voz/features/voices/coordination/voice_session_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -188,4 +189,19 @@ void main() {
     expect(find.text('Gravações'), findsOneWidget);
     expect(find.text('Histórico'), findsOneWidget);
   });
+
+  // ── H11.3: OnboardingPremiumPage nao registra dono de voz ────────────────
+  testWidgets(
+    'H11.3: OnboardingPremiumPage nao registra dono de voz no VoiceSessionManager',
+    (tester) async {
+      VoiceSessionManager.instance.resetForTesting();
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(VoiceSessionManager.instance.activeOwnerId, isNull);
+
+      VoiceSessionManager.instance.resetForTesting();
+    },
+  );
 }

@@ -8,6 +8,7 @@ import 'features/voices/coordination/voice_route_observer.dart';
 import 'features/voices/pages/auth_gate.dart';
 import 'features/voices/services/auth_session_service.dart';
 import 'models/usuario.dart';
+import 'repositories/configuracao_app_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +35,11 @@ class VoiceApp extends StatelessWidget {
 
   Widget _defaultHomeBuilder(Usuario usuario) {
     return homeBuilder?.call(usuario) ??
-        MicrophonePermissionPage(usuario: usuario);
+        MicrophonePermissionPage(
+          usuario: usuario,
+          salvarResultadoPermissao:
+              ConfiguracaoAppRepository.instance.concluirPrimeiraExecucao,
+        );
   }
 
   @override

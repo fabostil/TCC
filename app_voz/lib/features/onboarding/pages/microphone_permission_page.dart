@@ -21,11 +21,14 @@ class MicrophonePermissionPage extends StatefulWidget {
     required this.usuario,
     this.voicePermissionService,
     this.homeBuilder,
+    this.salvarResultadoPermissao,
   });
 
   final Usuario usuario;
   final VoicePermissionService? voicePermissionService;
   final Widget Function(Usuario usuario)? homeBuilder;
+  final Future<void> Function({required bool comandosVozAtivos})?
+      salvarResultadoPermissao;
 
   @override
   State<MicrophonePermissionPage> createState() =>
@@ -52,14 +55,23 @@ class _MicrophonePermissionPageState extends State<MicrophonePermissionPage> {
       final result = await _permissionService.checkMicrophone();
       if (!mounted) return;
       if (result == VoicePermissionResult.granted) {
-        _irParaHome();
+        _irParaHome(micConcedido: true);
         return;
       }
     } catch (_) {}
     if (mounted) setState(() { _verificando = false; });
   }
 
-  void _irParaHome() {
+  void _irParaHome({required bool micConcedido}) {
+    unawaited(_salvarENavegar(micConcedido: micConcedido));
+  }
+
+  Future<void> _salvarENavegar({required bool micConcedido}) async {
+    try {
+      await widget.salvarResultadoPermissao
+          ?.call(comandosVozAtivos: micConcedido);
+    } catch (_) {}
+    if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
         builder: (_) =>
@@ -83,7 +95,7 @@ class _MicrophonePermissionPageState extends State<MicrophonePermissionPage> {
           _solicitando = false;
         });
         await Future<void>.delayed(const Duration(milliseconds: 900));
-        if (mounted) _irParaHome();
+        if (mounted) _irParaHome(micConcedido: true);
         return;
       }
       setState(() {
@@ -200,7 +212,9 @@ class _MicrophonePermissionPageState extends State<MicrophonePermissionPage> {
                     // Skip button
                     TextButton(
                       key: const Key('mic_permission_skip_button'),
-                      onPressed: _solicitando ? null : _irParaHome,
+                      onPressed: _solicitando
+                          ? null
+                          : () => _irParaHome(micConcedido: false),
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white38,
                         padding: const EdgeInsets.symmetric(

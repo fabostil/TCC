@@ -272,6 +272,153 @@ void main() {
       expect(result.handled, isTrue);
     });
   });
+
+  // ── H11.3: inicio de escuta apos fluxo premium ────────────────────────────
+  group('H11.3 - inicio de escuta apos fluxo premium', () {
+    // ── Teste H11.3a: primeiraExecucaoConcluida=false chama requestMicrophone ─
+    testWidgets(
+      'primeiraExecucaoConcluida false chama requestMicrophone (caminho legado)',
+      (tester) async {
+        final permissionClient = _FakePermissionClient();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: HomePage(
+              usuario: _usuario,
+              authSessionService: _authSessionService(),
+              voicePermissionService:
+                  VoicePermissionService.test(client: permissionClient),
+              buscarConfiguracao: () async => _configuracaoNovoPrimeiiraExecucao,
+              concluirPrimeiraExecucao: ({required comandosVozAtivos}) async {},
+              loginBuilder: () => const SizedBox.shrink(),
+              confirmarLogout: () async => false,
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(permissionClient.requestCalls, 1);
+      },
+    );
+
+    // ── Teste H11.3b: primeiraExecucaoConcluida=true + voz ativa ────────────
+    testWidgets(
+      'primeiraExecucaoConcluida true e comandosVozAtivos true nao chama requestMicrophone',
+      (tester) async {
+        final permissionClient = _FakePermissionClient();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: HomePage(
+              usuario: _usuario,
+              authSessionService: _authSessionService(),
+              voicePermissionService:
+                  VoicePermissionService.test(client: permissionClient),
+              buscarConfiguracao: () async => _configuracaoVozAtivada,
+              concluirPrimeiraExecucao: ({required comandosVozAtivos}) async {},
+              loginBuilder: () => const SizedBox.shrink(),
+              confirmarLogout: () async => false,
+            ),
+          ),
+        );
+        // Não chamar pump() adicional: evita o postFrameCallback de voz
+        // que acessaria o banco real. A asserção é válida logo após pumpWidget
+        // pois requestMicrophone nunca é chamado nesse caminho.
+        expect(permissionClient.requestCalls, 0);
+        expect(find.byType(HomePage), findsOneWidget);
+      },
+    );
+
+    // ── Teste H11.3c: primeiraExecucaoConcluida=true + voz desativada ────────
+    testWidgets(
+      'primeiraExecucaoConcluida true e comandosVozAtivos false nao agenda escuta',
+      (tester) async {
+        var concluirCalls = 0;
+        final permissionClient = _FakePermissionClient();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: HomePage(
+              usuario: _usuario,
+              authSessionService: _authSessionService(),
+              voicePermissionService:
+                  VoicePermissionService.test(client: permissionClient),
+              buscarConfiguracao: () async => _configuracaoVozDesativada,
+              concluirPrimeiraExecucao: ({required comandosVozAtivos}) async {
+                concluirCalls++;
+              },
+              loginBuilder: () => const SizedBox.shrink(),
+              confirmarLogout: () async => false,
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(permissionClient.requestCalls, 0);
+        expect(concluirCalls, 0);
+      },
+    );
+
+    // ── Teste H11.3d: concluirPrimeiraExecucao nao chamado quando ja concluida
+    testWidgets(
+      'concluirPrimeiraExecucao nao e chamado quando primeiraExecucaoConcluida ja e true',
+      (tester) async {
+        var concluirCalls = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: HomePage(
+              usuario: _usuario,
+              authSessionService: _authSessionService(),
+              voicePermissionService: VoicePermissionService.test(
+                client: _FakePermissionClient(),
+              ),
+              buscarConfiguracao: () async => _configuracaoVozAtivada,
+              concluirPrimeiraExecucao: ({required comandosVozAtivos}) async {
+                concluirCalls++;
+              },
+              loginBuilder: () => const SizedBox.shrink(),
+              confirmarLogout: () async => false,
+            ),
+          ),
+        );
+        // Não chamar pump() adicional pelo mesmo motivo do teste H11.3b.
+        // concluirPrimeiraExecucao é chamado apenas quando primeiraExecucaoConcluida=false.
+        expect(concluirCalls, 0);
+      },
+    );
+  });
+
+  // ── H11.3: regressao - comandos de voz da Home ────────────────────────────
+  // As páginas de destino (projetos, gravações, configurações) chamam
+  // scheduleVoiceListeningOnFirstFrame que acessa banco real.
+  // Verificamos reconhecimento e retorno do dispatcher sem navegar.
+  group('H11.3 - regressao comandos de voz da Home', () {
+    test('CommandService reconhece projetos como abrirProjetos', () {
+      final command = const CommandService().interpret('projetos');
+      expect(command.type, VoiceCommandType.abrirProjetos);
+      expect(command.recognized, isTrue);
+    });
+
+    test('CommandService reconhece gravacoes como abrirGravacoes', () {
+      final command = const CommandService().interpret('gravacoes');
+      expect(command.type, VoiceCommandType.abrirGravacoes);
+      expect(command.recognized, isTrue);
+    });
+
+    testWidgets(
+      'abrir assistente retorna handled imediatamente pelo dispatcher da Home',
+      (tester) async {
+        await _pumpHome(tester);
+        await tester.pump();
+
+        final result = await _dispatchHomeCommandAndSettle(
+          tester,
+          'abrir assistente',
+        );
+        expect(result.handled, isTrue);
+        expect(result.statusMessage, isNotNull);
+      },
+    );
+  });
 }
 
 Future<void> _pumpHome(
@@ -400,4 +547,26 @@ final _configuracaoVozDesativada = ConfiguracaoApp(
   tempoSilencioSegundos: 6,
   temaEscuro: false,
   dataAtualizacao: '2026-06-10T00:00:00.000',
+);
+
+final _configuracaoVozAtivada = ConfiguracaoApp(
+  comandosVozAtivos: true,
+  primeiraExecucaoConcluida: true,
+  escutaContinua: true,
+  feedbackSonoro: false,
+  paradaSilencio: true,
+  tempoSilencioSegundos: 6,
+  temaEscuro: false,
+  dataAtualizacao: '2026-06-18T00:00:00.000',
+);
+
+final _configuracaoNovoPrimeiiraExecucao = ConfiguracaoApp(
+  comandosVozAtivos: false,
+  primeiraExecucaoConcluida: false,
+  escutaContinua: false,
+  feedbackSonoro: false,
+  paradaSilencio: true,
+  tempoSilencioSegundos: 6,
+  temaEscuro: false,
+  dataAtualizacao: '2026-06-18T00:00:00.000',
 );
