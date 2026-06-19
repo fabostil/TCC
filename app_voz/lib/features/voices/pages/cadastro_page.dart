@@ -200,8 +200,13 @@ class _CadastroPageState extends State<CadastroPage> {
     );
   }
 
-  static const _kBrand = Color(0xFF6B3FA0);
-  static const _kBrandLight = Color(0xFF9B6DDD);
+  static const _kBgTop      = Color(0xFF08041A);
+  static const _kBgMid      = Color(0xFF14082E);
+  static const _kBgBot      = Color(0xFF0C1130);
+  static const _kBrand      = Color(0xFF7B35C8);
+  static const _kBrandMid   = Color(0xFF9748DA);
+  static const _kBrandLight = Color(0xFFB870F0);
+  static const _kAccent     = Color(0xFFC040A0);
 
   InputDecoration _fieldDeco({
     required String label,
@@ -210,22 +215,24 @@ class _CadastroPageState extends State<CadastroPage> {
   }) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: Colors.white54),
+      labelStyle: const TextStyle(color: Colors.white38),
+      floatingLabelStyle: const TextStyle(color: _kBrandLight),
       filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.06),
-      prefixIcon: Icon(icon, color: Colors.white54),
+      fillColor: Colors.white.withValues(alpha: 0.07),
+      prefixIcon: Icon(icon, color: Colors.white38, size: 20),
       suffixIcon: suffix,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: _kBrandLight, width: 2),
+        borderSide: const BorderSide(color: _kBrandLight, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -233,7 +240,7 @@ class _CadastroPageState extends State<CadastroPage> {
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
       ),
       errorStyle: const TextStyle(color: Colors.redAccent),
     );
@@ -242,28 +249,49 @@ class _CadastroPageState extends State<CadastroPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0614),
+      backgroundColor: _kBgTop,
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          Container(
-            decoration: const BoxDecoration(
+          // Deep gradient
+          const DecoratedBox(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF0A0614), Color(0xFF13092A), Color(0xFF0C1225)],
+                colors: [_kBgTop, _kBgMid, _kBgBot],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                stops: [0.0, 0.55, 1.0],
+                stops: [0.0, 0.5, 1.0],
               ),
             ),
           ),
+          // Radial spotlight (left-biased for cadastro variety)
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(-0.3, -0.5),
+                radius: 0.80,
+                colors: [
+                  _kBrand.withValues(alpha: 0.16),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+          // Top-left accent blob
           Positioned(
-            top: -80,
-            left: -60,
+            top: -100,
+            left: -70,
             child: Container(
-              width: 220,
-              height: 220,
+              width: 280,
+              height: 280,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _kBrand.withValues(alpha: 0.1),
+                gradient: RadialGradient(
+                  colors: [
+                    _kAccent.withValues(alpha: 0.09),
+                    Colors.transparent,
+                  ],
+                ),
               ),
             ),
           ),
@@ -271,16 +299,20 @@ class _CadastroPageState extends State<CadastroPage> {
             child: Column(
               children: [
                 // Back button row
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 8, top: 4),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white70,
+                SizedBox(
+                  height: 52,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white60,
+                          size: 20,
+                        ),
+                        onPressed: () => Navigator.maybePop(context),
                       ),
-                      onPressed: () => Navigator.maybePop(context),
                     ),
                   ),
                 ),
@@ -288,33 +320,34 @@ class _CadastroPageState extends State<CadastroPage> {
                   child: Center(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
+                        horizontal: 26,
                         vertical: 8,
                       ),
                       child: Column(
                         children: [
                           widget.logoBuilder?.call(context) ??
-                              const AppLogo(height: 80),
+                              const AppLogo(height: 72),
                           const SizedBox(height: 10),
                           const Text(
                             'Criar conta',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 26,
+                              fontSize: 30,
                               fontWeight: FontWeight.w900,
-                              letterSpacing: -0.3,
+                              letterSpacing: -1.0,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 5),
                           const Text(
                             'Use Google ou crie uma conta local.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Colors.white60,
-                              fontSize: 13,
+                              color: Colors.white54,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 18),
                           GoogleSignInButton(
                             key: const Key('cadastro_google_button'),
                             onPressed: _carregando || _carregandoGoogle
@@ -322,16 +355,16 @@ class _CadastroPageState extends State<CadastroPage> {
                                 : _cadastrarComGoogle,
                             loading: _carregandoGoogle,
                           ),
-                          const SizedBox(height: 20),
-                          // Card glassmorphic
+                          const SizedBox(height: 18),
+                          // Glassmorphism card
                           Container(
-                            padding: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: Colors.white.withValues(alpha: 0.06),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.1),
+                                color: Colors.white.withValues(alpha: 0.12),
                               ),
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(24),
                             ),
                             child: Form(
                               key: _formKey,
@@ -340,7 +373,10 @@ class _CadastroPageState extends State<CadastroPage> {
                                   TextFormField(
                                     key: const Key('cadastro_nome_field'),
                                     controller: _nomeController,
-                                    style: const TextStyle(color: Colors.white),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                    ),
                                     decoration: _fieldDeco(
                                       label: 'Nome',
                                       icon: Icons.person_outline,
@@ -353,7 +389,10 @@ class _CadastroPageState extends State<CadastroPage> {
                                     key: const Key('cadastro_email_field'),
                                     controller: _emailController,
                                     keyboardType: TextInputType.emailAddress,
-                                    style: const TextStyle(color: Colors.white),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                    ),
                                     decoration: _fieldDeco(
                                       label: 'E-mail',
                                       icon: Icons.email_outlined,
@@ -366,7 +405,10 @@ class _CadastroPageState extends State<CadastroPage> {
                                     key: const Key('cadastro_password_field'),
                                     controller: _senhaController,
                                     obscureText: !_mostrarSenha,
-                                    style: const TextStyle(color: Colors.white),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                    ),
                                     decoration: _fieldDeco(
                                       label: 'Senha',
                                       icon: Icons.lock_outline,
@@ -378,7 +420,8 @@ class _CadastroPageState extends State<CadastroPage> {
                                           _mostrarSenha
                                               ? Icons.visibility_off
                                               : Icons.visibility,
-                                          color: Colors.white54,
+                                          color: Colors.white38,
+                                          size: 20,
                                         ),
                                         onPressed: () => setState(
                                           () => _mostrarSenha = !_mostrarSenha,
@@ -395,7 +438,10 @@ class _CadastroPageState extends State<CadastroPage> {
                                     ),
                                     controller: _confirmarSenhaController,
                                     obscureText: !_mostrarSenha,
-                                    style: const TextStyle(color: Colors.white),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                    ),
                                     decoration: _fieldDeco(
                                       label: 'Confirmar senha',
                                       icon: Icons.lock_person_outlined,
@@ -407,66 +453,105 @@ class _CadastroPageState extends State<CadastroPage> {
                                               _senhaController.text,
                                             ),
                                   ),
-                                  const SizedBox(height: 20),
-                                  ElevatedButton(
-                                    key: const Key('cadastro_submit_button'),
-                                    onPressed: _carregando || _carregandoGoogle
-                                        ? null
-                                        : _cadastrar,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _kBrand,
-                                      foregroundColor: Colors.white,
-                                      minimumSize:
-                                          const Size(double.infinity, 52),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(14),
-                                      ),
-                                      elevation: 0,
+                                  const SizedBox(height: 22),
+                                  // Primary button with glow
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow:
+                                          !_carregando && !_carregandoGoogle
+                                              ? [
+                                                  BoxShadow(
+                                                    color: _kBrand
+                                                        .withValues(alpha: 0.45),
+                                                    blurRadius: 22,
+                                                    offset: const Offset(0, 6),
+                                                  ),
+                                                ]
+                                              : null,
                                     ),
-                                    child: _carregando
-                                        ? const SizedBox(
-                                            width: 22,
-                                            height: 22,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
+                                    child: ElevatedButton(
+                                      key: const Key('cadastro_submit_button'),
+                                      onPressed:
+                                          _carregando || _carregandoGoogle
+                                              ? null
+                                              : _cadastrar,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: _kBrandMid,
+                                        foregroundColor: Colors.white,
+                                        disabledBackgroundColor:
+                                            _kBrand.withValues(alpha: 0.4),
+                                        minimumSize:
+                                            const Size(double.infinity, 54),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                        ),
+                                        elevation: 0,
+                                      ),
+                                      child: _carregando
+                                          ? const SizedBox(
+                                              width: 22,
+                                              height: 22,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Text(
+                                              'Cadastrar com e-mail',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16,
+                                                letterSpacing: 0.2,
+                                              ),
                                             ),
-                                          )
-                                        : const Text(
-                                            'Cadastrar com e-mail',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 15,
-                                            ),
-                                          ),
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                          const SizedBox(height: 14),
-                          TextButton(
-                            onPressed: _carregando || _carregandoGoogle
-                                ? null
-                                : () {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            widget.loginBuilder
-                                                    ?.call(context) ??
-                                            const LoginPage(),
-                                      ),
-                                    );
-                                  },
-                            child: const Text(
-                              'Ja tenho uma conta',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text(
+                                'Já tem conta?',
+                                style: TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 14,
+                                ),
                               ),
-                            ),
+                              TextButton(
+                                onPressed: _carregando || _carregandoGoogle
+                                    ? null
+                                    : () {
+                                        Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                widget.loginBuilder
+                                                        ?.call(context) ??
+                                                const LoginPage(),
+                                          ),
+                                        );
+                                      },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: _kBrandLight,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Ja tenho uma conta',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

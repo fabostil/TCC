@@ -204,8 +204,13 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  static const _kBrand = Color(0xFF6B3FA0);
-  static const _kBrandLight = Color(0xFF9B6DDD);
+  static const _kBgTop      = Color(0xFF08041A);
+  static const _kBgMid      = Color(0xFF14082E);
+  static const _kBgBot      = Color(0xFF0C1130);
+  static const _kBrand      = Color(0xFF7B35C8);
+  static const _kBrandMid   = Color(0xFF9748DA);
+  static const _kBrandLight = Color(0xFFB870F0);
+  static const _kAccent     = Color(0xFFC040A0);
 
   InputDecoration _fieldDeco({
     required String label,
@@ -214,22 +219,24 @@ class _LoginPageState extends State<LoginPage> {
   }) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: Colors.white54),
+      labelStyle: const TextStyle(color: Colors.white38),
+      floatingLabelStyle: const TextStyle(color: _kBrandLight),
       filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.06),
-      prefixIcon: Icon(icon, color: Colors.white54),
+      fillColor: Colors.white.withValues(alpha: 0.07),
+      prefixIcon: Icon(icon, color: Colors.white38, size: 20),
       suffixIcon: suffix,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: _kBrandLight, width: 2),
+        borderSide: const BorderSide(color: _kBrandLight, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -237,7 +244,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
       ),
       errorStyle: const TextStyle(color: Colors.redAccent),
     );
@@ -246,28 +253,49 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0614),
+      backgroundColor: _kBgTop,
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          Container(
-            decoration: const BoxDecoration(
+          // Deep gradient
+          const DecoratedBox(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF0A0614), Color(0xFF13092A), Color(0xFF0C1225)],
+                colors: [_kBgTop, _kBgMid, _kBgBot],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                stops: [0.0, 0.55, 1.0],
+                stops: [0.0, 0.5, 1.0],
               ),
             ),
           ),
+          // Radial spotlight
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0, -0.6),
+                radius: 0.80,
+                colors: [
+                  _kBrand.withValues(alpha: 0.16),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+          // Top-right blob
           Positioned(
-            top: -100,
-            right: -80,
+            top: -120,
+            right: -90,
             child: Container(
-              width: 260,
-              height: 260,
+              width: 300,
+              height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _kBrand.withValues(alpha: 0.12),
+                gradient: RadialGradient(
+                  colors: [
+                    _kAccent.withValues(alpha: 0.10),
+                    Colors.transparent,
+                  ],
+                ),
               ),
             ),
           ),
@@ -275,39 +303,43 @@ class _LoginPageState extends State<LoginPage> {
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 32,
+                  horizontal: 26,
+                  vertical: 28,
                 ),
                 child: Column(
                   children: [
                     widget.logoBuilder?.call(context) ??
-                        const AppLogo(height: 120),
-                    const SizedBox(height: 14),
+                        const AppLogo(height: 88),
+                    const SizedBox(height: 12),
                     const Text(
                       'Touchless',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 30,
+                        fontSize: 34,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: -0.3,
+                        letterSpacing: -1.2,
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Entre para controlar gravações por voz',
+                      'Suas gravações. Sua voz.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white60, fontSize: 14),
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 28),
-                    // Card glassmorphic
+                    // Glassmorphism card
                     Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: Colors.white.withValues(alpha: 0.06),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
+                          color: Colors.white.withValues(alpha: 0.12),
                         ),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(24),
                       ),
                       child: Form(
                         key: _formKey,
@@ -317,7 +349,10 @@ class _LoginPageState extends State<LoginPage> {
                               key: const Key('login_email_field'),
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
-                              style: const TextStyle(color: Colors.white),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                              ),
                               decoration: _fieldDeco(
                                 label: 'E-mail',
                                 icon: Icons.email_outlined,
@@ -329,7 +364,10 @@ class _LoginPageState extends State<LoginPage> {
                               key: const Key('login_password_field'),
                               controller: _senhaController,
                               obscureText: !_mostrarSenha,
-                              style: const TextStyle(color: Colors.white),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                              ),
                               decoration: _fieldDeco(
                                 label: 'Senha',
                                 icon: Icons.lock_outline,
@@ -341,7 +379,8 @@ class _LoginPageState extends State<LoginPage> {
                                     _mostrarSenha
                                         ? Icons.visibility_off
                                         : Icons.visibility,
-                                    color: Colors.white54,
+                                    color: Colors.white38,
+                                    size: 20,
                                   ),
                                   onPressed: () => setState(
                                     () => _mostrarSenha = !_mostrarSenha,
@@ -358,48 +397,71 @@ class _LoginPageState extends State<LoginPage> {
                                 onPressed: _carregando || _carregandoGoogle
                                     ? null
                                     : _mostrarRecuperacaoSenha,
-                                child: const Text(
-                                  'Esqueci minha senha',
-                                  style: TextStyle(
-                                    color: _kBrandLight,
-                                    fontSize: 13,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: _kBrandLight,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 4,
                                   ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            ElevatedButton(
-                              key: const Key('login_submit_button'),
-                              onPressed: _carregando || _carregandoGoogle
-                                  ? null
-                                  : _entrar,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _kBrand,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size(double.infinity, 52),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                                child: const Text(
+                                  'Esqueci minha senha',
+                                  style: TextStyle(fontSize: 13),
                                 ),
-                                elevation: 0,
                               ),
-                              child: _carregando
-                                  ? const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Entrar',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 15,
-                                      ),
-                                    ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 2),
+                            // Primary button with glow
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: !_carregando && !_carregandoGoogle
+                                    ? [
+                                        BoxShadow(
+                                          color: _kBrand.withValues(alpha: 0.45),
+                                          blurRadius: 22,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: ElevatedButton(
+                                key: const Key('login_submit_button'),
+                                onPressed: _carregando || _carregandoGoogle
+                                    ? null
+                                    : _entrar,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _kBrandMid,
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor:
+                                      _kBrand.withValues(alpha: 0.4),
+                                  minimumSize:
+                                      const Size(double.infinity, 54),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: _carregando
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Entrar',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 16,
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
                             GoogleSignInButton(
                               key: const Key('login_google_button'),
                               onPressed: _carregando || _carregandoGoogle
@@ -411,24 +473,46 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: _carregando || _carregandoGoogle
-                          ? null
-                          : () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      widget.cadastroBuilder?.call(context) ??
-                                      const CadastroPage(),
-                                ),
-                              );
-                            },
-                      child: const Text(
-                        'Criar nova conta',
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
-                      ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Novo por aqui?',
+                          style: TextStyle(
+                            color: Colors.white38,
+                            fontSize: 14,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _carregando || _carregandoGoogle
+                              ? null
+                              : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          widget.cadastroBuilder
+                                                  ?.call(context) ??
+                                          const CadastroPage(),
+                                    ),
+                                  );
+                                },
+                          style: TextButton.styleFrom(
+                            foregroundColor: _kBrandLight,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                            ),
+                          ),
+                          child: const Text(
+                            'Criar nova conta',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
