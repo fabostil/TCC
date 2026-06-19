@@ -263,9 +263,13 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
+      case VoiceCommandType.abrirAssistente:
+        unawaited(openContextualVoiceHelp(VoiceCommandHelpContext.projects));
+        return VoiceCommandPageResult.handled(
+          message: 'Aqui estão os comandos disponíveis.',
+        );
       case VoiceCommandType.abrirDetalhesGravacao:
       case VoiceCommandType.abrirConfiguracoes:
-      case VoiceCommandType.abrirAssistente:
       case VoiceCommandType.abrirHistorico:
       case VoiceCommandType.renomearGravacao:
       case VoiceCommandType.excluirGravacao:

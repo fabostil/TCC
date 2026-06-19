@@ -26,6 +26,7 @@ import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
 import 'meus_projetos_page.dart';
+import '../../voices/widgets/voice_command_help_dialog.dart';
 
 const int _minRecordingNameLength = 2;
 const int _maxRecordingNameLength = 80;
@@ -439,8 +440,12 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
-      case VoiceCommandType.abrirConfiguracoes:
       case VoiceCommandType.abrirAssistente:
+        unawaited(openContextualVoiceHelp(VoiceCommandHelpContext.projects));
+        return VoiceCommandPageResult.handled(
+          message: 'Aqui estão os comandos disponíveis.',
+        );
+      case VoiceCommandType.abrirConfiguracoes:
       case VoiceCommandType.abrirHistorico:
       case VoiceCommandType.ativarControleVoz:
       case VoiceCommandType.desativarControleVoz:

@@ -50,8 +50,17 @@ String? _validateCommandPhrase(String? value) {
 
 class ConfiguracoesPage extends StatefulWidget {
   final Usuario? usuario;
+  @visibleForTesting
+  final bool enableVoiceListening;
+  @visibleForTesting
+  final SettingsController? settingsController;
 
-  const ConfiguracoesPage({super.key, this.usuario});
+  const ConfiguracoesPage({
+    super.key,
+    this.usuario,
+    @visibleForTesting this.enableVoiceListening = true,
+    @visibleForTesting this.settingsController,
+  });
 
   @override
   State<ConfiguracoesPage> createState() => _ConfiguracoesPageState();
@@ -61,7 +70,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     with ContextualVoiceListeningMixin<ConfiguracoesPage> {
   final VoicePermissionService _voicePermissionService =
       const VoicePermissionService();
-  final SettingsController _settingsController = SettingsController();
+  late final SettingsController _settingsController;
   final _customCommandFormKey = GlobalKey<FormState>();
   final TextEditingController _frasePersonalizadaController =
       TextEditingController();
@@ -100,6 +109,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   @override
   void initState() {
     super.initState();
+    _settingsController = widget.settingsController ?? SettingsController();
     _settingsController.addListener(_onSettingsStateChanged);
     voiceNavigationCommandHandler = VoiceNavigationCommandHandler(
       currentDestination: VoiceNavigationDestination.settings,
@@ -116,7 +126,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       onFallback: _dispatchSettingsVoice,
     );
     _carregarConfiguracao();
-    scheduleVoiceListeningOnFirstFrame();
+    if (widget.enableVoiceListening) scheduleVoiceListeningOnFirstFrame();
   }
 
   void _onSettingsStateChanged() {
@@ -132,7 +142,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       return;
     }
     syncVoiceConfigFlags(configuracao);
-    await startContinuousVoiceListeningIfActive();
+    if (widget.enableVoiceListening) await startContinuousVoiceListeningIfActive();
   }
 
   Future<void> _salvar(ConfiguracaoApp configuracao) async {
@@ -543,12 +553,16 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
       case VoiceCommandType.cancelarProjeto:
+      case VoiceCommandType.abrirAssistente:
+        unawaited(openContextualVoiceHelp(VoiceCommandHelpContext.settings));
+        return VoiceCommandPageResult.handled(
+          message: 'Aqui estão os comandos disponíveis.',
+        );
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
       case VoiceCommandType.abrirDetalhesGravacao:
       case VoiceCommandType.abrirConfiguracoes:
-      case VoiceCommandType.abrirAssistente:
       case VoiceCommandType.abrirHistorico:
       case VoiceCommandType.abrirEditor:
       case VoiceCommandType.renomearGravacao:
@@ -568,42 +582,19 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
           recognized: resultado.recognized,
         );
       case VoiceCommandType.sair:
-        final text = resultado.normalizedText;
-        if (text == 'confirmar sair') {
-          if (_aguardandoConfirmacaoLogout) {
-            unawaited(_sairDaContaLogout());
-            return VoiceCommandPageResult.handled(restartListening: false);
-          }
-          return VoiceCommandPageResult.handled(
-            message: 'Nenhum logout pendente de confirmação.',
-          );
-        }
-        if (text == 'cancelar sair' || text == 'cancelar logout') {
-          if (_aguardandoConfirmacaoLogout) {
-            voiceSetState(() {
-              _aguardandoConfirmacaoLogout = false;
-            });
-            return VoiceCommandPageResult.handled(message: 'Sair cancelado.');
-          }
-          return VoiceCommandPageResult.handled(
-            message: 'Nenhum logout pendente.',
-          );
-        }
-        if (text == 'sair da conta' ||
-            text == 'fazer logout' ||
-            text == 'deslogar') {
-          voiceSetState(() {
-            _aguardandoConfirmacaoLogout = true;
-          });
-          return VoiceCommandPageResult.handled(
-            message:
-                'Confirme dizendo "confirmar sair" para sair da conta, ou "cancelar sair" para cancelar.',
-            restartListening: true,
-          );
-        }
-        return VoiceCommandPageResult.unavailable(
-          recognized: resultado.recognized,
+        final confirmed = await showVoiceConfirmationDialog(
+          id: 'logout',
+          title: 'Sair da conta?',
+          message: 'Você será desconectado do Touchless.',
+          confirmLabel: 'Sair',
+          cancelLabel: 'Cancelar',
+          destructive: true,
         );
+        if (confirmed) {
+          unawaited(_sairDaContaLogout());
+          return VoiceCommandPageResult.handled(restartListening: false);
+        }
+        return VoiceCommandPageResult.handled(message: 'Sair cancelado.');
       case VoiceCommandType.desconhecido:
         return VoiceCommandPageResult.unavailable(
           recognized: resultado.recognized,

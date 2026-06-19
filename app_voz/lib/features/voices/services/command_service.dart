@@ -978,7 +978,6 @@ class CommandService {
       'ajustes',
       'preferencias',
       'minha conta',
-      'conta',
       'abrir conta',
       'perfil',
       'configuracoes da conta',
@@ -1153,7 +1152,7 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const ['sair', 'fazer logout', 'deslogar'])) {
+    if (_containsAny(normalizedText, const ['sair', 'fazer logout', 'deslogar', 'encerrar sessao', 'encerrar conta'])) {
       return _recognized(
         text,
         normalizedText,

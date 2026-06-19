@@ -500,8 +500,12 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
-      case VoiceCommandType.abrirConfiguracoes:
       case VoiceCommandType.abrirAssistente:
+        unawaited(openContextualVoiceHelp(VoiceCommandHelpContext.recordings));
+        return VoiceCommandPageResult.handled(
+          message: 'Aqui estão os comandos disponíveis.',
+        );
+      case VoiceCommandType.abrirConfiguracoes:
       case VoiceCommandType.abrirHistorico:
       case VoiceCommandType.abrirEditor:
       case VoiceCommandType.ativarControleVoz:

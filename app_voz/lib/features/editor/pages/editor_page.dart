@@ -880,8 +880,10 @@ class _EditorPageState extends State<EditorPage>
         case VoiceCommandType.abrirProjetos:
         case VoiceCommandType.abrirGravacoes:
         case VoiceCommandType.abrirDetalhesGravacao:
-        case VoiceCommandType.abrirConfiguracoes:
         case VoiceCommandType.abrirAssistente:
+          unawaited(_abrirAjudaComandosEditor());
+          return;
+        case VoiceCommandType.abrirConfiguracoes:
         case VoiceCommandType.abrirHistorico:
         case VoiceCommandType.voltar:
         case VoiceCommandType.sair:

@@ -19,6 +19,7 @@ import 'voice_route_observer.dart';
 import 'voice_session_manager.dart';
 import 'voice_session_state.dart';
 import 'voice_state_machine.dart';
+import '../widgets/voice_command_help_dialog.dart';
 
 /// Escuta contínua + interpretação compartilhada para telas contextuais (Fase 2).
 mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
@@ -49,6 +50,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   bool _voiceSpeechResultReceived = false;
   String? _voiceResultPending;
   Timer? _voiceCoalescingTimer;
+  bool _voiceHelpOpen = false;
   Future<void> _voiceRoutePausePending = Future<void>.value();
   AppLifecycleListener? _voiceLifecycleListener;
   PageRoute<dynamic>? _voiceRoute;
@@ -165,6 +167,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
     _voiceCoalescingTimer?.cancel();
     _voiceCoalescingTimer = null;
     _voiceResultPending = null;
+    _voiceHelpOpen = false;
     voiceConfirmationController.clear();
     if (_voiceRouteObserverRegistered) {
       voiceRouteObserver.unsubscribe(this);
@@ -617,6 +620,21 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       reason: 'command_processing',
     );
     voiceExecutandoComando = true;
+    if (_voiceHelpOpen) {
+      final n = const CommandService().normalize(texto);
+      if (n == 'fechar' || n == 'ok' || n == 'entendi' ||
+          n == 'cancelar' || n == 'nao' || n == 'voltar' ||
+          n == 'certo' || n == 'tudo bem') {
+        if (mounted) Navigator.of(context).maybePop();
+        voiceExecutandoComando = false;
+        voiceSessionState = voiceSessionState.transitionTo(
+          VoiceSessionPhase.idle,
+          message: voiceStatusMessage,
+        );
+        scheduleVoiceContinuousRestart();
+        return;
+      }
+    }
     voiceSessionManager.markProcessing(
       ownerId: voiceOwnerId,
       message: voiceStatusMessage,
@@ -964,6 +982,18 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
     }
 
     return result ?? false;
+  }
+
+  Future<void> openContextualVoiceHelp(VoiceCommandHelpContext helpContext) async {
+    if (!mounted) return;
+    _voiceHelpOpen = true;
+    scheduleVoiceContinuousRestart();
+    await showDialog<void>(
+      context: context,
+      builder: (_) => VoiceCommandHelpDialog(contextType: helpContext),
+    );
+    _voiceHelpOpen = false;
+    if (mounted) scheduleVoiceContinuousRestart();
   }
 
   Future<void> registerVoiceCommand(CommandResult resultado) async {

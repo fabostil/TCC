@@ -5,6 +5,7 @@ import 'package:app_voz/features/voices/coordination/voice_command_dispatcher.da
 import 'package:app_voz/features/voices/coordination/voice_route_observer.dart';
 import 'package:app_voz/features/voices/coordination/voice_session_manager.dart';
 import 'package:app_voz/features/voices/services/command_service.dart';
+import 'package:app_voz/features/voices/widgets/voice_command_help_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -511,6 +512,155 @@ void main() {
       },
     );
   });
+
+  group('ContextualVoiceListeningMixin H11.6 ajuda por voz', () {
+    testWidgets('abre dialog de ajuda e exibe comandos', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+      unawaited(key.currentState!.openHelpForTesting());
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Comandos de voz'), findsOneWidget);
+    });
+
+    testWidgets('fechar por voz fecha dialog de ajuda', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+      unawaited(key.currentState!.openHelpForTesting());
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Comandos de voz'), findsOneWidget);
+
+      unawaited(key.currentState!.processContextualVoiceInput('fechar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsNothing);
+    });
+
+    testWidgets('ok por voz fecha dialog de ajuda', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+      unawaited(key.currentState!.openHelpForTesting());
+      await tester.pump();
+      await tester.pump();
+
+      unawaited(key.currentState!.processContextualVoiceInput('ok'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsNothing);
+    });
+
+    testWidgets('entendi por voz fecha dialog de ajuda', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+      unawaited(key.currentState!.openHelpForTesting());
+      await tester.pump();
+      await tester.pump();
+
+      unawaited(key.currentState!.processContextualVoiceInput('entendi'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsNothing);
+    });
+
+    testWidgets('cancelar por voz fecha dialog de ajuda', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+      unawaited(key.currentState!.openHelpForTesting());
+      await tester.pump();
+      await tester.pump();
+
+      unawaited(key.currentState!.processContextualVoiceInput('cancelar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsNothing);
+    });
+
+    testWidgets('voltar por voz fecha dialog de ajuda', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+      unawaited(key.currentState!.openHelpForTesting());
+      await tester.pump();
+      await tester.pump();
+
+      unawaited(key.currentState!.processContextualVoiceInput('voltar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsNothing);
+    });
+
+    testWidgets('certo por voz fecha dialog de ajuda', (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+      unawaited(key.currentState!.openHelpForTesting());
+      await tester.pump();
+      await tester.pump();
+
+      unawaited(key.currentState!.processContextualVoiceInput('certo'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsNothing);
+    });
+
+    testWidgets('apos fechar dialog por voz escuta continua flag permanece ativa',
+        (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+      key.currentState!.voiceEscutaContinuaAtiva = true;
+
+      unawaited(key.currentState!.openHelpForTesting());
+      await tester.pump();
+      await tester.pump();
+
+      unawaited(key.currentState!.processContextualVoiceInput('fechar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsNothing);
+      expect(key.currentState!.voiceEscutaContinuaAtiva, isTrue);
+    });
+
+    testWidgets('dialog fecha pelo botao Fechar e flag escuta permanece ativa',
+        (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+      key.currentState!.voiceEscutaContinuaAtiva = true;
+
+      unawaited(key.currentState!.openHelpForTesting());
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Comandos de voz'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('voice_command_help_close_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsNothing);
+      expect(key.currentState!.voiceEscutaContinuaAtiva, isTrue);
+    });
+
+    testWidgets('nao por voz fecha dialog de ajuda (normalizacao de nao)',
+        (tester) async {
+      final key = GlobalKey<_TestVoicePageState>();
+      await tester.pumpWidget(_TestVoiceApp(pageKey: key));
+
+      unawaited(key.currentState!.openHelpForTesting());
+      await tester.pump();
+      await tester.pump();
+
+      unawaited(key.currentState!.processContextualVoiceInput('não'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comandos de voz'), findsNothing);
+    });
+  });
 }
 
 class _TestVoiceApp extends StatelessWidget {
@@ -532,6 +682,7 @@ class _TestVoicePage extends StatefulWidget {
 
   static const openRouteButtonKey = Key('open_route');
   static const openDialogButtonKey = Key('open_voice_dialog');
+  static const openHelpButtonKey = Key('open_voice_help');
 
   @override
   State<_TestVoicePage> createState() => _TestVoicePageState();
@@ -598,6 +749,9 @@ class _TestVoicePageState extends State<_TestVoicePage>
     dispatchCount++;
   }
 
+  Future<void> openHelpForTesting() =>
+      openContextualVoiceHelp(VoiceCommandHelpContext.general);
+
   Future<void> _openConfirmation() async {
     final confirmed = await showVoiceConfirmationDialog(
       id: 'delete_test',
@@ -644,6 +798,13 @@ class _TestVoicePageState extends State<_TestVoicePage>
                 unawaited(_openConfirmation());
               },
               child: const Text('Abrir dialog'),
+            ),
+            ElevatedButton(
+              key: _TestVoicePage.openHelpButtonKey,
+              onPressed: () {
+                unawaited(openHelpForTesting());
+              },
+              child: const Text('Abrir ajuda'),
             ),
           ],
         ),

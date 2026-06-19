@@ -25,6 +25,7 @@ import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
 import '../services/recording_management_service.dart';
+import '../../voices/widgets/voice_command_help_dialog.dart';
 import '../widgets/recording_status_chip.dart';
 import 'minhas_gravacoes_page.dart';
 
@@ -534,8 +535,12 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
-      case VoiceCommandType.abrirConfiguracoes:
       case VoiceCommandType.abrirAssistente:
+        unawaited(openContextualVoiceHelp(VoiceCommandHelpContext.recordings));
+        return VoiceCommandPageResult.handled(
+          message: 'Aqui estão os comandos disponíveis.',
+        );
+      case VoiceCommandType.abrirConfiguracoes:
       case VoiceCommandType.abrirHistorico:
       case VoiceCommandType.abrirEditor:
       case VoiceCommandType.abrirDetalhesGravacao:

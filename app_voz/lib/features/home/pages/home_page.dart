@@ -17,15 +17,12 @@ import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
-import '../../voices/pages/login_page.dart';
 import '../../voices/services/auth_session_service.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/services/voice_permission_service.dart';
 import '../../voices/widgets/voice_command_help_dialog.dart';
 
 typedef HomeLoginBuilder = Widget Function();
-typedef HomeLogoutConfirmation = Future<bool> Function();
-
 class HomePage extends StatefulWidget {
   final Usuario usuario;
 
@@ -37,7 +34,6 @@ class HomePage extends StatefulWidget {
     this.buscarConfiguracao,
     this.concluirPrimeiraExecucao,
     this.loginBuilder,
-    this.confirmarLogout,
   });
 
   final AuthSessionService? authSessionService;
@@ -46,7 +42,6 @@ class HomePage extends StatefulWidget {
   final Future<void> Function({required bool comandosVozAtivos})?
   concluirPrimeiraExecucao;
   final HomeLoginBuilder? loginBuilder;
-  final HomeLogoutConfirmation? confirmarLogout;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -63,9 +58,6 @@ class _HomePageState extends State<HomePage>
 
   VoicePermissionService get _voicePermissionService =>
       widget.voicePermissionService ?? const VoicePermissionService();
-
-  AuthSessionService get _authSessionService =>
-      widget.authSessionService ?? AuthSessionService.instance;
 
   Future<ConfiguracaoApp> _buscarConfiguracao() {
     return widget.buscarConfiguracao?.call() ??
@@ -259,46 +251,6 @@ class _HomePageState extends State<HomePage>
     await toggleContextualVoiceListening();
   }
 
-  Future<void> _sairDaConta() async {
-    final confirmar =
-        await widget.confirmarLogout?.call() ??
-        await showVoiceConfirmationDialog(
-          id: 'logout',
-          title: 'Sair do app?',
-          message: 'Deseja encerrar a sessao e voltar para o login?',
-          confirmLabel: 'Sair',
-        );
-
-    if (confirmar != true || !mounted) {
-      return;
-    }
-
-    try {
-      await _authSessionService.logout();
-    } on AuthSessionLogoutException {
-      if (!mounted) {
-        return;
-      }
-      AppFeedback.showMessage(
-        context,
-        'Não consegui sair da conta agora. Tente novamente.',
-      );
-      return;
-    }
-
-    if (!mounted) {
-      return;
-    }
-
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (_) => widget.loginBuilder?.call() ?? const LoginPage(),
-      ),
-      (route) => false,
-    );
-  }
-
   Future<VoiceCommandPageResult> _handleAbrirNovoProjeto(
     CommandResult result,
   ) async {
@@ -397,10 +349,9 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<VoiceCommandPageResult> _handleAssistenteAtivo(CommandResult _) async {
-    unawaited(_abrirAjudaComandosVoz());
+    unawaited(openContextualVoiceHelp(VoiceCommandHelpContext.home));
     return VoiceCommandPageResult.handled(
       message: 'Aqui estão os comandos disponíveis.',
-      restartListening: false,
     );
   }
 
@@ -412,8 +363,9 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<VoiceCommandPageResult> _handleSair(CommandResult _) async {
-    await _sairDaConta();
-    return VoiceCommandPageResult.handled(restartListening: false);
+    return VoiceCommandPageResult.handled(
+      message: 'Para sair da conta, acesse Configurações.',
+    );
   }
 
   Future<VoiceCommandPageResult> _handleScrollPorVoz(

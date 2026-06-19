@@ -846,6 +846,52 @@ void main() {
     });
   });
 
+  group('CommandService H11.6 aliases sair', () {
+    test('encerrar sessao mapeia para sair', () {
+      final result = service.interpret('encerrar sessão');
+      expect(result.type, VoiceCommandType.sair);
+      expect(result.recognized, isTrue);
+    });
+
+    test('encerrar conta mapeia para sair', () {
+      final result = service.interpret('encerrar conta');
+      expect(result.type, VoiceCommandType.sair);
+      expect(result.recognized, isTrue);
+    });
+
+    test('fazer logout original mapeia para sair', () {
+      final result = service.interpret('fazer logout');
+      expect(result.type, VoiceCommandType.sair);
+      expect(result.recognized, isTrue);
+    });
+
+    test('deslogar original mapeia para sair', () {
+      final result = service.interpret('deslogar');
+      expect(result.type, VoiceCommandType.sair);
+      expect(result.recognized, isTrue);
+    });
+
+    test('sair original continua mapeando para sair', () {
+      final result = service.interpret('sair');
+      expect(result.type, VoiceCommandType.sair);
+      expect(result.recognized, isTrue);
+    });
+
+    test('todos os aliases sair sao reconhecidos sem Gemini', () {
+      for (final frase in [
+        'sair',
+        'fazer logout',
+        'deslogar',
+        'encerrar sessão',
+        'encerrar conta',
+      ]) {
+        final result = service.interpret(frase);
+        expect(result.type, VoiceCommandType.sair, reason: frase);
+        expect(result.recognized, isTrue, reason: frase);
+      }
+    });
+  });
+
   group('CommandService H11 aliases WelcomePage', () {
     test('iniciar e vamos comecar mapeiam para comecarExperiencia', () {
       for (final frase in ['iniciar', 'vamos começar']) {

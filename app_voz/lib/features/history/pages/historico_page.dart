@@ -20,6 +20,7 @@ import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
+import '../../voices/widgets/voice_command_help_dialog.dart';
 import '../../voices/services/command_service.dart';
 
 class HistoricoPage extends StatefulWidget {
@@ -78,6 +79,7 @@ class _HistoricoPageState extends State<HistoricoPage>
         VoiceCommandType.scrollCima: _handleScrollPorVoz,
         VoiceCommandType.scrollTopo: _handleScrollPorVoz,
         VoiceCommandType.scrollFim: _handleScrollPorVoz,
+        VoiceCommandType.abrirAssistente: _handleAbrirAjuda,
       },
     );
     _carregarHistorico();
@@ -106,6 +108,13 @@ class _HistoricoPageState extends State<HistoricoPage>
 
   Future<VoiceCommandPageResult> _handleJaAberto(CommandResult _) async {
     return VoiceCommandPageResult.handled(message: 'Histórico já está aberto.');
+  }
+
+  Future<VoiceCommandPageResult> _handleAbrirAjuda(CommandResult _) async {
+    unawaited(openContextualVoiceHelp(VoiceCommandHelpContext.general));
+    return VoiceCommandPageResult.handled(
+      message: 'Aqui estão os comandos disponíveis.',
+    );
   }
 
   Future<VoiceCommandPageResult> _handleScrollPorVoz(

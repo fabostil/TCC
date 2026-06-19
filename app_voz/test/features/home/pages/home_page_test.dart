@@ -62,79 +62,50 @@ void main() {
       expect(find.text('Comandos de voz'), findsNothing);
     });
 
-    testWidgets('logout confirmado encerra sessao e navega para login', (
+    testWidgets('sair por voz informa redirecionar para Configuracoes', (
       tester,
     ) async {
-      var logoutCalls = 0;
-      var confirmationCalls = 0;
-      final authSession = _authSessionService(
-        googleSignOut: () async {
-          logoutCalls++;
-        },
-      );
-
-      await _pumpHome(
-        tester,
-        authSession: authSession,
-        confirmarLogout: () async {
-          confirmationCalls++;
-          return true;
-        },
-      );
+      await _pumpHome(tester);
       await tester.pump();
 
-      await _triggerLogout(tester);
-      await tester.pumpAndSettle();
+      final result = await _dispatchHomeCommandAndSettle(tester, 'sair');
 
-      expect(confirmationCalls, 1);
-      expect(logoutCalls, 1);
-      expect(find.byKey(const Key('login_destination')), findsOneWidget);
-    });
-
-    testWidgets('logout confirmado remove Home da pilha de navegacao', (
-      tester,
-    ) async {
-      final authSession = _authSessionService();
-
-      await _pumpHome(tester, authSession: authSession);
-      await tester.pump();
-
-      await _triggerLogout(tester);
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('login_destination')), findsOneWidget);
-
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('login_destination')), findsOneWidget);
-      expect(find.byType(HomePage), findsNothing);
-    });
-
-    testWidgets('erro no logout mostra mensagem e permanece na home', (
-      tester,
-    ) async {
-      var logoutCalls = 0;
-      final authSession = _authSessionService(
-        googleSignOut: () async {
-          logoutCalls++;
-          throw StateError('falha logout');
-        },
-      );
-
-      await _pumpHome(tester, authSession: authSession);
-      await tester.pump();
-
-      await _triggerLogout(tester);
-      await tester.pump();
-
-      expect(logoutCalls, 1);
-      expect(
-        find.text('Não consegui sair da conta agora. Tente novamente.'),
-        findsOneWidget,
-      );
+      expect(result.handled, isTrue);
+      expect(result.statusMessage, contains('Configurações'));
       expect(find.byType(HomePage), findsOneWidget);
-      expect(find.text('Login destino'), findsNothing);
+    });
+
+    testWidgets('sair por voz nao navega para login', (
+      tester,
+    ) async {
+      await _pumpHome(tester);
+      await tester.pump();
+
+      await _triggerLogout(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HomePage), findsOneWidget);
+      expect(find.byKey(const Key('login_destination')), findsNothing);
+    });
+
+    testWidgets('sair por voz nao chama servico de logout', (
+      tester,
+    ) async {
+      var logoutCalls = 0;
+      final authSession = _authSessionService(
+        googleSignOut: () async {
+          logoutCalls++;
+        },
+      );
+
+      await _pumpHome(tester, authSession: authSession);
+      await tester.pump();
+
+      await _triggerLogout(tester);
+      await tester.pump();
+
+      expect(logoutCalls, 0);
+      expect(find.byType(HomePage), findsOneWidget);
     });
 
     testWidgets('constroi com voz desabilitada sem iniciar escuta real', (
@@ -289,7 +260,6 @@ void main() {
               buscarConfiguracao: () async => _configuracaoNovoPrimeiiraExecucao,
               concluirPrimeiraExecucao: ({required comandosVozAtivos}) async {},
               loginBuilder: () => const SizedBox.shrink(),
-              confirmarLogout: () async => false,
             ),
           ),
         );
@@ -315,7 +285,6 @@ void main() {
               buscarConfiguracao: () async => _configuracaoVozAtivada,
               concluirPrimeiraExecucao: ({required comandosVozAtivos}) async {},
               loginBuilder: () => const SizedBox.shrink(),
-              confirmarLogout: () async => false,
             ),
           ),
         );
@@ -345,7 +314,6 @@ void main() {
                 concluirCalls++;
               },
               loginBuilder: () => const SizedBox.shrink(),
-              confirmarLogout: () async => false,
             ),
           ),
         );
@@ -375,7 +343,6 @@ void main() {
                 concluirCalls++;
               },
               loginBuilder: () => const SizedBox.shrink(),
-              confirmarLogout: () async => false,
             ),
           ),
         );
@@ -520,7 +487,6 @@ Future<void> _pumpHome(
   WidgetTester tester, {
   AuthSessionService? authSession,
   _FakePermissionClient? permissionClient,
-  HomeLogoutConfirmation? confirmarLogout,
 }) async {
   final client = permissionClient ?? _FakePermissionClient();
 
@@ -536,7 +502,6 @@ Future<void> _pumpHome(
           key: Key('login_destination'),
           label: 'Login destino',
         ),
-        confirmarLogout: confirmarLogout ?? () async => true,
       ),
     ),
   );
