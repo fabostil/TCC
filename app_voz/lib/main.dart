@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_theme_controller.dart';
-import 'features/home/pages/home_page.dart';
+import 'features/onboarding/pages/app_entry_gate.dart';
+import 'features/onboarding/pages/microphone_permission_page.dart';
 import 'features/voices/coordination/voice_route_observer.dart';
 import 'features/voices/pages/auth_gate.dart';
 import 'features/voices/services/auth_session_service.dart';
@@ -31,6 +32,11 @@ class VoiceApp extends StatelessWidget {
   final WidgetBuilder? loginBuilder;
   final Widget Function(Usuario usuario)? homeBuilder;
 
+  Widget _defaultHomeBuilder(Usuario usuario) {
+    return homeBuilder?.call(usuario) ??
+        MicrophonePermissionPage(usuario: usuario);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -46,8 +52,9 @@ class VoiceApp extends StatelessWidget {
           home: AuthGate(
             authSessionService:
                 authSessionService ?? AuthSessionService.instance,
-            loginBuilder: loginBuilder,
-            homeBuilder: homeBuilder ?? (usuario) => HomePage(usuario: usuario),
+            loginBuilder: loginBuilder ??
+                (_) => AppEntryGate(homeBuilder: _defaultHomeBuilder),
+            homeBuilder: _defaultHomeBuilder,
           ),
         );
       },

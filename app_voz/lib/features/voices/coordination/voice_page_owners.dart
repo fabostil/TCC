@@ -1,5 +1,6 @@
 /// Identificadores estáveis para propriedade da sessão de escuta (Fase 1).
 abstract final class VoicePageOwners {
+  static const welcome = 'welcome';
   static const home = 'home';
   static const dashboard = 'dashboard';
   static const historico = 'historico';

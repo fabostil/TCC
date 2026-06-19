@@ -204,133 +204,238 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  static const _kBrand = Color(0xFF6B3FA0);
+  static const _kBrandLight = Color(0xFF9B6DDD);
+
+  InputDecoration _fieldDeco({
+    required String label,
+    required IconData icon,
+    Widget? suffix,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white54),
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.06),
+      prefixIcon: Icon(icon, color: Colors.white54),
+      suffixIcon: suffix,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _kBrandLight, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+      ),
+      errorStyle: const TextStyle(color: Colors.redAccent),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                widget.logoBuilder?.call(context) ?? const AppLogo(height: 112),
-
-                const SizedBox(height: 16),
-
-                const Text(
-                  'Touchless',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
-
-                const SizedBox(height: 8),
-
-                const Text(
-                  'Entre para controlar gravações por voz',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16),
-                ),
-
-                const SizedBox(height: 32),
-
-                TextFormField(
-                  key: const Key('login_email_field'),
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'E-mail',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                  validator: _authValidationService.validarEmail,
-                ),
-
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  key: const Key('login_password_field'),
-                  controller: _senhaController,
-                  obscureText: !_mostrarSenha,
-                  decoration: InputDecoration(
-                    labelText: 'Senha',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      tooltip: _mostrarSenha
-                          ? 'Ocultar senha'
-                          : 'Mostrar senha',
-                      icon: Icon(
-                        _mostrarSenha ? Icons.visibility_off : Icons.visibility,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _mostrarSenha = !_mostrarSenha;
-                        });
-                      },
-                    ),
-                  ),
-                  validator: _authValidationService.validarSenhaLogin,
-                ),
-
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    key: const Key('forgot_password_button'),
-                    onPressed: _carregando || _carregandoGoogle
-                        ? null
-                        : _mostrarRecuperacaoSenha,
-                    child: const Text('Esqueci minha senha'),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                ElevatedButton(
-                  key: const Key('login_submit_button'),
-                  onPressed: _carregando || _carregandoGoogle ? null : _entrar,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 56),
-                  ),
-                  child: _carregando
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Entrar'),
-                ),
-
-                const SizedBox(height: 12),
-
-                GoogleSignInButton(
-                  key: const Key('login_google_button'),
-                  onPressed: _carregando || _carregandoGoogle
-                      ? null
-                      : _entrarComGoogle,
-                  loading: _carregandoGoogle,
-                ),
-
-                const SizedBox(height: 16),
-
-                TextButton(
-                  onPressed: _carregando || _carregandoGoogle
-                      ? null
-                      : () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  widget.cadastroBuilder?.call(context) ??
-                                  const CadastroPage(),
-                            ),
-                          );
-                        },
-                  child: const Text('Criar nova conta'),
-                ),
-              ],
+      backgroundColor: const Color(0xFF0A0614),
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF0A0614), Color(0xFF13092A), Color(0xFF0C1225)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: [0.0, 0.55, 1.0],
+              ),
             ),
           ),
-        ),
+          Positioned(
+            top: -100,
+            right: -80,
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _kBrand.withValues(alpha: 0.12),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 32,
+                ),
+                child: Column(
+                  children: [
+                    widget.logoBuilder?.call(context) ??
+                        const AppLogo(height: 120),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Touchless',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Entre para controlar gravações por voz',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white60, fontSize: 14),
+                    ),
+                    const SizedBox(height: 28),
+                    // Card glassmorphic
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              key: const Key('login_email_field'),
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: _fieldDeco(
+                                label: 'E-mail',
+                                icon: Icons.email_outlined,
+                              ),
+                              validator: _authValidationService.validarEmail,
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              key: const Key('login_password_field'),
+                              controller: _senhaController,
+                              obscureText: !_mostrarSenha,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: _fieldDeco(
+                                label: 'Senha',
+                                icon: Icons.lock_outline,
+                                suffix: IconButton(
+                                  tooltip: _mostrarSenha
+                                      ? 'Ocultar senha'
+                                      : 'Mostrar senha',
+                                  icon: Icon(
+                                    _mostrarSenha
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                    color: Colors.white54,
+                                  ),
+                                  onPressed: () => setState(
+                                    () => _mostrarSenha = !_mostrarSenha,
+                                  ),
+                                ),
+                              ),
+                              validator:
+                                  _authValidationService.validarSenhaLogin,
+                            ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                key: const Key('forgot_password_button'),
+                                onPressed: _carregando || _carregandoGoogle
+                                    ? null
+                                    : _mostrarRecuperacaoSenha,
+                                child: const Text(
+                                  'Esqueci minha senha',
+                                  style: TextStyle(
+                                    color: _kBrandLight,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            ElevatedButton(
+                              key: const Key('login_submit_button'),
+                              onPressed: _carregando || _carregandoGoogle
+                                  ? null
+                                  : _entrar,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _kBrand,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(double.infinity, 52),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: _carregando
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Entrar',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(height: 12),
+                            GoogleSignInButton(
+                              key: const Key('login_google_button'),
+                              onPressed: _carregando || _carregandoGoogle
+                                  ? null
+                                  : _entrarComGoogle,
+                              loading: _carregandoGoogle,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: _carregando || _carregandoGoogle
+                          ? null
+                          : () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      widget.cadastroBuilder?.call(context) ??
+                                      const CadastroPage(),
+                                ),
+                              );
+                            },
+                      child: const Text(
+                        'Criar nova conta',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -977,6 +977,11 @@ class CommandService {
       'vai para configuracoes',
       'ajustes',
       'preferencias',
+      'minha conta',
+      'conta',
+      'abrir conta',
+      'perfil',
+      'configuracoes da conta',
     ])) {
       return _recognized(
         text,
@@ -1148,7 +1153,7 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const ['sair', 'fazer logout'])) {
+    if (_containsAny(normalizedText, const ['sair', 'fazer logout', 'deslogar'])) {
       return _recognized(
         text,
         normalizedText,
@@ -1196,6 +1201,49 @@ class CommandService {
         entryCommand.$1,
         tipoComando: entryCommand.$2,
         acaoExecutada: entryCommand.$3,
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['iniciar', 'vamos comecar'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.comecarExperiencia,
+        tipoComando: 'comecar_experiencia',
+        acaoExecutada: 'Comecar experiencia',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['tenho conta'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.jaTenhoConta,
+        tipoComando: 'ja_tenho_conta',
+        acaoExecutada: 'Ja tenho conta',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const ['fazer login', 'login'])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.entrarConta,
+        tipoComando: 'entrar_conta',
+        acaoExecutada: 'Entrar',
+      );
+    }
+
+    if (_equalsAny(normalizedText, const [
+      'liberar microfone',
+      'ativar microfone',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.permitirMicrofone,
+        tipoComando: 'permitir_microfone',
+        acaoExecutada: 'Permitir microfone',
       );
     }
 
@@ -1272,6 +1320,11 @@ class CommandService {
       'abrir opcoes',
       'abrir preferencias',
       'entrar em configuracoes',
+      'minha conta',
+      'conta',
+      'abrir conta',
+      'perfil',
+      'configuracoes da conta',
     ])) {
       return _recognized(
         originalText,

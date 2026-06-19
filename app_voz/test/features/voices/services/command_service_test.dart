@@ -845,4 +845,99 @@ void main() {
       }
     });
   });
+
+  group('CommandService H11 aliases WelcomePage', () {
+    test('iniciar e vamos comecar mapeiam para comecarExperiencia', () {
+      for (final frase in ['iniciar', 'vamos começar']) {
+        final result = service.interpret(frase);
+        expect(result.type, VoiceCommandType.comecarExperiencia, reason: frase);
+        expect(result.recognized, isTrue, reason: frase);
+      }
+    });
+
+    test('comecar original continua mapeando para comecarExperiencia', () {
+      final result = service.interpret('comecar');
+      expect(result.type, VoiceCommandType.comecarExperiencia);
+      expect(result.recognized, isTrue);
+    });
+
+    test('tenho conta mapeia para jaTenhoConta', () {
+      final result = service.interpret('tenho conta');
+      expect(result.type, VoiceCommandType.jaTenhoConta);
+      expect(result.recognized, isTrue);
+    });
+
+    test('ja tenho conta original continua mapeando para jaTenhoConta', () {
+      final result = service.interpret('já tenho conta');
+      expect(result.type, VoiceCommandType.jaTenhoConta);
+      expect(result.recognized, isTrue);
+    });
+
+    test('fazer login e login mapeiam para entrarConta', () {
+      for (final frase in ['fazer login', 'login']) {
+        final result = service.interpret(frase);
+        expect(result.type, VoiceCommandType.entrarConta, reason: frase);
+        expect(result.recognized, isTrue, reason: frase);
+      }
+    });
+
+    test('entrar original continua mapeando para entrarConta', () {
+      final result = service.interpret('entrar');
+      expect(result.type, VoiceCommandType.entrarConta);
+      expect(result.recognized, isTrue);
+    });
+
+    test(
+      'liberar microfone e ativar microfone mapeiam para permitirMicrofone',
+      () {
+        for (final frase in ['liberar microfone', 'ativar microfone']) {
+          final result = service.interpret(frase);
+          expect(
+            result.type,
+            VoiceCommandType.permitirMicrofone,
+            reason: frase,
+          );
+          expect(result.recognized, isTrue, reason: frase);
+        }
+      },
+    );
+
+    test('permitir microfone original continua mapeando corretamente', () {
+      final result = service.interpret('permitir microfone');
+      expect(result.type, VoiceCommandType.permitirMicrofone);
+      expect(result.recognized, isTrue);
+    });
+
+    test('continuar mapeia para continuarFluxo', () {
+      final result = service.interpret('continuar');
+      expect(result.type, VoiceCommandType.continuarFluxo);
+      expect(result.recognized, isTrue);
+    });
+
+    test(
+      'iniciar audio continua mapeando para iniciarGravacao sem conflito',
+      () {
+        final result = service.interpret('iniciar áudio');
+        expect(result.type, VoiceCommandType.iniciarGravacao);
+        expect(result.recognized, isTrue);
+      },
+    );
+
+    test('todos os aliases welcome sao reconhecidos sem Gemini', () {
+      final aliases = {
+        'iniciar': VoiceCommandType.comecarExperiencia,
+        'vamos começar': VoiceCommandType.comecarExperiencia,
+        'tenho conta': VoiceCommandType.jaTenhoConta,
+        'fazer login': VoiceCommandType.entrarConta,
+        'login': VoiceCommandType.entrarConta,
+        'liberar microfone': VoiceCommandType.permitirMicrofone,
+        'ativar microfone': VoiceCommandType.permitirMicrofone,
+      };
+      for (final entry in aliases.entries) {
+        final result = service.interpret(entry.key);
+        expect(result.type, entry.value, reason: entry.key);
+        expect(result.recognized, isTrue, reason: entry.key);
+      }
+    });
+  });
 }

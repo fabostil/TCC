@@ -364,6 +364,51 @@ void main() {
       },
     );
 
+    test('H11 aliases welcome nao chamam Gemini', () async {
+      var aiCalled = false;
+      final controller = VoiceCommandController(
+        aiCommandService: AiCommandService(
+          apiKey: 'real-looking-test-key',
+          httpPost: (uri, headers, body, timeout) async {
+            aiCalled = true;
+            return _geminiResponse('{"action":"nav_history"}');
+          },
+        ),
+        feedbackService: const NoopVoiceFeedbackService(),
+      );
+
+      final cases = <String, VoiceCommandType>{
+        'começar': VoiceCommandType.comecarExperiencia,
+        'iniciar': VoiceCommandType.comecarExperiencia,
+        'vamos começar': VoiceCommandType.comecarExperiencia,
+        'já tenho conta': VoiceCommandType.jaTenhoConta,
+        'tenho conta': VoiceCommandType.jaTenhoConta,
+        'entrar': VoiceCommandType.entrarConta,
+        'fazer login': VoiceCommandType.entrarConta,
+        'login': VoiceCommandType.entrarConta,
+        'permitir microfone': VoiceCommandType.permitirMicrofone,
+        'liberar microfone': VoiceCommandType.permitirMicrofone,
+        'ativar microfone': VoiceCommandType.permitirMicrofone,
+        'continuar': VoiceCommandType.continuarFluxo,
+      };
+
+      for (final entry in cases.entries) {
+        final result = await controller.interpret(entry.key);
+        expect(
+          result.commandResult.type,
+          entry.value,
+          reason: 'Comando: ${entry.key}',
+        );
+        expect(result.usedAi, isFalse, reason: 'Comando: ${entry.key}');
+        expect(
+          result.source,
+          VoiceCommandSource.local,
+          reason: 'Comando: ${entry.key}',
+        );
+      }
+      expect(aiCalled, isFalse);
+    });
+
     test('H10.2b comandos posicionais de gravacao nao chamam Gemini', () async {
       var aiCalled = false;
       final controller = VoiceCommandController(

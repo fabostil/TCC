@@ -20,6 +20,8 @@ import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
+import '../../onboarding/pages/app_entry_gate.dart';
+import '../../voices/services/auth_session_service.dart';
 import '../../voices/services/custom_command_service.dart';
 import '../../voices/services/voice_permission_service.dart';
 import '../../voices/widgets/voice_command_help_dialog.dart';
@@ -72,6 +74,8 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   bool _alterandoControleVoz = false;
   int? _alternandoComandoPersonalizadoId;
   int? _excluindoComandoPersonalizadoId;
+  bool _aguardandoConfirmacaoLogout = false;
+  bool _fazendoLogout = false;
 
   SettingsState get _settingsState => _settingsController.state;
 
@@ -346,6 +350,56 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     }
   }
 
+  Future<void> _sairDaContaLogout() async {
+    if (_fazendoLogout) return;
+    setState(() {
+      _fazendoLogout = true;
+      _aguardandoConfirmacaoLogout = false;
+    });
+    try {
+      await suspendContextualVoiceListening();
+      await AuthSessionService.instance.logout();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _fazendoLogout = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não consegui sair da conta. Tente novamente.')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const AppEntryGate()),
+      (route) => false,
+    );
+  }
+
+  Future<void> _handleLogoutButton() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sair da conta?'),
+        content: const Text('Você será desconectado do Touchless.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            key: const Key('confirm_logout_button'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _sairDaContaLogout();
+  }
+
   Future<VoiceCommandPageResult> _dispatchSettingsVoice(
     CommandResult resultado,
   ) async {
@@ -510,7 +564,46 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       case VoiceCommandType.ativarComandoPersonalizado:
       case VoiceCommandType.desativarComandoPersonalizado:
       case VoiceCommandType.excluirComandoPersonalizado:
+        return VoiceCommandPageResult.unavailable(
+          recognized: resultado.recognized,
+        );
       case VoiceCommandType.sair:
+        final text = resultado.normalizedText;
+        if (text == 'confirmar sair') {
+          if (_aguardandoConfirmacaoLogout) {
+            unawaited(_sairDaContaLogout());
+            return VoiceCommandPageResult.handled(restartListening: false);
+          }
+          return VoiceCommandPageResult.handled(
+            message: 'Nenhum logout pendente de confirmação.',
+          );
+        }
+        if (text == 'cancelar sair' || text == 'cancelar logout') {
+          if (_aguardandoConfirmacaoLogout) {
+            voiceSetState(() {
+              _aguardandoConfirmacaoLogout = false;
+            });
+            return VoiceCommandPageResult.handled(message: 'Sair cancelado.');
+          }
+          return VoiceCommandPageResult.handled(
+            message: 'Nenhum logout pendente.',
+          );
+        }
+        if (text == 'sair da conta' ||
+            text == 'fazer logout' ||
+            text == 'deslogar') {
+          voiceSetState(() {
+            _aguardandoConfirmacaoLogout = true;
+          });
+          return VoiceCommandPageResult.handled(
+            message:
+                'Confirme dizendo "confirmar sair" para sair da conta, ou "cancelar sair" para cancelar.',
+            restartListening: true,
+          );
+        }
+        return VoiceCommandPageResult.unavailable(
+          recognized: resultado.recognized,
+        );
       case VoiceCommandType.desconhecido:
         return VoiceCommandPageResult.unavailable(
           recognized: resultado.recognized,
@@ -641,6 +734,92 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     });
   }
 
+  Widget _buildContaSection(BuildContext context, Usuario usuario) {
+    final initial = (usuario.nome.isNotEmpty ? usuario.nome[0] : '?')
+        .toUpperCase();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Conta', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: const Color(0xFF6B3FA0),
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    usuario.nome,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    usuario.email,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.6),
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (_aguardandoConfirmacaoLogout)
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.08),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Text(
+              'Diga "confirmar sair" para confirmar, ou "cancelar sair" para cancelar.',
+              style: TextStyle(fontSize: 13),
+            ),
+          ),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          key: const Key('logout_button'),
+          onPressed: _fazendoLogout ? null : _handleLogoutButton,
+          icon: _fazendoLogout
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.logout, size: 18),
+          label: const Text('Sair da conta'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.red.shade400,
+            side: BorderSide(color: Colors.red.withValues(alpha: 0.4)),
+            minimumSize: const Size(double.infinity, 44),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     disposeContextualVoiceListening();
@@ -679,6 +858,11 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
               controller: _voiceScrollController,
               padding: const EdgeInsets.all(AppSpacing.xl),
               children: [
+                // ── Conta ──────────────────────────────────────────────────
+                if (widget.usuario != null) ...[
+                  _buildContaSection(context, widget.usuario!),
+                  const SizedBox(height: AppSpacing.xl),
+                ],
                 Text(
                   'Aparência',
                   style: Theme.of(context).textTheme.titleLarge,
