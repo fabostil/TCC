@@ -1,0 +1,204 @@
+================================================================================
+TOUCHLESS - PACOTE DE ATUALIZAÇÃO DO TCC
+ÍNDICE GERAL E ROTEIRO DE USO
+Gerado em: 20/06/2026
+Branch analisada: hotfix/qa-login-comandos-contextuais
+================================================================================
+
+COMO USAR ESTE PACOTE
+----------------------
+Este pacote foi gerado para que você possa atualizar o TCC no Overleaf sem
+editar o arquivo original main.tex de forma desordenada.
+Leia este índice primeiro, depois siga a ordem indicada.
+
+NÃO altere o zip original.
+NÃO altere main.tex antes de ler cada seção indicada.
+NÃO substitua imagens antigas sem verificar se elas ainda são válidas.
+
+================================================================================
+LISTA DE ARQUIVOS E CONTEÚDO
+================================================================================
+
+ARQUIVO: 00_INDICE_E_ROTEIRO.txt  (ESTE ARQUIVO)
+  Conteúdo: Índice geral, ordem de uso, guia rápido.
+  Usar: PRIMEIRO. Leia antes de qualquer outro arquivo.
+
+ARQUIVO: 01_RESUMO_E_MAPA_DE_ALTERACOES.txt
+  Conteúdo:
+    - Resumo executivo: o que mudou no app desde o TCC semifinal
+    - Mapa de alterações por capítulo (Atualizar / Criar / Manter / Remover)
+    - Status de cada seção do TCC atual
+  Usar: SEGUNDO. Dá visão geral antes de editar qualquer coisa.
+
+ARQUIVO: 02_TEXTOS_NOVOS_TCC.txt
+  Conteúdo:
+    - Resumo atualizado
+    - Introdução atualizada
+    - Seção de Projetos Musicais (nova)
+    - Seção de Onboarding e Boas-vindas (nova)
+    - Seção de Login com Google (nova)
+    - Seção de Permissão de Microfone (nova)
+    - Seção de Tema Escuro/Claro (nova)
+    - Seção de Ajuda Contextual (nova)
+    - Seção de Escuta Contínua e SpeechGate (nova)
+    - Seção de Parada Automática por Silêncio (nova)
+    - Seção de Comandos Personalizados (nova)
+    - Seção de Editor (atualizada)
+    - Seção de Gravações com Índice Visual (atualizada)
+    - Seção de Configurações (atualizada)
+    - Conclusão atualizada
+    - Trabalhos Futuros atualizados
+  Usar: TERCEIRO. Copie os textos prontos para o Overleaf.
+
+ARQUIVO: 03_REQUISITOS_REGRAS_E_BANCO.txt
+  Conteúdo:
+    - RF01-RF26 (requisitos funcionais atualizados)
+    - RNF01-RNF12 (requisitos não funcionais atualizados)
+    - RN01-RN10 (regras de negócio)
+    - Dicionário de tabelas do banco (7 tabelas)
+    - Script SQL completo atualizado (versão 10)
+    - Scripts de migration (versões 1 a 10)
+    - Diferenças do banco em relação ao TCC semifinal
+  Usar: QUARTO. Para atualizar capítulo de requisitos e modelagem de dados.
+
+ARQUIVO: 04_DIAGRAMAS_PLANTUML_PARTE_1.txt
+  Conteúdo (PlantUML completo, @startuml/@enduml):
+    - 8.1  Diagrama de Caso de Uso Geral
+    - 8.2  Diagrama de Classes Geral
+    - 8.3  Diagrama de Classes - Voz e Comandos
+    - 8.4  Diagrama de Sequência - Login e Onboarding
+    - 8.5  Diagrama de Sequência - Comando de Voz Global
+    - 8.6  Diagrama de Sequência - Criar Projeto por Voz
+    - 8.7  Diagrama de Sequência - Gravação no Editor
+  Usar: QUINTO (parte 1 dos diagramas). Gere PNGs no PlantUML Online ou VS Code.
+
+ARQUIVO: 05_DIAGRAMAS_PLANTUML_PARTE_2.txt
+  Conteúdo (PlantUML completo, @startuml/@enduml):
+    - 8.8  Diagrama de Sequência - Reprodução de Gravação
+    - 8.9  Diagrama de Sequência - Renomear Gravação por Voz
+    - 8.10 Diagrama de Sequência - Comando Personalizado
+    - 8.11 Diagrama de Sequência - Parada Automática por Silêncio
+    - 8.12 Diagrama Entidade-Relacionamento (banco versão 10)
+    - 8.13 Diagrama de Navegação de Telas
+    - 8.14 Diagrama de Estados da Escuta de Voz
+    - 8.15 Diagrama de Prioridade de Comandos
+  Usar: SEXTO (parte 2 dos diagramas).
+
+ARQUIVO: 06_PRINTS_LEGENDAS_E_QUADROS.txt
+  Conteúdo:
+    - Lista completa de prints a tirar (26 prints)
+    - Para cada print: nome sugerido, tela, estado, caminho, o que mostrar,
+      legenda ABNT, onde inserir no TCC, se substitui print antigo
+    - Legendas ABNT prontas para todas as figuras
+    - Quadros prontos (RF, RNF, Comandos por tela, Testes, Ferramentas, etc.)
+  Usar: SÉTIMO. Tire os prints do app físico e gere os quadros no Overleaf.
+
+ARQUIVO: 07_TESTES_MANUAL_TECNICO_E_TRABALHOS_FUTUROS.txt
+  Conteúdo:
+    - Texto do capítulo de testes atualizado (CT01-CT35)
+    - Resultados dos testes
+    - Roteiro de teste físico
+    - Testes automatizados (flutter test, flutter analyze)
+    - Manual técnico atualizado (Apêndice)
+    - Trabalhos futuros
+    - Limitações
+  Usar: OITAVO. Para atualizar capítulos de testes e apêndice.
+
+ARQUIVO: 08_CHECKLIST_OVERLEAF_E_RELATORIO_FINAL.txt
+  Conteúdo:
+    - Checklist completo para o Overleaf
+    - Roteiro manual passo a passo (o que seu amigo deve fazer)
+    - O que NÃO deve ser alterado
+    - Relatório final da execução desta análise
+  Usar: NONO e ÚLTIMO. Guia de execução no Overleaf.
+
+================================================================================
+ORDEM RECOMENDADA DE USO
+================================================================================
+
+PASSO 1  -> Leia: 00_INDICE_E_ROTEIRO.txt
+PASSO 2  -> Leia: 01_RESUMO_E_MAPA_DE_ALTERACOES.txt  (entenda o que muda)
+PASSO 3  -> Abra o Overleaf e faça backup do projeto antes de qualquer edição
+PASSO 4  -> Use: 03_REQUISITOS_REGRAS_E_BANCO.txt     (atualize banco e RF/RNF)
+PASSO 5  -> Use: 02_TEXTOS_NOVOS_TCC.txt              (atualize textos por seção)
+PASSO 6  -> Gere PNGs dos PlantUML:
+             04_DIAGRAMAS_PLANTUML_PARTE_1.txt
+             05_DIAGRAMAS_PLANTUML_PARTE_2.txt
+PASSO 7  -> Tire os prints do app:  06_PRINTS_LEGENDAS_E_QUADROS.txt
+PASSO 8  -> Atualize tabelas e quadros: 06_PRINTS_LEGENDAS_E_QUADROS.txt
+PASSO 9  -> Atualize testes e manual: 07_TESTES_MANUAL_TECNICO_E_TRABALHOS_FUTUROS.txt
+PASSO 10 -> Siga o checklist final: 08_CHECKLIST_OVERLEAF_E_RELATORIO_FINAL.txt
+
+================================================================================
+RESUMO RÁPIDO DO QUE MUDOU NO APP
+================================================================================
+
+FUNCIONALIDADES NOVAS (não estão no TCC semifinal):
+  - Projetos musicais (criar, listar, editar, excluir, abrir por voz)
+  - Tela de Boas-vindas / Onboarding
+  - Login com Google (Google Sign-In)
+  - Tela dedicada de Permissão de Microfone
+  - Tema Escuro / Claro (salvo no banco, padrão escuro)
+  - Ajuda contextual por tela (VoiceCommandHelpDialog com 6 contextos)
+  - Escuta contínua gerenciada pelo VoiceListeningCoordinator
+  - Parada automática por silêncio (limiar em dB configurável)
+  - Comandos personalizados (tabela comando_personalizado, CustomCommandService)
+  - Índice visual em Minhas Gravações (Item 1, Item 2 ...)
+  - Estado da sessão de voz (idle, listening, processing, recording, error...)
+  - 60+ tipos de comandos de voz (antes havia poucos)
+  - Logout por comando de voz ("sair", "fazer logout")
+  - Scroll por voz (rolar para baixo, subir, topo, fim)
+  - Editor musical com gravação em tempo real + amplitude visual
+  - Detalhes de Gravação (tela dedicada)
+  - Comandos de configurações por voz (tema, silêncio, escuta, feedback)
+
+BANCO DE DADOS - MUDANÇAS CRÍTICAS:
+  - Versão do banco: 10 (o TCC mostra versão inicial sem número)
+  - Tabelas REMOVIDAS do modelo: arquivo_audio, feedback, dashboard_indicador
+  - Tabelas ADICIONADAS: projeto, comando_personalizado, configuracao_app
+  - Tabela historico_gravacao RENOMEADA para historico_acao (campos diferentes)
+  - Tabela usuario EXPANDIDA: +8 campos (auth_provider, google_id, foto_url,
+    senha_salt, senha_algoritmo, senha_iteracoes, senha_versao, data_cadastro)
+  - Tabela gravacao EXPANDIDA: +3 campos (status, tamanho_bytes, formato_audio)
+    + novo campo projeto_id (FK para projeto)
+
+DIAGRAMAS QUE DEVEM SER SUBSTITUÍDOS:
+  - diagrama-caso-uso-assistente.png         -> SUBSTITUIR
+  - diagrama-classes-assistente.png          -> SUBSTITUIR
+  - diagrama-sequencia-assistente.png        -> SUBSTITUIR
+  - diagrama-sequencia-autenticacao.png      -> SUBSTITUIR
+  - der-assistente.png                       -> SUBSTITUIR
+  - fluxo-navegacao.png                      -> SUBSTITUIR
+  - arquitetura-voice-first.png              -> PODE MANTER (ainda válido)
+
+TELAS QUE DEVEM SER ATUALIZADAS:
+  - tela-login.jpeg                          -> SUBSTITUIR (novo visual + Google)
+  - tela-cadastro.jpeg                       -> SUBSTITUIR (novo visual)
+  - tela-inicial.jpeg                        -> SUBSTITUIR
+  - tela-gravacoes.jpeg                      -> SUBSTITUIR (tem índice visual)
+  - tela-historico.jpeg                      -> SUBSTITUIR
+  - tela-dashboard.jpeg                      -> SUBSTITUIR
+  - tela-configuracoes.jpeg                  -> SUBSTITUIR (muito mais conteúdo)
+  - resultado-gravacao.jpeg                  -> SUBSTITUIR
+
+PRINTS NOVOS NECESSÁRIOS (não existiam):
+  - tela-boas-vindas.jpeg
+  - tela-permissao-microfone.jpeg
+  - tela-home.jpeg
+  - tela-meus-projetos.jpeg
+  - tela-novo-projeto.jpeg
+  - tela-detalhes-projeto.jpeg
+  - tela-editor.jpeg
+  - tela-editor-gravando.jpeg
+  - tela-detalhes-gravacao.jpeg
+  - tela-ajuda-home.jpeg
+  - tela-ajuda-editor.jpeg
+  - tela-ajuda-gravacoes.jpeg
+  - tela-ajuda-configuracoes.jpeg
+  - tela-config-parada-silencio.jpeg
+  - tela-config-comandos-personalizados.jpeg
+  - tela-config-tema.jpeg
+
+================================================================================
+FIM DO ÍNDICE
+================================================================================

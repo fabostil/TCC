@@ -172,6 +172,19 @@ void main() {
       );
     });
 
+    test('setSilenceThreshold persiste valor clampado em dB', () async {
+      await controller.load(usuarioId: 7);
+
+      await controller.setSilenceThreshold(-40.0);
+      expect(controller.state.configuration!.limiarSilencioDb, -40.0);
+
+      await controller.setSilenceThreshold(-100.0);
+      expect(
+        controller.state.configuration!.limiarSilencioDb,
+        ConfiguracaoApp.limiarSilencioDbMin,
+      );
+    });
+
     test('rejeita frase duplicada por normalizacao', () async {
       comandoRepository.commands = [_customCommand(id: 1)];
       await controller.load(usuarioId: 7);
@@ -235,6 +248,9 @@ class FakeConfiguracaoRepository implements ConfiguracaoAppRepository {
 
   @override
   Future<void> atualizarTempoSilencio(int segundos) async {}
+
+  @override
+  Future<void> atualizarLimiarSilencio(double db) async {}
 
   @override
   Future<void> concluirPrimeiraExecucao({

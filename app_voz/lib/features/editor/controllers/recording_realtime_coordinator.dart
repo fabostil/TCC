@@ -108,6 +108,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     VoiceSessionManager? sessionManager,
     this.ownerId = 'editor',
     int silenceLimitMs = 6000,
+    double silenceThresholdDb = defaultSilenceThresholdDb,
     bool automaticSilenceStop = true,
     bool observeLifecycle = true,
     Future<void> Function(String reason)? realtimeShutdown,
@@ -120,6 +121,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
            ((reason) =>
                VoiceRealtimeEcosystem.instance.shutdown(reason: reason)),
        _silenceLimitMs = silenceLimitMs,
+       _silenceThresholdDb = silenceThresholdDb,
        _automaticSilenceStop = automaticSilenceStop {
     _playerStateSubscription = _playerService.playerStateStream.listen((state) {
       if (!state.playing && _state.playing) {
@@ -147,7 +149,9 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   }
 
   static const int silenceMonitorIntervalMs = 500;
-  static const double silenceThresholdDb = -36.0;
+  static const double defaultSilenceThresholdDb = -30.0;
+  // Keep the legacy constant for tests that reference it directly.
+  static const double silenceThresholdDb = defaultSilenceThresholdDb;
   static const bool _useStreamFirstMode = bool.fromEnvironment(
     'USE_STREAM_FIRST_AUDIO',
     defaultValue: false,
@@ -168,6 +172,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   AppLifecycleListener? _lifecycleListener;
   Duration? _playbackDuration;
   int _silenceLimitMs;
+  double _silenceThresholdDb;
   bool _automaticSilenceStop;
   bool _wasRecordingBeforeLifecyclePause = false;
   bool _wasSttActiveBeforeLifecyclePause = false;
@@ -208,9 +213,13 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   void applySettings({
     required bool automaticSilenceStop,
     required int silenceLimitMs,
+    double? silenceThresholdDb,
   }) {
     _automaticSilenceStop = automaticSilenceStop;
     _silenceLimitMs = silenceLimitMs;
+    if (silenceThresholdDb != null) {
+      _silenceThresholdDb = silenceThresholdDb;
+    }
   }
 
   Future<void> startRecording({
@@ -559,7 +568,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
         try {
           final amplitude = await _recordingService.getAmplitude();
           final level = amplitude.current;
-          final nextSilence = level <= silenceThresholdDb
+          final nextSilence = level <= _silenceThresholdDb
               ? _state.silenceMs + silenceMonitorIntervalMs
               : 0;
           _setState(

@@ -79,6 +79,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   String _tipoComandoPersonalizado =
       CustomCommandCatalog.actions.first.tipoComando;
   int? _tempoSilencioVisual;
+  double? _limiarSilencioVisual;
+  final GlobalKey _customCommandFormKey2 = GlobalKey();
+  final GlobalKey _silenceSectionKey = GlobalKey();
   bool _salvandoComandoPersonalizado = false;
   bool _alterandoControleVoz = false;
   int? _alternandoComandoPersonalizadoId;
@@ -274,6 +277,79 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     await _settingsController.setDarkTheme(ativo);
   }
 
+  Future<void> _salvarLimiarSilencio(
+    ConfiguracaoApp configuracao,
+    double value,
+  ) async {
+    final clamped = value.clamp(
+      ConfiguracaoApp.limiarSilencioDbMin,
+      ConfiguracaoApp.limiarSilencioDbMax,
+    );
+    voiceSetState(() {
+      _limiarSilencioVisual = null;
+    });
+    await _salvar(configuracao.copyWith(limiarSilencioDb: clamped));
+  }
+
+  void _irParaFormularioComandoPersonalizado({
+    String? frase,
+    String? tipoComando,
+  }) {
+    if (frase != null && frase.isNotEmpty) {
+      _frasePersonalizadaController.text = frase;
+    }
+    if (tipoComando != null) {
+      final action = CustomCommandCatalog.findByTipo(tipoComando);
+      if (action != null) {
+        voiceSetState(() {
+          _tipoComandoPersonalizado = tipoComando;
+        });
+      }
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _customCommandFormKey2.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 400));
+      }
+    });
+  }
+
+  void _scrollToSilenceSection() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _silenceSectionKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 400),
+        );
+      }
+    });
+  }
+
+  bool _isNavToSilenceSection(String normalized) {
+    const navigating = [
+      'ir para parada automatica',
+      'ir para parada por silencio',
+      'ir para silencio',
+      'ir para configuracoes de silencio',
+      'mostrar parada automatica',
+      'mostrar parada por silencio',
+      'ver parada automatica',
+      'ver parada por silencio',
+    ];
+    if (navigating.any((p) => normalized == p || normalized.contains(p))) {
+      return true;
+    }
+    const standalone = [
+      'parada automatica',
+      'automatico por silencio',
+      'configuracoes de silencio',
+    ];
+    return standalone.any((p) => normalized == p);
+  }
+
   Future<void> _abrirAjudaComandosConfiguracoes() {
     return showVoiceCommandHelpDialog(
       context,
@@ -410,6 +486,62 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     await _sairDaContaLogout();
   }
 
+  // Returns -dB value when the text contains a recognizable silence threshold
+  // like "menos trinta", "menos 30", "sensibilidade 40" etc.
+  double? _extrairLimiarDb(String text) {
+    const wordToNumber = {
+      'dez': 10, 'vinte': 20, 'trinta': 30,
+      'quarenta': 40, 'cinquenta': 50, 'sessenta': 60,
+    };
+
+    // Explicit digit: "menos 30", "limiar 40", "-30"
+    final digitMatch = RegExp(
+      r'(?:menos\s*|-\s*)([0-9]+)|limiar\s+([0-9]+)|sensibilidade\s+([0-9]+)',
+    ).firstMatch(text);
+    if (digitMatch != null) {
+      final raw =
+          digitMatch.group(1) ?? digitMatch.group(2) ?? digitMatch.group(3);
+      final n = int.tryParse(raw ?? '');
+      if (n != null && n >= 10 && n <= 60) {
+        return -n.toDouble();
+      }
+    }
+
+    // Word: "menos trinta", "trinta decibeis"
+    for (final entry in wordToNumber.entries) {
+      if (text.contains('menos ${entry.key}') ||
+          text.contains('${entry.key} decibei')) {
+        return -entry.value.toDouble();
+      }
+    }
+
+    return null;
+  }
+
+  // Tries to extract frase + tipoComando from a "criar comando X para Y" utterance.
+  ({String frase, String? tipoComando}) _extrairComandoPersonalizado(
+    String text,
+  ) {
+    // Pattern: "criar comando [frase] para [ação]"
+    final match = RegExp(
+      r'criar (?:um )?comando (?:personalizado )?(.+?) para (.+)',
+    ).firstMatch(text);
+    if (match != null) {
+      final frase = match.group(1)?.trim() ?? '';
+      final acaoRaw = match.group(2)?.trim() ?? '';
+      final acao = CustomCommandCatalog.actions.firstWhere(
+        (a) => a.label.toLowerCase().contains(acaoRaw) ||
+            a.tipoComando.contains(acaoRaw.replaceAll(' ', '_')),
+        orElse: () => CustomCommandCatalog.actions.first,
+      );
+      return (
+        frase: frase,
+        tipoComando: frase.isNotEmpty ? acao.tipoComando : '',
+      );
+    }
+    return (frase: '', tipoComando: null);
+  }
+
   Future<VoiceCommandPageResult> _dispatchSettingsVoice(
     CommandResult resultado,
   ) async {
@@ -417,6 +549,42 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     if (configuracao == null) {
       return VoiceCommandPageResult.handled(
         message: 'Configuração ainda carregando.',
+      );
+    }
+
+    // Handle silence threshold voice commands before the main switch so we
+    // don't need a new VoiceCommandType (avoids updating every page dispatcher).
+    final rawText = resultado.normalizedText;
+    {
+      final normalized = rawText.trim();
+      final isThresholdCommand = normalized.contains('limiar') ||
+          normalized.contains('sensibilidade') ||
+          (normalized.contains('silencio') &&
+              (normalized.contains('decibei') ||
+                  normalized.contains('menos') ||
+                  RegExp(r'\d').hasMatch(normalized)));
+      if (isThresholdCommand) {
+        final db = _extrairLimiarDb(normalized);
+        if (db != null) {
+          await _salvarLimiarSilencio(configuracao, db);
+          if (!mounted) {
+            return VoiceCommandPageResult.handled(restartListening: false);
+          }
+          _atualizarStatus('Limiar de silêncio definido para ${db.toInt()} dB.');
+          return VoiceCommandPageResult.handled();
+        }
+        _atualizarStatus(
+          'Diga o valor em dB, por exemplo: limiar menos trinta.',
+        );
+        return VoiceCommandPageResult.handled();
+      }
+    }
+
+    // Scroll-to-section shortcuts (no VoiceCommandType needed)
+    if (_isNavToSilenceSection(rawText.trim())) {
+      _scrollToSilenceSection();
+      return VoiceCommandPageResult.handled(
+        message: 'Seção de parada por silêncio.',
       );
     }
 
@@ -558,6 +726,26 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
         return VoiceCommandPageResult.handled(
           message: 'Aqui estão os comandos disponíveis.',
         );
+      case VoiceCommandType.criarComandoPersonalizado:
+        if (widget.usuario == null) {
+          _atualizarStatus(
+            'Entre na sua conta para criar comandos personalizados.',
+          );
+          return VoiceCommandPageResult.handled();
+        }
+        final extracted = _extrairComandoPersonalizado(
+          resultado.normalizedText.trim(),
+        );
+        _irParaFormularioComandoPersonalizado(
+          frase: extracted.frase,
+          tipoComando: extracted.tipoComando,
+        );
+        _atualizarStatus(
+          extracted.frase.isNotEmpty
+              ? 'Formulário preenchido. Confirme para salvar o comando.'
+              : 'Role até o formulário e preencha a frase e a ação desejada.',
+        );
+        return VoiceCommandPageResult.handled();
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
@@ -574,7 +762,6 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       case VoiceCommandType.permitirMicrofone:
       case VoiceCommandType.continuarFluxo:
       case VoiceCommandType.entrarConta:
-      case VoiceCommandType.criarComandoPersonalizado:
       case VoiceCommandType.ativarComandoPersonalizado:
       case VoiceCommandType.desativarComandoPersonalizado:
       case VoiceCommandType.excluirComandoPersonalizado:
@@ -944,6 +1131,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 Text(
+                  key: _customCommandFormKey2,
                   'Comandos personalizados',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
@@ -1045,7 +1233,11 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                     );
                   }),
                 const SizedBox(height: AppSpacing.xl),
-                Text('Gravação', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'Gravação',
+                  key: _silenceSectionKey,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: AppSpacing.md),
                 SwitchListTile(
                   value: configuracao.paradaSilencio,
@@ -1081,6 +1273,36 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
                   ),
                   trailing: Text(
                     '${_tempoSilencioVisual ?? configuracao.tempoSilencioSegundos}s',
+                  ),
+                ),
+                ListTile(
+                  title: const Text('Sensibilidade de silêncio'),
+                  subtitle: Slider(
+                    value: (_limiarSilencioVisual ??
+                            configuracao.limiarSilencioDb)
+                        .clamp(
+                      ConfiguracaoApp.limiarSilencioDbMin,
+                      ConfiguracaoApp.limiarSilencioDbMax,
+                    ),
+                    min: ConfiguracaoApp.limiarSilencioDbMin,
+                    max: ConfiguracaoApp.limiarSilencioDbMax,
+                    divisions: 50,
+                    label:
+                        '${(_limiarSilencioVisual ?? configuracao.limiarSilencioDb).toStringAsFixed(0)} dB',
+                    onChanged: configuracao.paradaSilencio
+                        ? (value) {
+                            voiceSetState(() {
+                              _limiarSilencioVisual = value;
+                            });
+                          }
+                        : null,
+                    onChangeEnd: configuracao.paradaSilencio
+                        ? (value) =>
+                              _salvarLimiarSilencio(configuracao, value)
+                        : null,
+                  ),
+                  trailing: Text(
+                    '${(_limiarSilencioVisual ?? configuracao.limiarSilencioDb).toStringAsFixed(0)} dB',
                   ),
                 ),
               ],

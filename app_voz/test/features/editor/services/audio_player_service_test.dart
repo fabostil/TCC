@@ -114,10 +114,26 @@ void main() {
 
         await service.play(audioFile.path);
 
-        expect(player.calls, ['play']);
+        // setLoopModeOff is always called before play to prevent infinite loop
+        expect(player.calls, ['setLoopModeOff', 'play']);
         expect(session.calls, ['begin:audio_player_play']);
         expect(player.playing, isTrue);
         expect(service.currentPath, audioFile.path);
+      },
+    );
+
+    test(
+      'mesmo arquivo nao entra em loop infinito ao tocar novamente',
+      () async {
+        // Play → complete → play again: loop mode must be off each time
+        await service.play(audioFile.path);
+        player.emitCompleted();
+        await pumpEventQueue();
+        player.calls.clear();
+
+        await service.play(audioFile.path);
+
+        expect(player.calls, contains('setLoopModeOff'));
       },
     );
 
@@ -239,7 +255,7 @@ void main() {
         await service.stop();
         await service.play(audioFile.path);
 
-        expect(player.calls, ['stop', 'seek:0', 'play']);
+        expect(player.calls, ['stop', 'setLoopModeOff', 'seek:0', 'play']);
         expect(session.calls, ['end:stop', 'begin:audio_player_play']);
         expect(player.playing, isTrue);
       },

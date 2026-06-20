@@ -616,6 +616,87 @@ void main() {
       expect(result.recognized, isFalse);
       expect(result.statusReconhecimento, 'nao_reconhecido');
     });
+
+    test('aliases completos de parada por silencio cobrem variantes habilitar/desabilitar', () {
+      const ativar = [
+        'habilitar parada por silencio',
+        'habilitar parada automatica',
+        'habilitar parada automatica por silencio',
+        'ativar parada automatica por silencio',
+        'ligar parada automatica',
+        'ligar parada automatica por silencio',
+      ];
+      for (final cmd in ativar) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.ativarParadaSilencio,
+          reason: cmd,
+        );
+      }
+
+      const desativar = [
+        'desabilitar parada por silencio',
+        'desabilitar parada automatica',
+        'desabilitar parada automatica por silencio',
+        'desativar parada automatica por silencio',
+        'desligar parada automatica',
+        'desligar parada automatica por silencio',
+      ];
+      for (final cmd in desativar) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.desativarParadaSilencio,
+          reason: cmd,
+        );
+      }
+    });
+
+    test('tempo de silencio aceita numeros por extenso', () {
+      final cases = {
+        'definir silencio para tres segundos': 3,
+        'tempo de silencio para seis': 6,
+        'definir silencio para cinco segundos': 5,
+        'ajustar tempo de silencio para dez': 10,
+        'silencio para doze segundos': 12,
+      };
+      for (final entry in cases.entries) {
+        final result = service.interpret(entry.key);
+        expect(result.type, VoiceCommandType.definirTempoSilencio, reason: entry.key);
+        expect(result.parametro, '${entry.value}', reason: entry.key);
+      }
+    });
+
+    test('criar comando personalizado aceita aliases adicionar/novo/cadastrar', () {
+      const aliases = [
+        'adicionar comando personalizado',
+        'novo comando personalizado',
+        'cadastrar comando personalizado',
+        'novo comando',
+        'adicionar comando',
+      ];
+      for (final cmd in aliases) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.criarComandoPersonalizado,
+          reason: cmd,
+        );
+      }
+    });
+
+    test('criar comando X para Y reconhecido como criarComandoPersonalizado', () {
+      const cases = [
+        'criar comando modo palco para abrir editor',
+        'adicionar comando abrir repertorio para abrir projetos',
+        'novo comando finalizar para encerrar gravacao',
+      ];
+      for (final cmd in cases) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.criarComandoPersonalizado,
+          reason: cmd,
+        );
+      }
+    });
   });
 
   group('CommandService H10.2 aliases naturais', () {

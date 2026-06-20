@@ -215,9 +215,13 @@ class AudioPlayerService {
         await _player.setFilePath(path);
         _currentPath = path;
         _restartCurrentPathFromBeginning = false;
-      } else if (_restartCurrentPathFromBeginning) {
-        await _player.seek(Duration.zero);
-        _restartCurrentPathFromBeginning = false;
+      } else {
+        // Always enforce loop-off even when re-playing the same file.
+        await _player.setLoopModeOff();
+        if (_restartCurrentPathFromBeginning) {
+          await _player.seek(Duration.zero);
+          _restartCurrentPathFromBeginning = false;
+        }
       }
 
       await _player.play();

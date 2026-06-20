@@ -108,7 +108,7 @@ class VoiceCommandHelpDialog extends StatelessWidget {
       title: 'Reprodução',
       commands: [
         'Tocar item 1',
-        'Tocar item 2',
+        'Tocar gravação 1',
         'Primeira gravação',
         'Parar reprodução',
       ],
@@ -138,6 +138,14 @@ class VoiceCommandHelpDialog extends StatelessWidget {
       ],
     ),
     _VoiceCommandHelpSection(
+      title: 'Parada automática',
+      commands: [
+        'Ativar parada por silêncio',
+        'Desativar parada por silêncio',
+        'Definir silêncio para três segundos',
+      ],
+    ),
+    _VoiceCommandHelpSection(
       title: 'Reprodução',
       commands: ['Tocar', 'Parar reprodução'],
     ),
@@ -157,12 +165,26 @@ class VoiceCommandHelpDialog extends StatelessWidget {
       commands: ['Modo escuro', 'Tema claro'],
     ),
     _VoiceCommandHelpSection(
+      title: 'Parada por silêncio',
+      commands: [
+        'Ativar parada por silêncio',
+        'Desativar parada por silêncio',
+        'Definir silêncio para três segundos',
+        'Limiar menos trinta',
+        'Sensibilidade menos quarenta',
+      ],
+    ),
+    _VoiceCommandHelpSection(
       title: 'Comandos personalizados',
-      commands: ['Criar comando', 'Excluir comando'],
+      commands: [
+        'Criar comando',
+        'Criar comando modo palco para abrir editor',
+        'Excluir comando',
+      ],
     ),
     _VoiceCommandHelpSection(
       title: 'Navegação',
-      commands: ['Tela inicial', 'Voltar'],
+      commands: ['Tela inicial', 'Voltar', 'Sair da conta'],
     ),
   ];
 

@@ -84,6 +84,15 @@ class SettingsController extends ChangeNotifier {
     return updated;
   }
 
+  Future<ConfiguracaoApp> setSilenceThreshold(double db) async {
+    final configuration = _requireConfiguration();
+    final clamped = db.clamp(
+      ConfiguracaoApp.limiarSilencioDbMin,
+      ConfiguracaoApp.limiarSilencioDbMax,
+    );
+    return saveConfiguration(configuration.copyWith(limiarSilencioDb: clamped));
+  }
+
   Future<void> saveCustomCommand({
     required int? usuarioId,
     required String phrase,

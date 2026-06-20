@@ -254,20 +254,22 @@ void main() {
       );
     });
 
-    test('gravacao numerada sem titulo exato nao vira indice silencioso', () async {
-      recordingService.recordings = [
+    test('gravacao numerada resolve por indice visual quando nao ha titulo correspondente', () async {
+      final recordings = [
         _recording(id: 6, name: 'Mais recente'),
         _recording(id: 5, name: 'Segunda visivel'),
       ];
+      recordingService.recordings = recordings;
       await controller.load(usuarioId: 10);
 
-      final resolution = controller.resolvePlaybackCommand('gravacao 1');
-
-      expect(resolution.recording, isNull);
-      expect(
-        resolution.message,
-        'Não consegui identificar qual gravação você quer tocar.',
-      );
+      // "gravacao 1" → first visual item (index 0)
+      expect(controller.resolvePlaybackCommand('gravacao 1').recording, recordings[0]);
+      // "gravacao 2" → second visual item (index 1)
+      expect(controller.resolvePlaybackCommand('gravacao 2').recording, recordings[1]);
+      // "gravacao 3" → out of range → null
+      final outOfRange = controller.resolvePlaybackCommand('gravacao 3');
+      expect(outOfRange.recording, isNull);
+      expect(outOfRange.message, 'Não encontrei essa gravação na lista.');
     });
 
     test(

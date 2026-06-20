@@ -862,6 +862,12 @@ class CommandService {
       'desativar parada por silencio',
       'desligar parada por silencio',
       'desativar parada automatica',
+      'desabilitar parada por silencio',
+      'desabilitar parada automatica',
+      'desabilitar parada automatica por silencio',
+      'desativar parada automatica por silencio',
+      'desligar parada automatica',
+      'desligar parada automatica por silencio',
     ])) {
       return _recognized(
         text,
@@ -876,6 +882,12 @@ class CommandService {
       'ativar parada por silencio',
       'ligar parada por silencio',
       'ativar parada automatica',
+      'habilitar parada por silencio',
+      'habilitar parada automatica',
+      'habilitar parada automatica por silencio',
+      'ativar parada automatica por silencio',
+      'ligar parada automatica',
+      'ligar parada automatica por silencio',
     ])) {
       return _recognized(
         text,
@@ -1363,9 +1375,21 @@ class CommandService {
     }
 
     if (_equalsAny(normalizedText, const [
-      'criar comando personalizado',
-      'comando personalizado',
-    ])) {
+          'criar comando personalizado',
+          'comando personalizado',
+          'adicionar comando personalizado',
+          'novo comando personalizado',
+          'cadastrar comando personalizado',
+          'novo comando',
+          'adicionar comando',
+        ]) ||
+        (_containsAny(normalizedText, const [
+              'criar comando',
+              'adicionar comando',
+              'novo comando',
+              'cadastrar comando',
+            ]) &&
+            normalizedText.contains(' para '))) {
       return _recognized(
         originalText,
         normalizedText,
@@ -1839,21 +1863,72 @@ class CommandService {
     return null;
   }
 
+  static const Map<String, int> _wordNumbers = {
+    'dois': 2,
+    'duas': 2,
+    'tres': 3,
+    'quatro': 4,
+    'cinco': 5,
+    'seis': 6,
+    'sete': 7,
+    'oito': 8,
+    'nove': 9,
+    'dez': 10,
+    'onze': 11,
+    'doze': 12,
+  };
+
   int? _extractTempoSilencio(String text) {
-    final match = RegExp(
-      r'^(definir |ajustar |alterar )?tempo de silencio (para )?(\d{1,2})( segundos?)?$',
-    ).firstMatch(text);
+    // Numeric match — many phrase variations
+    final numericPatterns = [
+      RegExp(
+        r'^(definir |ajustar |alterar |usar )?tempo de silencio (para )?(\d{1,2})( segundos?)?$',
+      ),
+      RegExp(
+        r'^(definir |ajustar |alterar )?silencio (para )?(\d{1,2})( segundos?)?$',
+      ),
+      RegExp(
+        r'^(definir |ajustar |alterar )?parada (?:automatica|por silencio) (?:para |em )?(\d{1,2})( segundos?)?$',
+      ),
+      RegExp(r'^parar apos (\d{1,2}) segundos?( de silencio)?$'),
+      RegExp(r'^(\d{1,2}) segundos? de silencio$'),
+    ];
 
-    if (match == null) {
-      return null;
+    for (final pattern in numericPatterns) {
+      final match = pattern.firstMatch(text);
+      if (match != null) {
+        // Try last non-null group that parses as int
+        for (var i = match.groupCount; i >= 1; i--) {
+          final v = int.tryParse(match.group(i) ?? '');
+          if (v != null) return v.clamp(3, 12).toInt();
+        }
+      }
     }
 
-    final value = int.tryParse(match.group(3) ?? '');
-    if (value == null) {
-      return null;
+    // Word-number match — "definir silêncio para três segundos" etc.
+    for (final entry in _wordNumbers.entries) {
+      final word = entry.key;
+      final wordPatterns = [
+        RegExp(
+          '^(definir |ajustar |alterar |usar )?tempo de silencio (para )?$word( segundos?)?\$',
+        ),
+        RegExp(
+          '^(definir |ajustar |alterar )?silencio (para )?$word( segundos?)?\$',
+        ),
+        RegExp(
+          '^(definir |ajustar |alterar )?parada (?:automatica|por silencio) (?:para |em )?$word( segundos?)?\$',
+        ),
+        RegExp('^parar apos $word segundos?( de silencio)?\$'),
+        RegExp('^$word segundos? de silencio\$'),
+      ];
+      for (final pattern in wordPatterns) {
+        if (pattern.hasMatch(text)) {
+          return entry.value.clamp(3, 12).toInt();
+        }
+      }
     }
 
-    return value.clamp(3, 12).toInt();
+    return null;
   }
 
   String _cleanShortName(String value) {

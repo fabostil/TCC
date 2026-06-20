@@ -10,8 +10,9 @@ class ConfiguracaoAppTable {
       escuta_continua INTEGER NOT NULL DEFAULT 1,
       feedback_sonoro INTEGER NOT NULL DEFAULT 0,
       parada_silencio INTEGER NOT NULL DEFAULT 1,
-      tempo_silencio_segundos INTEGER NOT NULL DEFAULT 6,
-      tema_escuro INTEGER NOT NULL DEFAULT 0,
+      tempo_silencio_segundos INTEGER NOT NULL DEFAULT 3,
+      limiar_silencio_db REAL NOT NULL DEFAULT -30.0,
+      tema_escuro INTEGER NOT NULL DEFAULT 1,
       data_atualizacao TEXT NOT NULL
     )
   ''';
@@ -26,6 +27,7 @@ class ConfiguracaoAppTable {
       feedback_sonoro,
       parada_silencio,
       tempo_silencio_segundos,
+      limiar_silencio_db,
       tema_escuro,
       data_atualizacao
     ) VALUES (
@@ -35,8 +37,9 @@ class ConfiguracaoAppTable {
       1,
       0,
       1,
-      6,
-      0,
+      3,
+      -30.0,
+      1,
       CURRENT_TIMESTAMP
     )
   ''';

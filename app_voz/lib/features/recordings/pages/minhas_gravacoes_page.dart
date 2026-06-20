@@ -79,6 +79,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   int? _excluindoGravacaoId;
   bool _confirmandoExclusaoPendente = false;
   bool _retomadaEscutaPlaybackPendente = false;
+  bool _playerWasPlaying = false;
 
   RecordingsListState get _recordingsState => _recordingsController.state;
 
@@ -129,9 +130,17 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         return;
       }
 
+      final wasPlaying = _playerWasPlaying;
+      _playerWasPlaying = state.playing;
+
       _recordingsController.handlePlayerState(state);
+
+      // Only resume STT when transitioning from playing to stopped/idle,
+      // or on explicit completion — not on the initial idle state at page load.
       if (state.processingState == ProcessingState.completed ||
-          (!state.playing && state.processingState == ProcessingState.idle)) {
+          (wasPlaying &&
+              !state.playing &&
+              state.processingState == ProcessingState.idle)) {
         unawaited(_retomarEscutaAposPlayback());
       }
     });

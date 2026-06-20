@@ -431,12 +431,22 @@ class RecordingsListController extends ChangeNotifier {
   }
 
   int? _playbackIndexFromReference(String reference) {
-    final numberMatch = RegExp(
+    // Match "item N" or "posicao N" with a numeric digit
+    final itemNumberMatch = RegExp(
       r'(^| )(?:item|posicao|posição) ([0-9]+)( |$)',
     ).firstMatch(reference);
-    final numericValue = int.tryParse(numberMatch?.group(2) ?? '');
-    if (numericValue != null) {
-      return numericValue - 1;
+    final itemNumeric = int.tryParse(itemNumberMatch?.group(2) ?? '');
+    if (itemNumeric != null) {
+      return itemNumeric - 1;
+    }
+
+    // Match "gravacao N" or "gravação N" with a numeric digit
+    final gravacaoNumberMatch = RegExp(
+      r'(^| )grava(?:cao|ção) ([0-9]+)( |$)',
+    ).firstMatch(reference);
+    final gravacaoNumeric = int.tryParse(gravacaoNumberMatch?.group(2) ?? '');
+    if (gravacaoNumeric != null) {
+      return gravacaoNumeric - 1;
     }
 
     const numberWords = {
@@ -453,9 +463,19 @@ class RecordingsListController extends ChangeNotifier {
       'nove': 8,
     };
 
+    // Match "item [word]" or "posicao [word]"
     for (final entry in numberWords.entries) {
       if (RegExp(
-        '(^| )(?:item|posicao|posição) ${entry.key}( |\$)',
+        r'(^| )(?:item|posicao|posição) ' '${entry.key}' r'( |$)',
+      ).hasMatch(reference)) {
+        return entry.value;
+      }
+    }
+
+    // Match "gravacao [word]"
+    for (final entry in numberWords.entries) {
+      if (RegExp(
+        r'(^| )grava(?:cao|ção) ' '${entry.key}' r'( |$)',
       ).hasMatch(reference)) {
         return entry.value;
       }

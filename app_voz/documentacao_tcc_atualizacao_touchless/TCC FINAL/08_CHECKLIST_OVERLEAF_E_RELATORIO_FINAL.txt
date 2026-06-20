@@ -1,0 +1,392 @@
+================================================================================
+TOUCHLESS - PACOTE DE ATUALIZACAO DO TCC
+SECAO 8: CHECKLIST OVERLEAF, ROTEIRO MANUAL E RELATORIO FINAL
+================================================================================
+
+================================================================================
+PARTE A: LISTA DE ARQUIVOS A ALTERAR NO OVERLEAF
+================================================================================
+
+INSTRUCAO: Esta e a lista completa de modificacoes a fazer no projeto Overleaf.
+Leia o arquivo 00_INDICE_E_ROTEIRO.txt antes de comecar.
+Faca backup do projeto no Overleaf (Menu -> Download -> Source) antes de editar.
+
+------------------------------------------------------------------------
+ARQUIVO: main.tex
+------------------------------------------------------------------------
+SECOES A ALTERAR:
+
+[1] RESUMO (linhas aprox. 50-80 do main.tex)
+    Acao: Substituir texto do bloco \begin{resumo}
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "RESUMO ATUALIZADO"
+
+[2] CAPITULO 1 - Objetivos Especificos
+    Acao: Substituir paragrafo "Os objetivos especificos deste trabalho sao:"
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "OBJETIVOS ESPECIFICOS ATUALIZADOS"
+
+[3] CAPITULO 1 - Delimitacao do Projeto
+    Acao: Substituir paragrafo "A delimitacao do projeto..."
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "DELIMITACAO ATUALIZADA"
+
+[4] CAPITULO 2 - Fundamentacao Teorica
+    Acao: Adicionar duas novas subsecoes apos "2.2 RECONHECIMENTO DE VOZ"
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "NOVAS SUBSECOES - FUNDAMENTACAO TEORICA"
+
+[5] CAPITULO 4 - Quadro de Requisitos Funcionais
+    Acao: Substituir longtable de RF pelo quadro RF01-RF26
+    Texto novo: Ver 03_REQUISITOS_REGRAS_E_BANCO.txt -> "QUADRO DE RF PARA OVERLEAF"
+
+[6] CAPITULO 4 - Quadro de Requisitos Nao Funcionais
+    Acao: Atualizar longtable de RNF com RNF01-RNF12
+    Texto novo: Ver 03_REQUISITOS_REGRAS_E_BANCO.txt -> "PARTE B: REQUISITOS NAO FUNCIONAIS"
+
+[7] CAPITULO 4 - Especificacoes de Caso de Uso
+    Acao: Adicionar especificacoes RF17-RF21 apos especificacao atual do RF16
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "ESPECIFICACOES DE CASO DE USO NOVOS"
+
+[8] CAPITULO 5 - Ferramentas Utilizadas
+    Acao: Adicionar paragrafo apos secao sobre GitHub
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "FERRAMENTAS UTILIZADAS - ATUALIZACAO"
+
+[9] CAPITULO 6 - Diagrama de Caso de Uso
+    Acao: Substituir \includegraphics{diagrama-caso-uso-assistente.png}
+    por \includegraphics{diagrama-caso-uso-touchless-v2.png}
+    Atualizar legenda para "DIAGRAMA DE CASO DE USO DO TOUCHLESS"
+
+[10] CAPITULO 6 - Diagrama de Classes
+    Acao: Substituir \includegraphics{diagrama-classes-assistente.png}
+    por \includegraphics{diagrama-classes-touchless-v2.png}
+    Adicionar nova figura diagrama-classes-voz-comandos.png
+
+[11] CAPITULO 6 - Diagramas de Sequencia
+    Acao: Substituir diagrama-sequencia-autenticacao.png
+    por diagrama-sequencia-onboarding-login.png
+    Substituir diagrama-sequencia-assistente.png
+    por diagrama-sequencia-comando-voz-global.png
+    Adicionar novas figuras:
+      diagrama-sequencia-criar-projeto-voz.png
+      diagrama-sequencia-gravacao-editor.png
+      diagrama-sequencia-reproducao-gravacao.png
+      diagrama-sequencia-renomear-gravacao.png
+      diagrama-sequencia-comando-personalizado.png
+      diagrama-sequencia-parada-silencio.png
+
+[12] CAPITULO 6 - Diagrama Entidade-Relacionamento
+    Acao: Substituir \includegraphics{der-assistente.png}
+    por \includegraphics{der-touchless-v10.png}
+    Atualizar legenda e texto da secao
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "MODELAGEM DE DADOS ATUALIZADA"
+
+[13] CAPITULO 6 - Fluxo de Navegacao
+    Acao: Substituir \includegraphics{fluxo-navegacao.png}
+    por \includegraphics{fluxo-navegacao-touchless-v2.png}
+
+[14] CAPITULO 6 - Novas subsecoes (acrescentar ao final do capitulo 6)
+    Acao: Adicionar secoes de Diagrama de Estados e Prioridade de Comandos
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "DIAGRAMA DE ESTADOS - TEXTO PARA TCC"
+
+[15] CAPITULO 7 - Prototipo do Sistema
+    Acao: Substituir imagens de telas existentes e adicionar novas secoes
+    Ordem das novas secoes: Ver 00_INDICE_E_ROTEIRO.txt -> PRINTS NOVOS NECESSARIOS
+
+[16] CAPITULO 8 - Modelagem de Dados
+    Acao: Substituir todo o texto do capitulo
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "MODELAGEM DE DADOS ATUALIZADA"
+    Script SQL novo: Ver 03_REQUISITOS_REGRAS_E_BANCO.txt -> "SCRIPT SQL COMPLETO"
+
+[17] CAPITULO 9 - Testes e Validacoes
+    Acao: Adicionar CT23-CT35 apos CT22 existente
+    Texto novo: Ver 07_TESTES_MANUAL_TECNICO_E_TRABALHOS_FUTUROS.txt -> "CT23 a CT35"
+    Texto introdutorio: Ver 07_TESTES_MANUAL_TECNICO_E_TRABALHOS_FUTUROS.txt -> "TEXTO INTRODUTORIO"
+
+[18] CAPITULO 10 - Demonstracao de Resultados
+    Acao: Adicionar secoes 10.3, 10.4, 10.5
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "DEMONSTRACAO ATUALIZADA"
+
+[19] CAPITULO 11 - Conclusao
+    Acao: Substituir texto completo da conclusao
+    Texto novo: Ver 02_TEXTOS_NOVOS_TCC.txt -> "CONCLUSAO ATUALIZADA"
+
+[20] APENDICE - Manual Tecnico
+    Acao: Substituir conteudo do apendice
+    Texto novo: Ver 07_TESTES_MANUAL_TECNICO_E_TRABALHOS_FUTUROS.txt -> "PARTE C: MANUAL TECNICO"
+
+------------------------------------------------------------------------
+IMAGENS NOVAS A ENVIAR NO OVERLEAF (Upload)
+------------------------------------------------------------------------
+Enviar pela aba de arquivos do Overleaf (botao Upload):
+
+DIAGRAMAS (gerar nos arquivos 04 e 05 deste pacote):
+  diagrama-caso-uso-touchless-v2.png
+  diagrama-classes-touchless-v2.png
+  diagrama-classes-voz-comandos.png
+  diagrama-sequencia-onboarding-login.png
+  diagrama-sequencia-comando-voz-global.png
+  diagrama-sequencia-criar-projeto-voz.png
+  diagrama-sequencia-gravacao-editor.png
+  diagrama-sequencia-reproducao-gravacao.png
+  diagrama-sequencia-renomear-gravacao.png
+  diagrama-sequencia-comando-personalizado.png
+  diagrama-sequencia-parada-silencio.png
+  der-touchless-v10.png
+  fluxo-navegacao-touchless-v2.png
+  diagrama-estados-voz.png
+  diagrama-prioridade-comandos.png
+
+PRINTS DE TELA (tirar do dispositivo fisico):
+  tela-boas-vindas.jpeg
+  tela-permissao-microfone.jpeg
+  tela-login.jpeg         (substitui antiga)
+  tela-cadastro.jpeg      (substitui antiga)
+  tela-home.jpeg          (substitui tela-inicial.jpeg antiga)
+  tela-meus-projetos.jpeg
+  tela-novo-projeto.jpeg
+  tela-detalhes-projeto.jpeg
+  tela-editor.jpeg
+  tela-editor-gravando.jpeg
+  tela-gravacoes.jpeg     (substitui antiga)
+  tela-detalhes-gravacao.jpeg
+  tela-historico.jpeg     (substitui antiga)
+  tela-dashboard.jpeg     (substitui antiga)
+  tela-configuracoes.jpeg (substitui antiga)
+  tela-config-parada-silencio.jpeg
+  tela-config-comandos-personalizados.jpeg
+  tela-ajuda-home.jpeg
+  tela-ajuda-editor.jpeg
+  tela-ajuda-gravacoes.jpeg
+  tela-config-tema.jpeg
+
+------------------------------------------------------------------------
+IMAGENS ANTIGAS QUE PODEM PERMANECER
+------------------------------------------------------------------------
+  arquitetura-voice-first.png  (MANTER - ainda valida)
+
+------------------------------------------------------------------------
+O QUE NAO DEVE SER ALTERADO
+------------------------------------------------------------------------
+  - Capa do TCC (dados do aluno, orientador, instituicao)
+  - Referencias Bibliograficas existentes (podem ser acrescidas)
+  - Declaracao de autoria
+  - Folha de aprovacao
+  - Agradecimentos
+  - O zip original tcc_fabostil.zip
+  - O arquivo main.tex do projeto Flutter (nao e o TCC)
+  - O codigo-fonte do aplicativo Flutter
+  - Os commits do repositorio git
+
+================================================================================
+PARTE B: ROTEIRO MANUAL PARA O AMIGO EXECUTAR NO OVERLEAF
+================================================================================
+
+Ola! Segue o roteiro completo para atualizar o TCC no Overleaf.
+Leia tudo antes de comecar. Nao pule etapas.
+
+--- PRE-REQUISITOS ---
+
+1. Tenha acesso ao projeto no Overleaf do TCC.
+2. Baixe uma copia de seguranca ANTES de qualquer edicao:
+   Overleaf -> Menu -> Download -> Source (zip)
+3. Tenha este pacote de arquivos TXT aberto em outro monitor ou aba.
+4. Acesse o arquivo correto para cada edicao (ver PARTE A deste arquivo).
+
+--- ETAPA 1: DIAGRAMAS PlantUML ---
+
+1. Abra o arquivo 04_DIAGRAMAS_PLANTUML_PARTE_1.txt deste pacote.
+2. Para cada diagrama (8.1 a 8.7), copie o bloco entre @startuml e @enduml.
+3. Cole em: https://www.plantuml.com/plantuml/uml/
+4. O site exibe a imagem do diagrama automaticamente.
+5. Clique com o botao direito na imagem -> Salvar como PNG.
+6. Use o nome de arquivo indicado em cada secao (ex: diagrama-caso-uso-touchless-v2.png).
+7. Repita para todos os diagramas do arquivo 05_DIAGRAMAS_PLANTUML_PARTE_2.txt (8.8 a 8.15).
+8. Suba todos os PNGs gerados para o Overleaf (botao Upload na aba de arquivos).
+
+--- ETAPA 2: PRINTS DE TELA ---
+
+1. Abra o aplicativo TouchLess no celular Android.
+2. Para cada item da lista de prints no arquivo 06_PRINTS_LEGENDAS_E_QUADROS.txt:
+   - Navegue ate a tela indicada.
+   - Configure o estado necessario (ver "Estado necessario" de cada print).
+   - Tire o print (botao Volume Baixo + Liga/Desliga simultaneamente no Android).
+   - Transfira o print para o computador (USB ou Drive).
+   - Renomeie o arquivo com o nome indicado (ex: tela-boas-vindas.jpeg).
+3. Suba todos os prints para o Overleaf.
+
+--- ETAPA 3: EDITAR O MAIN.TEX ---
+
+Siga a ordem indicada na PARTE A deste arquivo ([1] a [20]).
+Para cada item:
+  a. Abra o main.tex no Overleaf.
+  b. Use Ctrl+F para localizar o trecho que deve ser alterado.
+  c. Copie o texto novo do arquivo TXT indicado.
+  d. Substitua o trecho antigo pelo novo.
+  e. Compile o PDF periodicamente para verificar se nao ha erros.
+
+DICA: Nao altere tudo de uma vez. Edite secao por secao e compile.
+Se aparecer erro de compilacao, desfaca a ultima alteracao e verifique o texto.
+
+--- ETAPA 4: VERIFICACAO FINAL ---
+
+1. Compile o PDF completo no Overleaf.
+2. Verifique se todas as figuras aparecem corretamente.
+3. Verifique se os quadros estao formatados corretamente.
+4. Verifique se a numeracao de figuras e quadros esta correta.
+5. Verifique se as referencias cruzadas (\ref{fig:...}) apontam para figuras existentes.
+6. Salve uma copia final do PDF.
+
+--- O QUE NAO FAZER ---
+
+- Nao edite a capa, a folha de aprovacao ou os agradecimentos.
+- Nao delete referencias bibliograficas existentes.
+- Nao substitua imagens sem conferir o nome do arquivo no main.tex.
+- Nao compile o projeto sem ter as imagens novas ja no Overleaf
+  (causara erro "File not found").
+
+--- EM CASO DE ERRO DE COMPILACAO ---
+
+Os erros mais comuns:
+  - "File not found: nome-imagem.png" -> Subir a imagem no Overleaf
+  - "Undefined control sequence: \fontefigura" -> Manter o padrao de legenda existente
+  - "Missing $ inserted" -> Verificar se acidentalmente adicionou underscore (_)
+    sem o modo matematico. Substituir por \_ ou remover.
+  - "Overfull hbox" -> Imagem muito larga; ajustar width para 0.6\textwidth
+
+================================================================================
+PARTE C: RELATORIO FINAL DA EXECUCAO
+================================================================================
+
+DATA DA ANALISE: 20/06/2026
+BRANCH ANALISADA: hotfix/qa-login-comandos-contextuais
+VERSAO DO BANCO: 10 (confirmado em app_database.dart)
+ARQUIVOS DO PROJETO LIDOS: 16 arquivos (database, models, tables, features, services)
+TCC LIDO: main.tex (3182 linhas, Capitulos 1-12 + Apendice)
+
+--- ARQUIVOS CONSULTADOS DO PROJETO FLUTTER ---
+
+lib/database/app_database.dart                          (426 linhas)
+lib/database/tables/configuracao_app_table.dart
+lib/database/tables/gravacao_table.dart
+lib/database/tables/projeto_table.dart
+lib/database/tables/comando_personalizado_table.dart
+lib/database/tables/historico_acao_table.dart
+lib/database/tables/comando_voz_table.dart
+lib/features/voices/services/command_service.dart       (1952 linhas)
+lib/features/voices/coordination/voice_session_state.dart
+lib/features/voices/coordination/contextual_voice_listening_mixin.dart (parcial)
+lib/features/voices/widgets/voice_command_help_dialog.dart (parcial)
+lib/features/voices/services/custom_command_service.dart (parcial)
+lib/features/editor/controllers/recording_realtime_coordinator.dart (parcial)
+lib/features/settings/pages/configuracoes_page.dart (parcial)
+lib/models/configuracao_app.dart
+lib/models/comando_personalizado.dart
+test/*.dart (8 arquivos identificados via git status)
+
+--- DIAGRAMAS GERADOS (PLANTUML) ---
+
+8.1  Diagrama de Caso de Uso Geral
+8.2  Diagrama de Classes Geral
+8.3  Diagrama de Classes - Voz e Comandos
+8.4  Diagrama de Sequencia - Login e Onboarding
+8.5  Diagrama de Sequencia - Comando de Voz Global
+8.6  Diagrama de Sequencia - Criar Projeto por Voz
+8.7  Diagrama de Sequencia - Gravacao no Editor
+8.8  Diagrama de Sequencia - Reproducao de Gravacao
+8.9  Diagrama de Sequencia - Renomear Gravacao por Voz
+8.10 Diagrama de Sequencia - Comando Personalizado
+8.11 Diagrama de Sequencia - Parada Automatica por Silencio
+8.12 Diagrama Entidade-Relacionamento (Banco V10)
+8.13 Diagrama de Navegacao de Telas
+8.14 Diagrama de Estados da Escuta de Voz
+8.15 Diagrama de Prioridade de Comandos
+
+Total: 15 diagramas PlantUML completos.
+
+--- PRINTS SOLICITADOS ---
+
+21 prints obrigatorios + 5 opcionais = 26 prints no total.
+Todos listados em 06_PRINTS_LEGENDAS_E_QUADROS.txt com instrucoes detalhadas.
+
+--- SCRIPTS SQL GERADOS ---
+
+Script SQL completo do banco v10 (7 tabelas + indices)
+Incluido em 03_REQUISITOS_REGRAS_E_BANCO.txt.
+
+--- TEXTOS NOVOS GERADOS ---
+
+Resumo atualizado
+Objetivos especificos atualizados
+Delimitacao atualizada
+Duas subsecoes novas de Fundamentacao Teorica
+Secao de Projetos Musicais
+Secao de Onboarding e Boas-vindas
+Secao de Login com Google
+Secao de Editor
+Secao de Parada Automatica por Silencio
+Secao de Minhas Gravacoes com Indice Visual
+Secao de Configuracoes atualizada
+Secao de Ajuda Contextual
+Secao de Comandos Personalizados
+Modelagem de Dados atualizada
+Demonstracao de Resultados (3 novas subsecoes)
+Conclusao atualizada
+Texto de Diagrama de Estados e Prioridade
+5 especificacoes de Caso de Uso (RF17-RF21)
+
+--- INFORMACOES NAO CONFIRMADAS ---
+
+As informacoes abaixo foram deduzidas da estrutura do codigo mas NAO foram
+verificadas em execucao real. Validar manualmente antes de incluir no TCC:
+
+1. Resultado dos testes CT23-CT35 (testes manuais fisicos)
+2. Resultado do "flutter analyze" (analise estatica atual)
+3. Resultado do "flutter test" (suite automatizada)
+4. Disponibilidade do arquivo google-services.json no repositorio
+5. Flag de ativacao do modo experimental de voz em tempo real
+6. Versao exata dos pacotes Flutter utilizados (flutter pub outdated)
+7. Formato exato dos prints de tela (dependem do estado atual do app)
+8. Comportamento exato do login Google em dispositivo fisico
+9. Tempo real de resposta dos comandos de voz (RNF01 - < 2 segundos)
+
+--- PROXIMOS PASSOS RECOMENDADOS ---
+
+1. Tire os prints do app fisico no celular (Ver arquivo 06)
+2. Gere os 15 PNGs dos diagramas PlantUML (Ver arquivos 04 e 05)
+3. Execute flutter analyze e flutter test para confirmar resultados
+4. Atualize os resultados de CT23-CT35 com os resultados reais
+5. Siga o roteiro do arquivo 08 para editar o Overleaf
+6. Compile e revise o PDF final antes da entrega
+
+--- RESUMO DO QUE ESTE PACOTE ENTREGA ---
+
+[OK] Textos novos prontos para copiar no Overleaf
+[OK] Trechos que substituem partes antigas identificados
+[OK] Secoes a criar especificadas com localizacao exata
+[OK] Script SQL completo (banco v10)
+[OK] 15 diagramas PlantUML completos (sem "..." e sem incompletos)
+[OK] Lista de 26 prints com instrucoes detalhadas
+[OK] Legendas ABNT para todas as figuras
+[OK] 6 quadros/tabelas prontos em LaTeX
+[OK] 13 casos de teste novos (CT23-CT35)
+[OK] Texto de testes automatizados
+[OK] Manual tecnico atualizado
+[OK] Lista de trabalhos futuros
+[OK] Checklist completo do Overleaf
+[OK] Roteiro manual para o amigo
+[OK] Relatorio final desta execucao
+
+--- ARQUIVOS GERADOS NESTE PACOTE ---
+
+00_INDICE_E_ROTEIRO.txt
+01_RESUMO_E_MAPA_DE_ALTERACOES.txt
+02_TEXTOS_NOVOS_TCC.txt
+03_REQUISITOS_REGRAS_E_BANCO.txt
+04_DIAGRAMAS_PLANTUML_PARTE_1.txt
+05_DIAGRAMAS_PLANTUML_PARTE_2.txt
+06_PRINTS_LEGENDAS_E_QUADROS.txt
+07_TESTES_MANUAL_TECNICO_E_TRABALHOS_FUTUROS.txt
+08_CHECKLIST_OVERLEAF_E_RELATORIO_FINAL.txt
+
+Total: 9 arquivos
+
+================================================================================
+FIM DO CHECKLIST E RELATORIO FINAL
+================================================================================

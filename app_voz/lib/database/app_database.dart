@@ -16,6 +16,7 @@ class AppDatabase {
 
   static const Set<String> _allowedMigrationColumns = {
     'configuracao_app.tema_escuro',
+    'configuracao_app.limiar_silencio_db',
     'usuario.auth_provider',
     'usuario.google_id',
     'usuario.foto_url',
@@ -31,6 +32,7 @@ class AppDatabase {
 
   static const Map<String, String> _allowedMigrationDefinitions = {
     'configuracao_app.tema_escuro': 'INTEGER NOT NULL DEFAULT 0',
+    'configuracao_app.limiar_silencio_db': 'REAL NOT NULL DEFAULT -30.0',
     'usuario.auth_provider': "TEXT NOT NULL DEFAULT 'local'",
     'usuario.google_id': 'TEXT',
     'usuario.foto_url': 'TEXT',
@@ -66,7 +68,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 9,
+      version: 10,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -299,6 +301,18 @@ class AppDatabase {
         },
         where: 'auth_provider = ? AND google_id IS NOT NULL',
         whereArgs: ['google'],
+      );
+    }
+
+    if (oldVersion < 10) {
+      // Ensure the table exists for DBs that skipped versions 4/5.
+      await db.execute(ConfiguracaoAppTable.createTable);
+      await db.execute(ConfiguracaoAppTable.insertDefault);
+      await _addColumnIfMissing(
+        db,
+        tableName: ConfiguracaoAppTable.tableName,
+        columnName: 'limiar_silencio_db',
+        definition: 'REAL NOT NULL DEFAULT -30.0',
       );
     }
   }

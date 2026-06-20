@@ -87,6 +87,18 @@ class ConfiguracaoAppRepository {
     await salvarConfiguracao(configuracao.copyWith(temaEscuro: ativo));
   }
 
+  Future<void> atualizarLimiarSilencio(double db) async {
+    final configuracao = await buscarConfiguracao();
+    await salvarConfiguracao(
+      configuracao.copyWith(
+        limiarSilencioDb: db.clamp(
+          ConfiguracaoApp.limiarSilencioDbMin,
+          ConfiguracaoApp.limiarSilencioDbMax,
+        ),
+      ),
+    );
+  }
+
   Future<void> _garantirConfiguracaoPadrao(Database db) async {
     await db.execute(ConfiguracaoAppTable.insertDefault);
   }

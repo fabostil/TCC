@@ -45,8 +45,8 @@ void main() {
       expect(configuracao.id, 1);
       expect(configuracao.comandosVozAtivos, isTrue);
       expect(configuracao.escutaContinua, isTrue);
-      expect(configuracao.temaEscuro, isFalse);
-      expect(configuracao.tempoSilencioSegundos, 6);
+      expect(configuracao.temaEscuro, isTrue);
+      expect(configuracao.tempoSilencioSegundos, 3);
     });
 
     test(

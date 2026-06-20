@@ -21,7 +21,7 @@ void main() {
   });
 
   test(
-    'migra banco legado v1 ate v9 preservando dados e integridade',
+    'migra banco legado v1 ate v10 preservando dados e integridade',
     () async {
       await _createLegacyV1Database(databaseName);
 
@@ -29,7 +29,7 @@ void main() {
       final db = await AppDatabase.instance.database;
 
       final version = await db.getVersion();
-      expect(version, 9);
+      expect(version, 10);
 
       final usuario = await db.query('usuario', limit: 1);
       expect(usuario.single['email'], 'alex@example.com');
@@ -54,7 +54,8 @@ void main() {
 
       final configuracao = await db.query('configuracao_app', limit: 1);
       expect(configuracao.single['escuta_continua'], 1);
-      expect(configuracao.single['tema_escuro'], 0);
+      expect(configuracao.single['tema_escuro'], 1);
+      expect(configuracao.single['limiar_silencio_db'], isNotNull);
 
       await db.insert('projeto', {
         'usuario_id': usuario.single['id'],
@@ -151,7 +152,7 @@ void main() {
     await AppDatabase.instance.setDatabaseNameForTesting(databaseName);
     final db = await AppDatabase.instance.database;
 
-    expect(await db.getVersion(), 9);
+    expect(await db.getVersion(), 10);
 
     final google = await db.query(
       'usuario',
@@ -205,7 +206,7 @@ void main() {
     await AppDatabase.instance.setDatabaseNameForTesting(databaseName);
     final db = await AppDatabase.instance.database;
 
-    expect(await db.getVersion(), 9);
+    expect(await db.getVersion(), 10);
 
     final usuario = await db.query(
       'usuario',

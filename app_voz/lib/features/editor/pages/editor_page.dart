@@ -354,6 +354,7 @@ class _EditorPageState extends State<EditorPage>
     _recordingCoordinator.applySettings(
       automaticSilenceStop: configuracao.paradaSilencio,
       silenceLimitMs: configuracao.tempoSilencioSegundos * 1000,
+      silenceThresholdDb: configuracao.limiarSilencioDb,
     );
 
     setState(() {

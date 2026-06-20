@@ -272,6 +272,8 @@ class _FakeConfiguracaoRepo implements ConfiguracaoAppRepository {
   @override
   Future<void> atualizarTempoSilencio(int segundos) async {}
   @override
+  Future<void> atualizarLimiarSilencio(double db) async {}
+  @override
   Future<void> concluirPrimeiraExecucao({required bool comandosVozAtivos}) async {}
 }
 

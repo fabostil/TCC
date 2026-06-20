@@ -1,0 +1,733 @@
+================================================================================
+TOUCHLESS - PACOTE DE ATUALIZAÇÃO DO TCC
+SEÇÃO 2: TEXTOS NOVOS PRONTOS PARA COPIAR NO OVERLEAF
+================================================================================
+INSTRUÇÕES: Cada bloco indica exatamente onde inserir no TCC.
+Copie o texto da linha "INICIO DO TEXTO" até "FIM DO TEXTO".
+================================================================================
+
+================================================================================
+RESUMO ATUALIZADO
+Localização: Bloco \begin{resumo} ... \end{resumo}
+Ação: Substituir o texto atual completo pelo texto abaixo
+================================================================================
+
+INICIO DO TEXTO
+
+Este trabalho apresenta o desenvolvimento do TouchLess, um aplicativo voltado
+ao apoio de músicos independentes durante o processo de produção musical em
+dispositivos Android, com foco em interação predominantemente por comandos de
+voz. A solução busca reduzir interrupções no fluxo criativo por meio de
+funcionalidades como reconhecimento de comandos de voz em escuta contínua,
+gerenciamento de projetos musicais, controle de gravações de áudio, reprodução,
+renomeação e exclusão de gravações, parada automática por detecção de silêncio,
+ajuda contextual interativa, tema visual configurável, comandos personalizados,
+autenticação local e via Google, além de registro de histórico e apresentação
+de indicadores em dashboard. O protótipo foi desenvolvido utilizando a linguagem
+Dart, o framework Flutter e banco de dados local SQLite, com suporte a
+funcionamento parcialmente offline e armazenamento estruturado das informações
+em sete tabelas relacionais (banco de dados na versão 10). A arquitetura adota
+o padrão voice-first, com gerenciamento centralizado da sessão de voz por meio
+do VoiceSessionManager, máquina de estados da escuta (idle, listening,
+processing, recording, error), despachante de comandos (VoiceCommandDispatcher)
+e escuta contextual por tela (ContextualVoiceListeningMixin). A metodologia
+adotada foi baseada na Programação Orientada a Objetos, no desenvolvimento
+incremental e na modelagem UML, com diagramas de caso de uso, classes,
+sequência, entidade-relacionamento e fluxo de navegação. Como resultado, foi
+obtido um protótipo funcional com interface em tema escuro, feedback visual,
+dashboard de indicadores, ajuda contextual por voz e recursos voltados à
+melhoria da produtividade e organização de ideias musicais.
+
+\vspace{\onelineskip}
+
+\noindent
+\textbf{Palavras-chave}: Assistente virtual; Comando de voz; Produção musical;
+Gravação de áudio; Android; Projetos musicais; Comandos personalizados.
+
+FIM DO TEXTO
+
+================================================================================
+OBJETIVOS ESPECÍFICOS ATUALIZADOS
+Localização: Capítulo 1 - parágrafo que começa com
+             "Os objetivos específicos deste trabalho são:"
+Ação: Substituir o parágrafo completo
+================================================================================
+
+INICIO DO TEXTO
+
+\textbf{Os objetivos específicos deste trabalho são}: desenvolver um mecanismo
+de reconhecimento de comandos de voz com escuta contínua e gerenciamento
+centralizado de sessão; implementar fluxo de onboarding e boas-vindas para
+novos usuários; implementar autenticação por e-mail e senha com hash seguro e
+autenticação via Google Sign-In; criar tela dedicada para solicitação de
+permissão de microfone; implementar funcionalidades para criar, listar, editar
+e excluir projetos musicais por voz e manualmente; implementar funcionalidades
+para iniciar, pausar, retomar e encerrar gravações de áudio; permitir o
+salvamento automático dos arquivos de áudio com registro de status, tamanho e
+formato; possibilitar a reprodução, listagem com índice visual, renomeação,
+organização e exclusão das gravações por voz; implementar parada automática de
+gravação por detecção de silêncio com limiar e tempo configuráveis; implementar
+ajuda contextual interativa com comandos de voz disponíveis por tela;
+implementar tema visual escuro e claro, configurável por voz ou nas
+configurações; permitir que o usuário crie e gerencie comandos de voz
+personalizados; registrar o histórico de gravações, projetos e ações
+realizadas; implementar cadastro e autenticação de usuário local e via Google;
+criar um dashboard com indicadores de uso; fornecer feedback visual e/ou
+auditivo ao usuário; e desenvolver uma interface simples e intuitiva para
+dispositivos Android.
+
+FIM DO TEXTO
+
+================================================================================
+DELIMITAÇÃO ATUALIZADA
+Localização: Capítulo 1 - parágrafo que começa com "A delimitação do projeto"
+Ação: Substituir o parágrafo completo
+================================================================================
+
+INICIO DO TEXTO
+
+\textbf{A delimitação do projeto} compreende o desenvolvimento de um sistema
+voltado para dispositivos móveis com sistema operacional Android. O sistema
+tem como foco o controle de gravações de áudio por comandos de voz, a
+organização de projetos musicais, o registro de histórico, o fornecimento de
+feedback ao usuário, a apresentação de indicadores em dashboard e o suporte a
+comandos de voz personalizados. Não são contempladas, nesta etapa,
+funcionalidades avançadas de edição musical profissional, mixagem multipista,
+aplicação de plugins externos, colaboração em tempo real entre usuários,
+armazenamento em nuvem ou sincronização entre dispositivos. A funcionalidade
+de recuperação de senha não foi implementada nesta versão e deve ser
+considerada como trabalho futuro.
+
+FIM DO TEXTO
+
+================================================================================
+NOVAS SUBSEÇÕES - FUNDAMENTAÇÃO TEÓRICA
+Localização: Capítulo 2 - após a seção "2.2 RECONHECIMENTO DE VOZ"
+Ação: Inserir duas novas subseções
+================================================================================
+
+INICIO DO TEXTO
+
+\section{AUTENTICAÇÃO E IDENTIDADE DIGITAL EM APLICAÇÕES MÓVEIS}
+
+A autenticação de usuários em aplicações móveis pode ser realizada por meio de
+credenciais locais (e-mail e senha) ou por meio de provedores de identidade
+externos, como o Google Identity. No contexto de aplicações Android, o uso de
+provedores externos permite que o usuário autentique-se com uma conta já
+existente, sem necessidade de criar novas credenciais. O Google Sign-In é um
+mecanismo amplamente utilizado nesse contexto, sendo integrado ao aplicativo
+por meio de SDKs oficiais e retornando ao sistema dados como identificador
+único, nome e endereço de e-mail do usuário (Android Developers, 2026).
+
+Para aplicações que suportam ambos os modos de autenticação, é fundamental
+distinguir o tipo de provedor associado a cada conta, evitando conflitos entre
+contas locais e contas vinculadas a provedores externos. No sistema proposto,
+essa distinção é realizada por meio de um campo auth\_provider na tabela de
+usuários, que indica se a conta é do tipo 'local' ou 'google'. Senhas não são
+armazenadas para contas autenticadas via Google.
+
+\section{COALESCÊNCIA E GERENCIAMENTO DA SESSÃO DE VOZ}
+
+A coalescência no contexto de reconhecimento de voz refere-se ao processo de
+aguardar a conclusão de um resultado de reconhecimento antes de processá-lo,
+evitando que resultados parciais sejam interpretados prematuramente como
+comandos válidos. Esse mecanismo contribui para a precisão do sistema, pois
+muitos motores de reconhecimento de voz retornam resultados intermediários
+enquanto o usuário ainda está falando.
+
+O gerenciamento da sessão de voz envolve o controle centralizado do estado do
+microfone, a coordenação entre diferentes telas do aplicativo e a definição de
+prioridades entre tipos de comando. No sistema proposto, esse gerenciamento é
+realizado pelo VoiceSessionManager, que mantém a sessão de escuta ativa entre
+as telas e coordena a transição entre os estados: idle (inativo), listening
+(escutando), processingCommand (processando comando), aiThinking (em espera),
+manualPaused (pausado manualmente), recordingLocked (bloqueado por gravação
+ativa) e error (em erro). A escuta contínua, quando ativa, reinicia
+automaticamente o ciclo de reconhecimento após a execução de cada comando.
+
+FIM DO TEXTO
+
+================================================================================
+FERRAMENTAS UTILIZADAS - ATUALIZAÇÃO
+Localização: Capítulo 5, seção "FERRAMENTAS UTILIZADAS"
+Ação: Adicionar parágrafo após o texto sobre GitHub
+================================================================================
+
+INICIO DO TEXTO
+
+Para o reconhecimento de fala, foi utilizado o pacote \texttt{speech\_to\_text},
+que integra os serviços de reconhecimento de voz do Android. Para a gravação de
+áudio, foi utilizado o pacote \texttt{record}, e para a reprodução, o pacote
+\texttt{audioplayers}. O armazenamento local foi implementado com o pacote
+\texttt{sqflite}, que fornece interface para o SQLite. A autenticação via
+Google foi integrada por meio do pacote \texttt{google\_sign\_in}, utilizando
+os serviços de identidade do Google. O gerenciamento de estado foi realizado
+com o padrão ChangeNotifier nativo do Flutter, sem dependência de bibliotecas
+externas de gerenciamento de estado. O versionamento do banco de dados foi
+realizado por meio de migrations incrementais, com suporte a verificação de
+colunas antes de alterações (ALTER TABLE IF NOT EXISTS não é suportado pelo
+SQLite, sendo necessário verificar via PRAGMA table\_info).
+
+FIM DO TEXTO
+
+================================================================================
+SEÇÃO NOVA: PROJETOS MUSICAIS
+Localização: Capítulo 7 (Protótipo) - nova subseção após tela de login/cadastro
+Ação: Inserir nova seção
+================================================================================
+
+INICIO DO TEXTO
+
+\section{TELA DE MEUS PROJETOS}
+
+A tela de Meus Projetos permite ao usuário criar, listar, visualizar e gerenciar
+projetos musicais. Cada projeto possui nome e descrição opcional, e pode ser
+acessado para visualizar suas gravações associadas. O usuário pode criar novos
+projetos por voz, dizendo "novo projeto" ou "criar projeto", e o sistema abre
+um formulário guiado onde nome e descrição podem ser ditados. Projetos podem
+ser renomeados, excluídos e abertos por nome por comandos de voz.
+
+\section{TELA DE DETALHES DO PROJETO}
+
+A tela de Detalhes do Projeto exibe as informações do projeto selecionado,
+incluindo nome, descrição e lista de gravações associadas. A partir dessa tela,
+o usuário pode acessar o Editor para iniciar uma nova gravação associada ao
+projeto, ou gerenciar as gravações existentes.
+
+FIM DO TEXTO
+
+================================================================================
+SEÇÃO NOVA: ONBOARDING E BOAS-VINDAS
+Localização: Capítulo 7 (Protótipo) - antes da seção de Login
+Ação: Inserir nova seção
+================================================================================
+
+INICIO DO TEXTO
+
+\section{TELA DE BOAS-VINDAS}
+
+Ao abrir o aplicativo pela primeira vez, o usuário é recebido pela tela de
+boas-vindas, que apresenta o nome do aplicativo, uma mensagem de introdução
+e um botão de início. O usuário pode avançar tocando no botão ou dizendo
+"começar" por voz. Essa tela é exibida apenas na primeira execução do aplicativo.
+A condição de primeira execução é controlada pelo campo
+\texttt{primeira\_execucao\_concluida} na tabela \texttt{configuracao\_app}.
+
+\section{TELA DE PERMISSÃO DE MICROFONE}
+
+Após o onboarding inicial, o usuário é direcionado para a tela de permissão
+de microfone, que explica a necessidade do acesso ao microfone para o
+funcionamento dos comandos de voz. O usuário pode conceder a permissão tocando
+no botão ou dizendo "permitir microfone" por voz. Caso a permissão seja negada,
+o aplicativo funciona sem comandos de voz, mas com limitação das funcionalidades.
+
+FIM DO TEXTO
+
+================================================================================
+SEÇÃO NOVA: LOGIN COM GOOGLE E AUTENTICAÇÃO
+Localização: Capítulo 7 (Protótipo) - substituir texto da seção de Login
+Ação: Substituir texto da seção 7.1 TELA DE LOGIN
+================================================================================
+
+INICIO DO TEXTO
+
+\section{TELA DE LOGIN}
+
+A tela de login permite que o usuário acesse o sistema utilizando e-mail e
+senha cadastrados localmente, ou por meio de autenticação via Google Sign-In.
+No modo local, o sistema valida as credenciais informadas comparando a senha
+com o hash armazenado no banco de dados. No modo Google, o aplicativo redireciona
+o usuário para a autenticação do Google e, após confirmação, cria ou recupera
+automaticamente a conta associada ao endereço de e-mail Google do usuário.
+O sistema identifica o tipo de conta por meio do campo \texttt{auth\_provider}:
+'local' para contas criadas manualmente e 'google' para contas autenticadas
+via Google. Contas do tipo 'google' não armazenam senha local.
+O usuário também pode dizer "entrar" por voz para submeter o formulário.
+
+FIM DO TEXTO
+
+================================================================================
+SEÇÃO NOVA: EDITOR
+Localização: Capítulo 7 (Protótipo) - nova seção
+Ação: Inserir nova seção
+================================================================================
+
+INICIO DO TEXTO
+
+\section{TELA DO EDITOR}
+
+O Editor é a tela principal de gravação de áudio do TouchLess. Ao acessar o
+Editor, o usuário encontra uma interface que exibe o nome do projeto ativo,
+um indicador de amplitude de áudio em tempo real, controles de gravação e
+opções de configuração. A gravação pode ser iniciada pelo botão de gravação
+ou pelo comando de voz "gravar". Durante a gravação, o sistema exibe o nível
+do sinal de áudio e o tempo decorrido. A reprodução do áudio gravado é
+possível diretamente no Editor, sendo bloqueada a escuta de voz durante
+a reprodução para evitar conflitos com o microfone.
+
+\section{PARADA AUTOMÁTICA POR SILÊNCIO NO EDITOR}
+
+Quando a funcionalidade de parada automática por silêncio está ativa, o Editor
+monitora continuamente o nível de amplitude do microfone durante a gravação.
+Se o nível permanecer abaixo do limiar configurado (padrão: -30 dB) por um
+período contínuo superior ao tempo configurado (padrão: 3 segundos), o sistema
+encerra automaticamente a gravação, salva o arquivo e registra a ação no
+histórico. O tempo de silêncio pode ser ajustado entre 3 e 12 segundos por
+voz ("definir tempo de silêncio para 5 segundos") ou nas configurações.
+
+FIM DO TEXTO
+
+================================================================================
+SEÇÃO NOVA: GRAVAÇÕES COM ÍNDICE VISUAL
+Localização: Capítulo 7 (Protótipo) - substituir texto da seção Tela de Gravações
+Ação: Substituir texto da seção TELA DE GRAVAÇÕES
+================================================================================
+
+INICIO DO TEXTO
+
+\section{TELA DE MINHAS GRAVAÇÕES}
+
+A tela de Minhas Gravações apresenta todas as gravações do usuário em uma lista
+ordenada por data de criação. Cada item da lista é identificado visualmente por
+um número sequencial (Item 1, Item 2, Item 3...) que permite referência direta
+por comandos de voz. Por exemplo, o usuário pode dizer "reproduzir item 2",
+"excluir item 1" ou "abrir detalhes do item 3" sem precisar pronunciar o nome
+completo da gravação. A tela suporta busca por voz ("buscar gravação por [nome]")
+e limpeza da busca ("limpar busca"). Cada item exibe nome, data de criação,
+duração e status da gravação.
+
+\section{TELA DE DETALHES DA GRAVAÇÃO}
+
+A tela de Detalhes da Gravação exibe informações completas de uma gravação
+selecionada, incluindo nome, data, duração, formato, tamanho do arquivo e status.
+A partir dessa tela, o usuário pode reproduzir, renomear ou excluir a gravação.
+A renomeação pode ser feita por voz: "renomear para [novo nome]" ou
+"nome da gravação [novo nome]".
+
+FIM DO TEXTO
+
+================================================================================
+SEÇÃO NOVA: CONFIGURAÇÕES ATUALIZADA
+Localização: Capítulo 7 (Protótipo) - substituir seção Configurações
+Ação: Substituir texto da seção TELA DE CONFIGURAÇÕES
+================================================================================
+
+INICIO DO TEXTO
+
+\section{TELA DE CONFIGURAÇÕES}
+
+A tela de Configurações permite ao usuário consultar e ajustar as preferências
+do aplicativo. As opções disponíveis são:
+
+\begin{itemize}
+    \item \textbf{Controle por voz}: ativa ou desativa o reconhecimento de
+    comandos de voz no aplicativo.
+    \item \textbf{Escuta contínua}: quando ativa, o sistema reinicia
+    automaticamente a escuta após executar um comando.
+    \item \textbf{Feedback sonoro}: ativa ou desativa sons de confirmação após
+    comandos reconhecidos.
+    \item \textbf{Tema}: alterna entre tema escuro e tema claro.
+    O padrão é tema escuro. Pode ser alterado por voz ("tema escuro",
+    "modo claro") ou pelo seletor na tela.
+    \item \textbf{Parada automática por silêncio}: ativa ou desativa a parada
+    automática de gravação por detecção de silêncio.
+    \item \textbf{Tempo de silêncio}: define quantos segundos de silêncio são
+    necessários antes da parada automática. Intervalo: 3 a 12 segundos.
+    Pode ser configurado por voz ("definir silêncio para 5 segundos").
+    \item \textbf{Comandos personalizados}: permite criar, ativar, desativar e
+    excluir frases personalizadas que executam ações do sistema.
+    \item \textbf{Sair}: encerra a sessão do usuário.
+\end{itemize}
+
+Todas as preferências são armazenadas no banco de dados local na tabela
+\texttt{configuracao\_app}, garantindo que as configurações sejam preservadas
+entre sessões.
+
+FIM DO TEXTO
+
+================================================================================
+SEÇÃO NOVA: AJUDA CONTEXTUAL
+Localização: Capítulo 7 (Protótipo) - nova seção após Configurações
+Ação: Inserir nova seção
+================================================================================
+
+INICIO DO TEXTO
+
+\section{AJUDA CONTEXTUAL POR COMANDO DE VOZ}
+
+O TouchLess oferece ajuda contextual interativa em todas as telas principais.
+Ao dizer "ajuda", "comandos disponíveis" ou "o que posso falar", o sistema
+abre um modal com os comandos de voz disponíveis na tela atual. Cada tela
+possui seu próprio contexto de ajuda (home, projetos, gravações, editor,
+configurações ou geral), garantindo que o usuário veja apenas os comandos
+relevantes para o que está fazendo. A lista é organizada por categorias:
+Navegação, Gravação, Reprodução, Projetos, Configurações e outros contextos
+específicos. O modal pode ser fechado com o botão de fechar ou dizendo
+"cancelar".
+
+FIM DO TEXTO
+
+================================================================================
+SEÇÃO NOVA: COMANDOS PERSONALIZADOS
+Localização: Capítulo 7 (Protótipo) - nova seção
+Ação: Inserir nova seção após Configurações
+================================================================================
+
+INICIO DO TEXTO
+
+\section{COMANDOS PERSONALIZADOS}
+
+O TouchLess permite que o usuário crie frases de voz personalizadas que
+executam ações do sistema. Por exemplo, o usuário pode criar o comando
+"minha música" para abrir a tela de gravações, ou "meu painel" para abrir
+o dashboard. Para criar um comando personalizado, o usuário acessa a seção
+de Comandos Personalizados nas Configurações, informa a frase desejada e
+seleciona a ação correspondente na lista de ações disponíveis.
+
+Os comandos personalizados são armazenados na tabela
+\texttt{comando\_personalizado} do banco de dados, vinculados ao usuário
+ativo. Cada comando pode ser ativado, desativado ou excluído individualmente.
+Uma validação garante que a frase personalizada não conflite com comandos
+essenciais do sistema, preservando o funcionamento das funcionalidades
+críticas. O tamanho mínimo da frase é 3 caracteres e o máximo é 120.
+
+FIM DO TEXTO
+
+================================================================================
+MODELAGEM DE DADOS ATUALIZADA
+Localização: Capítulo 8 MODELAGEM DE DADOS - substituir todo o texto
+Ação: Substituir o conteúdo do capítulo 8
+================================================================================
+
+INICIO DO TEXTO
+
+A modelagem de dados do sistema foi desenvolvida com o objetivo de garantir
+organização, integridade e eficiência no armazenamento das informações.
+O banco de dados local foi implementado com SQLite, na versão 10 do esquema
+de dados, resultado de dez ciclos incrementais de migração que evoluíram a
+estrutura conforme novas funcionalidades foram adicionadas ao sistema.
+
+O banco de dados é composto por sete tabelas: \texttt{usuario},
+\texttt{projeto}, \texttt{gravacao}, \texttt{comando\_voz},
+\texttt{comando\_personalizado}, \texttt{historico\_acao} e
+\texttt{configuracao\_app}. Cada tabela possui índices para otimização
+das consultas mais frequentes.
+
+A entidade \textbf{usuario} armazena as informações de identificação e
+acesso do usuário, incluindo suporte a dois tipos de autenticação: local
+(e-mail e senha com hash seguro e salt) e via provedor externo Google
+(identificado pelo campo \texttt{auth\_provider}). Para usuários Google,
+são armazenados o identificador único (\texttt{google\_id}) e a URL da foto
+de perfil (\texttt{foto\_url}).
+
+A entidade \textbf{projeto} armazena projetos musicais criados pelo usuário,
+com nome, descrição opcional e data de criação.
+
+A entidade \textbf{gravacao} registra os dados relacionados aos áudios
+capturados, incluindo nome, caminho do arquivo, data, duração, formato de
+áudio, tamanho em bytes, status (\textit{concluida}, \textit{interrompida},
+\textit{arquivo\_ausente} ou \textit{excluida}) e vínculo opcional com um
+projeto.
+
+A entidade \textbf{comando\_voz} registra cada comando de voz reconhecido ou
+não reconhecido pelo sistema, incluindo o texto original, o tipo do comando
+identificado, o status de reconhecimento e a ação executada.
+
+A entidade \textbf{comando\_personalizado} armazena frases personalizadas
+criadas pelo usuário, mapeadas para tipos de ação do sistema. Cada frase é
+única por usuário, e o campo \texttt{ativo} permite habilitar ou desabilitar
+comandos individualmente.
+
+A entidade \textbf{historico\_acao} registra as ações realizadas no sistema,
+como criação, edição ou exclusão de gravações e projetos, com data, hora,
+tipo de ação e descrição. As ações podem ser vinculadas opcionalmente a uma
+gravação ou a um projeto.
+
+A entidade \textbf{configuracao\_app} armazena as preferências do usuário:
+controle por voz, escuta contínua, feedback sonoro, parada automática por
+silêncio, tempo e limiar de silêncio, tema visual e marcador de primeira
+execução. O registro único (id = 1) é criado automaticamente na instalação
+do aplicativo com valores padrão.
+
+FIM DO TEXTO
+
+================================================================================
+DEMONSTRAÇÃO ATUALIZADA - SEÇÕES NOVAS
+Localização: Capítulo 10 DEMONSTRAÇÃO DE RESULTADOS - adicionar seções novas
+Ação: Inserir após seção 10.2 REGISTRO DE HISTÓRICO E INDICADORES
+================================================================================
+
+INICIO DO TEXTO
+
+\section{PROJETOS MUSICAIS POR COMANDO DE VOZ}
+
+Durante a execução do protótipo, o usuário pode criar projetos musicais por
+voz. Ao dizer "novo projeto", o sistema abre o formulário de criação e aguarda
+o nome e a descrição do projeto por voz. O projeto é salvo no banco de dados
+e aparece imediatamente na lista de Meus Projetos. A partir do projeto, o
+usuário pode acessar o Editor para iniciar gravações associadas ao projeto.
+
+\section{CONFIGURAÇÕES POR COMANDO DE VOZ}
+
+A tela de Configurações pode ser controlada por voz. O usuário pode ativar
+ou desativar o tema escuro, ajustar o tempo de silêncio, ativar a parada
+automática e criar comandos personalizados sem interação manual. Todos os
+valores configurados são salvos no banco de dados e persistem entre sessões.
+
+\section{AJUDA CONTEXTUAL INTERATIVA}
+
+Em qualquer tela do aplicativo, o usuário pode solicitar ajuda dizendo
+"ajuda" ou "o que posso falar". O sistema abre um modal com os comandos
+de voz disponíveis naquela tela específica, organizados por categorias.
+Esse recurso contribui para que o usuário aprenda os comandos disponíveis
+de forma natural, sem necessidade de consultar documentação externa.
+
+FIM DO TEXTO
+
+================================================================================
+CONCLUSÃO ATUALIZADA
+Localização: Capítulo 11 CONCLUSÃO - substituir texto completo
+Ação: Substituir o conteúdo do capítulo
+================================================================================
+
+INICIO DO TEXTO
+
+Este trabalho apresentou o desenvolvimento do TouchLess, um aplicativo voltado
+ao apoio de músicos independentes durante o processo de produção musical em
+dispositivos Android, com interação predominantemente por comandos de voz.
+A solução proposta busca reduzir interrupções no processo criativo, oferecendo
+praticidade, organização e eficiência durante atividades de gravação e
+gerenciamento de arquivos de áudio.
+
+O protótipo implementado contemplou o fluxo completo de uso do aplicativo:
+tela de boas-vindas, onboarding, permissão de microfone, autenticação local
+e via Google, criação e gerenciamento de projetos musicais, gravação e
+reprodução de áudio com controle por voz, parada automática por silêncio,
+ajuda contextual interativa, comandos de voz personalizados, histórico de
+ações, dashboard de indicadores e tela de configurações avançada. Todas as
+funcionalidades foram desenvolvidas com suporte a interação por voz como
+caminho primário de uso.
+
+A modelagem do sistema foi elaborada por meio de diagramas UML e diagrama
+entidade-relacionamento, contemplando os principais módulos da aplicação e
+as relações entre suas entidades. O banco de dados SQLite evoluiu até a
+versão 10, com sete tabelas e suporte a migrations incrementais para
+compatibilidade com instalações anteriores.
+
+O uso da linguagem Dart, do framework Flutter e do banco de dados SQLite
+mostrou-se adequado à proposta, pois permite o desenvolvimento de uma
+aplicação Android com interface simples, armazenamento local e funcionamento
+parcialmente offline. A metodologia baseada em Programação Orientada a Objetos
+e desenvolvimento incremental favoreceu a construção gradual das funcionalidades,
+possibilitando validações e ajustes ao longo do desenvolvimento.
+
+A arquitetura voice-first, com gerenciamento centralizado da sessão de voz,
+máquina de estados, despachante de comandos e escuta contextual por tela,
+demonstrou ser uma abordagem viável para aplicações móveis orientadas por
+comandos de voz, contribuindo para a fluidez da experiência do usuário.
+
+Como trabalhos futuros, poderão ser estudados recursos como recuperação de
+senha por e-mail, armazenamento em nuvem e sincronização entre dispositivos,
+integração com plataformas de distribuição musical, reconhecimento de voz com
+wake-word sempre ativo, melhoria do reconhecimento em ambientes ruidosos,
+exportação de gravações, versão iOS e aprimoramento da acessibilidade.
+
+FIM DO TEXTO
+
+================================================================================
+DIAGRAMA DE ESTADOS - TEXTO PARA TCC
+Localização: Capítulo 6 - nova subseção
+Ação: Inserir após seção de Fluxo de Navegação
+================================================================================
+
+INICIO DO TEXTO
+
+\section{DIAGRAMA DE ESTADOS DA ESCUTA DE VOZ}
+
+O diagrama de estados da escuta de voz representa os diferentes estados que
+o sistema de reconhecimento de voz pode assumir durante o uso da aplicação.
+O gerenciamento desses estados é realizado pelo \texttt{VoiceSessionManager},
+que coordena as transições entre: \textbf{idle} (inativo, aguardando ativação),
+\textbf{listening} (microfone ativo, aguardando comando), \textbf{processingCommand}
+(comando recebido, sendo interpretado), \textbf{aiThinking} (aguardando resultado
+de processamento), \textbf{manualPaused} (escuta pausada manualmente pelo usuário),
+\textbf{recordingLocked} (microfone em uso pela gravação, escuta de comandos
+suspensa) e \textbf{error} (estado de erro, aguardando recuperação).
+
+A Figura~\ref{fig:estados-voz} apresenta o Diagrama de Estados da Escuta de Voz.
+
+\begin{figure}[H]
+\centering
+\caption{DIAGRAMA DE ESTADOS DA ESCUTA DE VOZ}
+\includegraphics[width=0.95\textwidth,keepaspectratio]{diagrama-estados-voz.png}
+\fontefigura{Autoria própria.}
+\label{fig:estados-voz}
+\end{figure}
+
+\section{DIAGRAMA DE PRIORIDADE DE COMANDOS DE VOZ}
+
+O diagrama de prioridade de comandos representa a ordem de precedência com
+que o sistema processa diferentes tipos de entrada de voz. Quando um texto
+reconhecido é recebido, o sistema verifica sequencialmente: (1) modal crítico
+aberto, que bloqueia todos os outros comandos; (2) modo guiado ativo, que
+aguarda entrada específica do usuário; (3) ajuda aberta, que aceita apenas
+comandos de fechar; (4) segurança de gravação, que protege operações de
+gravação em andamento; (5) comandos locais da tela atual; (6) comandos
+globais de navegação; (7) comandos personalizados do usuário; e (8) fala
+não reconhecida, que gera feedback informando o usuário.
+
+A Figura~\ref{fig:prioridade-comandos} apresenta o Diagrama de Prioridade
+de Comandos de Voz.
+
+\begin{figure}[H]
+\centering
+\caption{DIAGRAMA DE PRIORIDADE DE COMANDOS DE VOZ}
+\includegraphics[width=0.95\textwidth,keepaspectratio]{diagrama-prioridade-comandos.png}
+\fontefigura{Autoria própria.}
+\label{fig:prioridade-comandos}
+\end{figure}
+
+FIM DO TEXTO
+
+================================================================================
+ESPECIFICAÇÕES DE CASO DE USO NOVOS (RF17-RF21)
+Localização: Capítulo 4 - após especificação do RF16
+Ação: Inserir as especificações abaixo
+================================================================================
+
+INICIO DO TEXTO
+
+\clearpage
+\subsection*{RF17 -- CASO DE USO: GERENCIAR PROJETOS MUSICAIS}
+
+\textbf{Ator:} Usuário.
+
+\textbf{Descrição:} Permite criar, listar, editar, renomear e excluir projetos
+musicais por voz ou manualmente.
+
+\textbf{Pré-condição:} O usuário deve estar autenticado.
+
+\textbf{Pós-condição:} O projeto é criado, atualizado ou excluído no banco de dados.
+
+\textbf{Fluxo principal:}
+\begin{enumerate}
+    \item O usuário acessa a tela de Meus Projetos.
+    \item O usuário cria um novo projeto informando nome e descrição.
+    \item O sistema salva o projeto no banco de dados.
+    \item O sistema exibe o projeto na lista.
+\end{enumerate}
+
+\textbf{Fluxo alternativo:}
+\begin{enumerate}
+    \item O usuário pode criar o projeto por voz dizendo "novo projeto".
+    \item O sistema entra em modo guiado para capturar nome e descrição.
+\end{enumerate}
+
+\textbf{Fluxo de erro:}
+\begin{enumerate}
+    \item Caso o nome esteja vazio, o sistema solicita preenchimento.
+\end{enumerate}
+
+\clearpage
+\subsection*{RF18 -- CASO DE USO: AUTENTICAR VIA GOOGLE}
+
+\textbf{Ator:} Usuário.
+
+\textbf{Descrição:} Permite autenticar o usuário utilizando conta Google.
+
+\textbf{Pré-condição:} O dispositivo deve ter conta Google configurada.
+
+\textbf{Pós-condição:} O usuário é autenticado e direcionado para a tela inicial.
+
+\textbf{Fluxo principal:}
+\begin{enumerate}
+    \item O usuário toca em "Entrar com Google" na tela de login.
+    \item O sistema redireciona para autenticação Google.
+    \item O Google retorna os dados do usuário autenticado.
+    \item O sistema cria ou recupera a conta local associada ao e-mail.
+    \item O usuário é direcionado para a tela inicial.
+\end{enumerate}
+
+\textbf{Fluxo de erro:}
+\begin{enumerate}
+    \item Caso a autenticação Google falhe, o sistema exibe mensagem de erro.
+\end{enumerate}
+
+\clearpage
+\subsection*{RF19 -- CASO DE USO: CONFIGURAR PARADA AUTOMÁTICA POR SILÊNCIO}
+
+\textbf{Ator:} Usuário.
+
+\textbf{Descrição:} Permite ativar e configurar a parada automática de gravação
+por detecção de silêncio.
+
+\textbf{Pré-condição:} O usuário deve estar autenticado.
+
+\textbf{Pós-condição:} A configuração é salva e aplicada nas próximas gravações.
+
+\textbf{Fluxo principal:}
+\begin{enumerate}
+    \item O usuário acessa as configurações.
+    \item O usuário ativa a parada automática por silêncio.
+    \item O usuário define o tempo de silêncio desejado (3 a 12 segundos).
+    \item O sistema salva as configurações no banco de dados.
+\end{enumerate}
+
+\textbf{Fluxo alternativo:}
+\begin{enumerate}
+    \item O usuário pode configurar por voz: "definir tempo de silêncio para 5 segundos".
+\end{enumerate}
+
+\clearpage
+\subsection*{RF20 -- CASO DE USO: CRIAR COMANDO PERSONALIZADO}
+
+\textbf{Ator:} Usuário.
+
+\textbf{Descrição:} Permite criar uma frase de voz personalizada mapeada para
+uma ação do sistema.
+
+\textbf{Pré-condição:} O usuário deve estar autenticado.
+
+\textbf{Pós-condição:} O comando personalizado é salvo e ativado no sistema.
+
+\textbf{Fluxo principal:}
+\begin{enumerate}
+    \item O usuário acessa a seção de Comandos Personalizados nas Configurações.
+    \item O usuário informa a frase personalizada.
+    \item O usuário seleciona a ação correspondente.
+    \item O sistema valida que a frase não conflita com comandos essenciais.
+    \item O sistema salva o comando no banco de dados.
+\end{enumerate}
+
+\textbf{Fluxo de erro:}
+\begin{enumerate}
+    \item Caso a frase conflite com comando essencial, o sistema informa o conflito.
+    \item Caso a frase seja muito curta (menos de 3 caracteres), o sistema solicita correção.
+\end{enumerate}
+
+\clearpage
+\subsection*{RF21 -- CASO DE USO: ACESSAR AJUDA CONTEXTUAL}
+
+\textbf{Ator:} Usuário.
+
+\textbf{Descrição:} Permite acessar a lista de comandos de voz disponíveis
+na tela atual.
+
+\textbf{Pré-condição:} O usuário deve estar em qualquer tela do aplicativo.
+
+\textbf{Pós-condição:} O sistema exibe o modal de ajuda com comandos contextuais.
+
+\textbf{Fluxo principal:}
+\begin{enumerate}
+    \item O usuário diz "ajuda" ou "o que posso falar".
+    \item O sistema identifica a tela atual.
+    \item O sistema abre o modal de ajuda com comandos relevantes.
+    \item O usuário lê os comandos disponíveis.
+    \item O usuário fecha o modal.
+\end{enumerate}
+
+FIM DO TEXTO
+
+================================================================================
+FIM DOS TEXTOS NOVOS
+================================================================================

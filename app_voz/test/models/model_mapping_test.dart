@@ -142,6 +142,7 @@ void main() {
         feedbackSonoro: false,
         paradaSilencio: true,
         tempoSilencioSegundos: 6,
+        limiarSilencioDb: -30.0,
         temaEscuro: true,
         dataAtualizacao: '2026-05-18T10:00:00.000',
       );
@@ -154,6 +155,7 @@ void main() {
       expect(parsed.escutaContinua, isTrue);
       expect(parsed.temaEscuro, isTrue);
       expect(parsed.tempoSilencioSegundos, 6);
+      expect(parsed.limiarSilencioDb, -30.0);
     });
 
     test('ConfiguracaoApp fromMap tolera banco antigo sem tema_escuro', () {
@@ -169,6 +171,25 @@ void main() {
       });
 
       expect(parsed.temaEscuro, isFalse);
+      expect(parsed.limiarSilencioDb, -30.0);
+    });
+
+    test('ConfiguracaoApp padrao usa limiar de silencio de -30 dB', () {
+      final padrao = ConfiguracaoApp.padrao();
+      expect(padrao.limiarSilencioDb, -30.0);
+    });
+
+    test('ConfiguracaoApp padrao usa tema escuro e silencio de 3 segundos', () {
+      final padrao = ConfiguracaoApp.padrao();
+      expect(padrao.temaEscuro, isTrue);
+      expect(padrao.tempoSilencioSegundos, 3);
+    });
+
+    test('ConfiguracaoApp copyWith preserva limiarSilencioDb', () {
+      final original = ConfiguracaoApp.padrao();
+      final updated = original.copyWith(limiarSilencioDb: -40.0);
+      expect(updated.limiarSilencioDb, -40.0);
+      expect(updated.paradaSilencio, original.paradaSilencio);
     });
 
     test('ComandoPersonalizado copyWith preserva campos nao alterados', () {
