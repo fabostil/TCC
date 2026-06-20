@@ -175,6 +175,7 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
   bool _captureClosedByLifecycle = false;
   bool _handlingLifecycle = false;
   bool _disposed = false;
+  bool _isStopping = false;
 
   RecordingRealtimeState _state = const RecordingRealtimeState();
 
@@ -412,10 +413,11 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
     onHistory,
     bool automatic = false,
   }) async {
-    if (!_state.recording) {
+    if (_isStopping || !_state.recording) {
       _setStatus('Não existe gravação em andamento para encerrar.');
       return null;
     }
+    _isStopping = true;
 
     _stopSilenceMonitoring();
     _setState(
@@ -472,6 +474,8 @@ class RecordingRealtimeCoordinator extends ChangeNotifier {
       );
       _resetAfterRecording(UserFacingMessages.recordingSaveError);
       rethrow;
+    } finally {
+      _isStopping = false;
     }
   }
 

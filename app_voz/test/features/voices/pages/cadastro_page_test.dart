@@ -125,7 +125,7 @@ void main() {
       expect(auth.registerCalls, 1);
     });
 
-    testWidgets('navega para login quando cadastro local tem sucesso', (
+    testWidgets('navega para home quando cadastro local tem sucesso', (
       tester,
     ) async {
       final auth = _CadastroAuthFake(registerResult: true);
@@ -136,9 +136,30 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('Login destino'), findsOneWidget);
+      expect(find.text('Home destino'), findsOneWidget);
+      expect(find.text('Login destino'), findsNothing);
       expect(auth.registerCalls, 1);
     });
+
+    testWidgets(
+      'navega para login como fallback se auto-login falha apos cadastro',
+      (tester) async {
+        final auth = _CadastroAuthFake(
+          registerResult: true,
+          autoLoginFails: true,
+        );
+
+        await _pumpCadastro(tester, auth: auth.service);
+        await _preencherCadastro(tester);
+        await tester.tap(find.byKey(const Key('cadastro_submit_button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.text('Login destino'), findsOneWidget);
+        expect(find.text('Home destino'), findsNothing);
+        expect(auth.registerCalls, 1);
+      },
+    );
 
     testWidgets('mantem usuario no cadastro quando Google e cancelado', (
       tester,
@@ -251,7 +272,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('Login destino'), findsOneWidget);
+      expect(find.text('Home destino'), findsOneWidget);
     });
 
     testWidgets('desabilita botao Google e mostra loading durante Google', (
@@ -369,6 +390,7 @@ Future<void> _preencherCadastro(WidgetTester tester) async {
 class _CadastroAuthFake {
   _CadastroAuthFake({
     this.registerResult = true,
+    this.autoLoginFails = false,
     this.googleResult,
     this.googleCanceled = false,
     this.googleError,
@@ -378,6 +400,7 @@ class _CadastroAuthFake {
        _googleCompleter = googleCompleter;
 
   final bool registerResult;
+  final bool autoLoginFails;
   final Usuario? googleResult;
   final bool googleCanceled;
   final Object? googleError;
@@ -396,6 +419,9 @@ class _CadastroAuthFake {
         return completer.future;
       }
       return Future.value(registerResult);
+    },
+    localAuthenticator: ({required email, required senha}) {
+      return Future.value(autoLoginFails ? null : _usuario);
     },
     googleIdentityProvider: () {
       googleCalls++;

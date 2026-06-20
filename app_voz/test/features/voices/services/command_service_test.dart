@@ -986,4 +986,126 @@ void main() {
       }
     });
   });
+
+  group('CommandService HOTFIX — PROBLEMA 2: frase ambiente nao dispara comando', () {
+    test('novo projeto exato funciona', () {
+      expect(
+        service.interpret('novo projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+    });
+
+    test('novo projeto com nome funciona', () {
+      final r = service.interpret('novo projeto guitarras');
+      expect(r.type, VoiceCommandType.abrirNovoProjeto);
+    });
+
+    test('abrir novo projeto funciona', () {
+      expect(
+        service.interpret('abrir novo projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+    });
+
+    test('frase longa contendo novo projeto no meio nao dispara comando', () {
+      // Phrase with 'novo projeto' embedded mid-sentence must be treated as
+      // desconhecido, not abrirNovoProjeto.
+      final r = service.interpret(
+        'eu queria falar sobre o novo projeto da escola hoje',
+      );
+      expect(r.type, isNot(VoiceCommandType.abrirNovoProjeto));
+      expect(r.recognized, isFalse);
+    });
+
+    test('frase longa com criar novo projeto no meio nao dispara comando', () {
+      final r = service.interpret(
+        'quero criar novo projeto mais tarde quando terminar',
+      );
+      expect(r.type, isNot(VoiceCommandType.abrirNovoProjeto));
+    });
+  });
+
+  group('CommandService HOTFIX — PROBLEMA 5: renomear gravacao por voz simplificado', () {
+    test('renomear para extrai novo nome', () {
+      final r = service.interpret('renomear para guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('renomear gravacao para extrai novo nome', () {
+      final r = service.interpret('renomear gravacao para guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('mudar nome para extrai novo nome', () {
+      final r = service.interpret('mudar nome para guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('alterar nome para extrai novo nome', () {
+      final r = service.interpret('alterar nome para guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('chamar de extrai novo nome', () {
+      final r = service.interpret('chamar de guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('chamar gravacao de extrai novo nome', () {
+      final r = service.interpret('chamar gravacao de guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('formato classico renomear gravacao X para Y ainda funciona', () {
+      final r = service.interpret('renomear gravacao ideia um para refrao final');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, 'ideia um');
+      expect(r.parametroSecundario, 'refrao final');
+    });
+
+    test('nome da gravacao com nome extrai parametroSecundario', () {
+      final r = service.interpret('nome da gravacao teste');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'teste');
+    });
+  });
+
+  group('CommandService HOTFIX — PROBLEMA 8: sair exige correspondencia exata', () {
+    test('sair exato mapeia para sair', () {
+      expect(service.interpret('sair').type, VoiceCommandType.sair);
+    });
+
+    test('sair da conta mapeia para sair', () {
+      expect(service.interpret('sair da conta').type, VoiceCommandType.sair);
+    });
+
+    test('quero sair nao dispara sair', () {
+      final r = service.interpret('quero sair');
+      expect(r.type, isNot(VoiceCommandType.sair));
+    });
+
+    test('vai sair nao dispara sair', () {
+      final r = service.interpret('vai sair');
+      expect(r.type, isNot(VoiceCommandType.sair));
+    });
+
+    test('nao vou sair nao dispara sair', () {
+      final r = service.interpret('nao vou sair');
+      expect(r.type, isNot(VoiceCommandType.sair));
+    });
+
+    test('deslogar exato mapeia para sair', () {
+      expect(service.interpret('deslogar').type, VoiceCommandType.sair);
+    });
+
+    test('fazer logout exato mapeia para sair', () {
+      expect(service.interpret('fazer logout').type, VoiceCommandType.sair);
+    });
+  });
 }

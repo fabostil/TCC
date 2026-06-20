@@ -86,6 +86,9 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
   String get voiceListeningPrompt => 'Ouvindo comando de projeto...';
 
   @override
+  bool shouldUseAiForVoiceInput(String normalizedText) => false;
+
+  @override
   late final VoiceCommandDispatcher voiceCommandDispatcher;
 
   @override
@@ -256,13 +259,20 @@ class _MeusProjetosPageState extends State<MeusProjetosPage>
       case VoiceCommandType.encerrarGravacao:
       case VoiceCommandType.pararReproducao:
       case VoiceCommandType.reproduzirGravacao:
-      case VoiceCommandType.listarGravacoes:
       case VoiceCommandType.buscarGravacoes:
       case VoiceCommandType.criarMarcador:
       case VoiceCommandType.limparTexto:
+        return VoiceCommandPageResult.handled(
+          message:
+              'Esse comando é para Minhas Gravações. Diga "minhas gravações" para navegar.',
+        );
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
+      case VoiceCommandType.listarGravacoes:
+        return VoiceCommandPageResult.unavailable(
+          recognized: resultado.recognized,
+        );
       case VoiceCommandType.abrirAssistente:
         unawaited(openContextualVoiceHelp(VoiceCommandHelpContext.projects));
         return VoiceCommandPageResult.handled(

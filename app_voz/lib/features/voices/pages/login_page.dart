@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/ui/app_logo.dart';
 import '../../../core/ui/user_facing_messages.dart';
 import '../../../models/usuario.dart';
+import '../../../repositories/usuario_repository.dart';
 import '../../home/pages/home_page.dart';
 import '../services/auth_service.dart';
 import '../services/auth_validation_service.dart';
@@ -73,15 +74,27 @@ class _LoginPageState extends State<LoginPage> {
       if (usuario == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Não foi possível entrar. Confira o e-mail e a senha.',
-            ),
+            content: Text('Senha incorreta. Verifique e tente novamente.'),
           ),
         );
         return;
       }
 
       _abrirHomeAutenticada(usuario);
+    } on UsuarioNaoEncontradoException {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregando = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Conta não encontrada. Verifique o e-mail.'),
+        ),
+      );
     } catch (e) {
       if (!mounted) {
         return;

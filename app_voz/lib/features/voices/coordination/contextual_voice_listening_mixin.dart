@@ -71,6 +71,10 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
 
   bool get voiceRegistersCommands => true;
 
+  /// Override to return true while an external resource (e.g., audio playback)
+  /// holds the audio session so recovery attempts and error UI are suppressed.
+  bool get voiceIsBlockedByExternal => false;
+
   bool shouldUseAiForVoiceInput(String normalizedText) => true;
 
   VoiceNavigationCommandHandler? get voiceNavigationCommandHandler => null;
@@ -557,6 +561,26 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
           return;
         }
 
+        // error_no_match and error_speech_timeout mean the engine stopped
+        // without recognising speech — normal silence, not a real error.
+        // Never show a visual error; recover silently if possible.
+        final isSilentNonEvent =
+            error == 'error_no_match' || error == 'error_speech_timeout';
+        if (isSilentNonEvent) {
+          if (!_voiceRecoveryPending &&
+              !voiceSessionManager.isBusyCooldownActive &&
+              !voiceIsBlockedByExternal) {
+            scheduleVoiceContinuousRestart(
+              reason: VoiceRestartReason.afterError,
+            );
+          }
+          return;
+        }
+
+        if (voiceIsBlockedByExternal) {
+          return;
+        }
+
         final decision = voiceRecognitionErrorGuard.evaluate(error);
         if (!decision.shouldPresent) {
           return;
@@ -609,6 +633,30 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       return;
     }
 
+    // Help-close must bypass the voiceExecutandoComando guard: the original
+    // "ajuda" command set the flag and is still awaiting the dialog result,
+    // so "fechar" would otherwise be dropped.
+    if (_voiceHelpOpen) {
+      final n = const CommandService().normalize(texto);
+      if (n == 'fechar' || n == 'ok' || n == 'entendi' ||
+          n == 'cancelar' || n == 'nao' || n == 'voltar' ||
+          n == 'certo' || n == 'tudo bem') {
+        _voiceRecoveryPending = false;
+        voiceSessionManager.cancelPendingRecovery(
+          ownerId: voiceOwnerId,
+          reason: 'help_close',
+        );
+        if (mounted) Navigator.of(context).maybePop();
+        voiceExecutandoComando = false;
+        voiceSessionState = voiceSessionState.transitionTo(
+          VoiceSessionPhase.idle,
+          message: voiceStatusMessage,
+        );
+        scheduleVoiceContinuousRestart();
+        return;
+      }
+    }
+
     if (voiceExecutandoComando &&
         !voiceConfirmationController.hasPendingConfirmation) {
       return;
@@ -620,21 +668,6 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       reason: 'command_processing',
     );
     voiceExecutandoComando = true;
-    if (_voiceHelpOpen) {
-      final n = const CommandService().normalize(texto);
-      if (n == 'fechar' || n == 'ok' || n == 'entendi' ||
-          n == 'cancelar' || n == 'nao' || n == 'voltar' ||
-          n == 'certo' || n == 'tudo bem') {
-        if (mounted) Navigator.of(context).maybePop();
-        voiceExecutandoComando = false;
-        voiceSessionState = voiceSessionState.transitionTo(
-          VoiceSessionPhase.idle,
-          message: voiceStatusMessage,
-        );
-        scheduleVoiceContinuousRestart();
-        return;
-      }
-    }
     voiceSessionManager.markProcessing(
       ownerId: voiceOwnerId,
       message: voiceStatusMessage,
@@ -863,6 +896,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
             !voiceParadaManual &&
             !voiceExecutandoComando &&
             !voiceOuvindo &&
+            !voiceIsBlockedByExternal &&
             !voiceSessionManager.isListeningStartInProgress &&
             !voiceSessionManager.isBusyCooldownActive;
         // Liberar latch quando condição não é atendida para não bloquear

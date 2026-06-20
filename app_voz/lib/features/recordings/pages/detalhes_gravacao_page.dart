@@ -100,6 +100,9 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   String get voiceListeningPrompt => 'Ouvindo comando da gravação...';
 
   @override
+  bool get voiceIsBlockedByExternal => _reproduzindo;
+
+  @override
   late final VoiceCommandDispatcher voiceCommandDispatcher;
 
   @override
@@ -482,7 +485,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         final novoNome = resultado.parametroSecundario;
         if (novoNome == null || novoNome.trim().isEmpty) {
           return VoiceCommandPageResult.handled(
-            message: 'Diga: renomear gravação nome atual para novo nome.',
+            message: 'Diga: "renomear para guitarra" ou "mudar nome para guitarra".',
           );
         }
         await _salvarNovoNome(novoNome.trim(), origemVoz: true);

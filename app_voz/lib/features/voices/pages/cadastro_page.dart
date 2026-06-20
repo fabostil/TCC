@@ -65,11 +65,11 @@ class _CadastroPageState extends State<CadastroPage> {
         return;
       }
 
-      setState(() {
-        _carregando = false;
-      });
-
       if (!sucesso) {
+        setState(() {
+          _carregando = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -80,6 +80,31 @@ class _CadastroPageState extends State<CadastroPage> {
         return;
       }
 
+      // Auto-login para fluxo atômico: conta criada, sessão salva na mesma etapa.
+      Usuario? usuario;
+      try {
+        usuario = await _authService.autenticarUsuario(
+          email: _emailController.text,
+          senha: _senhaController.text,
+        );
+      } catch (_) {
+        usuario = null;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _carregando = false;
+      });
+
+      if (usuario != null) {
+        _abrirHomeAutenticada(usuario);
+        return;
+      }
+
+      // Fallback raro: auto-login falhou após cadastro bem-sucedido.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Conta criada com sucesso. Entre para continuar.'),

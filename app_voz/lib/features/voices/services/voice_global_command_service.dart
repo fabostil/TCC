@@ -1,4 +1,3 @@
-import '../../../core/theme/app_theme_controller.dart';
 import '../../../models/configuracao_app.dart';
 import '../../../repositories/configuracao_app_repository.dart';
 import 'command_service.dart';
@@ -28,15 +27,12 @@ class VoiceGlobalCommandService {
   VoiceGlobalCommandService({
     ConfiguracaoAppRepository? configuracaoRepository,
     VoicePermissionService? permissionService,
-    AppThemeController? themeController,
   }) : _configuracaoRepository =
            configuracaoRepository ?? ConfiguracaoAppRepository.instance,
-       _permissionService = permissionService ?? const VoicePermissionService(),
-       _themeController = themeController ?? AppThemeController.instance;
+       _permissionService = permissionService ?? const VoicePermissionService();
 
   final ConfiguracaoAppRepository _configuracaoRepository;
   final VoicePermissionService _permissionService;
-  final AppThemeController _themeController;
 
   Future<VoiceGlobalCommandResult> execute(CommandResult command) async {
     switch (command.type) {
@@ -60,9 +56,14 @@ class VoiceGlobalCommandService {
           shouldStopListening: true,
         );
       case VoiceCommandType.ativarTemaEscuro:
-        return _atualizarTema(temaEscuro: true);
       case VoiceCommandType.desativarTemaEscuro:
-        return _atualizarTema(temaEscuro: false);
+        // Theme toggle is only available inside Configurações, which has
+        // voiceHandlesGlobalCommands = false and handles these itself.
+        // For all other screens, return an orientation message.
+        return const VoiceGlobalCommandResult(
+          handled: true,
+          message: 'Abra Configurações para alterar o tema.',
+        );
       case VoiceCommandType.ativarFeedbackSonoro:
         return _atualizarConfiguracao(
           (configuracao) => configuracao.copyWith(feedbackSonoro: true),
@@ -189,18 +190,7 @@ class VoiceGlobalCommandService {
     );
   }
 
-  Future<VoiceGlobalCommandResult> _atualizarTema({
-    required bool temaEscuro,
-  }) async {
-    final resultado = await _atualizarConfiguracao(
-      (configuracao) => configuracao.copyWith(temaEscuro: temaEscuro),
-      message: temaEscuro ? 'Tema escuro ativado.' : 'Tema claro ativado.',
-    );
-    await _themeController.definirTemaEscuro(temaEscuro);
-    return resultado;
-  }
-
-  Future<VoiceGlobalCommandResult> _atualizarConfiguracao(
+Future<VoiceGlobalCommandResult> _atualizarConfiguracao(
     ConfiguracaoApp Function(ConfiguracaoApp configuracao) update, {
     required String message,
     bool shouldStopListening = false,

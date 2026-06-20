@@ -582,7 +582,7 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const [
+    if (_startsWithAny(normalizedText, const [
       'novo projeto',
       'criar novo projeto',
       'abrir novo projeto',
@@ -1152,7 +1152,14 @@ class CommandService {
       );
     }
 
-    if (_containsAny(normalizedText, const ['sair', 'fazer logout', 'deslogar', 'encerrar sessao', 'encerrar conta'])) {
+    if (_equalsAny(normalizedText, const [
+      'sair',
+      'sair da conta',
+      'fazer logout',
+      'deslogar',
+      'encerrar sessao',
+      'encerrar conta',
+    ])) {
       return _recognized(
         text,
         normalizedText,
@@ -1529,6 +1536,27 @@ class CommandService {
       );
     }
 
+    // Patterns that extract a new name directly when the recording is already
+    // known (i.e., in DetalhesGravacao). No current-name required.
+    final renomearPara = _extractAfterAny(normalizedText, const [
+      'renomear para',
+      'renomear gravacao para',
+      'mudar nome para',
+      'alterar nome para',
+      'chamar gravacao de',
+      'chamar de',
+    ]);
+    if (renomearPara != null) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.renomearGravacao,
+        tipoComando: 'renomear_gravacao',
+        acaoExecutada: 'Renomear gravacao',
+        parametroSecundario: _cleanShortName(renomearPara),
+      );
+    }
+
     if (_equalsAny(normalizedText, const [
       'editar nome da gravacao',
       'renomear gravacao',
@@ -1695,6 +1723,15 @@ class CommandService {
 
   bool _equalsAny(String text, List<String> patterns) {
     return patterns.contains(text);
+  }
+
+  // Matches only when the text IS the pattern or STARTS WITH the pattern.
+  // Safer than _containsAny for navigation commands: prevents long ambient
+  // phrases from matching a keyword buried in the middle.
+  bool _startsWithAny(String text, List<String> patterns) {
+    return patterns.any(
+      (p) => text == p || text.startsWith('$p '),
+    );
   }
 
   bool _containsWord(String text, String word) {

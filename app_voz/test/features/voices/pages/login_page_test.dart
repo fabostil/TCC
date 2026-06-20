@@ -7,6 +7,7 @@ import 'package:app_voz/features/voices/services/auth_session_service.dart';
 import 'package:app_voz/features/voices/services/google_auth_service.dart';
 import 'package:app_voz/models/google_identity.dart';
 import 'package:app_voz/models/usuario.dart';
+import 'package:app_voz/repositories/usuario_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -107,7 +108,9 @@ void main() {
       expect(auth.googleCalls, 0);
     });
 
-    testWidgets('exibe erro quando login local retorna null', (tester) async {
+    testWidgets('exibe mensagem de senha errada quando login retorna null', (
+      tester,
+    ) async {
       final auth = _LoginAuthFake(localResult: null);
 
       await _pumpLogin(tester, auth: auth.service);
@@ -116,12 +119,32 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('Não foi possível entrar. Confira o e-mail e a senha.'),
+        find.text('Senha incorreta. Verifique e tente novamente.'),
         findsOneWidget,
       );
       expect(find.text('Home destino'), findsNothing);
       expect(auth.localCalls, 1);
       expect(auth.googleCalls, 0);
+    });
+
+    testWidgets('exibe mensagem correta quando conta nao e encontrada', (
+      tester,
+    ) async {
+      final auth = _LoginAuthFake(
+        localException: const UsuarioNaoEncontradoException(),
+      );
+
+      await _pumpLogin(tester, auth: auth.service);
+      await _preencherLogin(tester);
+      await tester.tap(find.byKey(const Key('login_submit_button')));
+      await tester.pump();
+
+      expect(
+        find.text('Conta não encontrada. Verifique o e-mail.'),
+        findsOneWidget,
+      );
+      expect(find.text('Home destino'), findsNothing);
+      expect(auth.localCalls, 1);
     });
 
     testWidgets('navega para home quando login local retorna usuario', (
@@ -436,6 +459,7 @@ Future<void> _preencherLogin(WidgetTester tester) async {
 class _LoginAuthFake {
   _LoginAuthFake({
     this.localResult,
+    this.localException,
     this.googleResult,
     this.googleCanceled = false,
     this.googleError,
@@ -445,6 +469,7 @@ class _LoginAuthFake {
        _googleCompleter = googleCompleter;
 
   final Usuario? localResult;
+  final Object? localException;
   final Usuario? googleResult;
   final bool googleCanceled;
   final Object? googleError;
@@ -458,6 +483,10 @@ class _LoginAuthFake {
   late final AuthService service = AuthService(
     localAuthenticator: ({required email, required senha}) {
       localCalls++;
+      final exception = localException;
+      if (exception != null) {
+        return Future.error(exception);
+      }
       final completer = _localCompleter;
       if (completer != null) {
         return completer.future;

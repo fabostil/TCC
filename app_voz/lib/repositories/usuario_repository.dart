@@ -4,6 +4,13 @@ import '../database/app_database.dart';
 import '../features/voices/services/password_hash_service.dart';
 import '../models/usuario.dart';
 
+class UsuarioNaoEncontradoException implements Exception {
+  const UsuarioNaoEncontradoException();
+
+  @override
+  String toString() => 'Conta não encontrada.';
+}
+
 class UsuarioRepository {
   UsuarioRepository._internal();
 
@@ -80,7 +87,7 @@ class UsuarioRepository {
     );
 
     if (resultado.isEmpty) {
-      return null;
+      throw const UsuarioNaoEncontradoException();
     }
 
     final usuario = Usuario.fromMap(resultado.first);

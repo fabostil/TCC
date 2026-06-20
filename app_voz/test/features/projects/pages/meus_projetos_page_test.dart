@@ -74,6 +74,76 @@ void main() {
     },
   );
 
+  testWidgets(
+    'comando reproduzir gravacao em projetos da orientacao sem abrir ajuda',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MeusProjetosPage(
+            usuario: _usuario,
+            projectsController: _ProjectsHelpTestController(),
+            enableVoiceListening: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final result = await _dispatchProjectsCommand(
+        tester,
+        'reproduzir gravacao',
+      );
+      await tester.pump();
+
+      expect(result.handled, isTrue);
+      expect(result.statusMessage, contains('Minhas Gravações'));
+      expect(find.text('Comandos em projetos'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'comando iniciar gravacao em projetos da orientacao sem abrir ajuda',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MeusProjetosPage(
+            usuario: _usuario,
+            projectsController: _ProjectsHelpTestController(),
+            enableVoiceListening: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final result = await _dispatchProjectsCommand(tester, 'gravar');
+      await tester.pump();
+
+      expect(result.handled, isTrue);
+      expect(result.statusMessage, contains('Minhas Gravações'));
+      expect(find.text('Comandos em projetos'), findsNothing);
+    },
+  );
+
+  testWidgets('comando ajuda em projetos abre dialogo de ajuda', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeusProjetosPage(
+          usuario: _usuario,
+          projectsController: _ProjectsHelpTestController(),
+          enableVoiceListening: false,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final result = await _dispatchProjectsCommand(tester, 'ajuda');
+    await tester.pumpAndSettle();
+
+    expect(result.handled, isTrue);
+    expect(find.text('Comandos em projetos'), findsOneWidget);
+  });
+
   testWidgets('excluir projeto continua abrindo confirmacao', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

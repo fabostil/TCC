@@ -472,6 +472,97 @@ void main() {
 
       expect(recordingService.disposeCalls, 1);
     });
+
+    test('PROBLEMA 7: segunda chamada concorrente a stopRecording e ignorada', () async {
+      final recordingService = _FakeAudioRecordingCapture(
+        startPath: '/tmp/take.m4a',
+        stopPath: '/tmp/take.m4a',
+      );
+      final coordinator = RecordingRealtimeCoordinator(
+        recordingService: recordingService,
+        automaticSilenceStop: false,
+        observeLifecycle: false,
+        realtimeShutdown: (_) async {},
+      );
+
+      await coordinator.startRecording(
+        finalizeRecording:
+            ({required path, required startedAt, required automatic}) async =>
+                Gravacao(
+                  id: 1,
+                  usuarioId: 1,
+                  nome: 'Take',
+                  caminhoArquivo: path,
+                  dataCriacao: startedAt.toIso8601String(),
+                ),
+        onHistory: (_, _, {recordingId, projectId}) {},
+      );
+
+      // Simulate two concurrent stop calls (e.g. voice command + button tap)
+      final first = coordinator.stopRecording(
+        finalizeRecording:
+            ({required path, required startedAt, required automatic}) async =>
+                Gravacao(
+                  id: 1,
+                  usuarioId: 1,
+                  nome: 'Take',
+                  caminhoArquivo: path,
+                  dataCriacao: startedAt.toIso8601String(),
+                ),
+        onHistory: (_, _, {recordingId, projectId}) {},
+      );
+      final second = coordinator.stopRecording(
+        finalizeRecording:
+            ({required path, required startedAt, required automatic}) async =>
+                Gravacao(
+                  id: 1,
+                  usuarioId: 1,
+                  nome: 'Take',
+                  caminhoArquivo: path,
+                  dataCriacao: startedAt.toIso8601String(),
+                ),
+        onHistory: (_, _, {recordingId, projectId}) {},
+      );
+
+      await Future.wait([first, second]);
+
+      // Only one actual stop should have been forwarded to the recorder
+      expect(recordingService.stopCalls, 1);
+
+      coordinator.dispose();
+    });
+
+    test('PROBLEMA 7: stopRecording quando nao ha gravacao retorna null', () async {
+      final recordingService = _FakeAudioRecordingCapture(
+        startPath: '/tmp/take.m4a',
+        stopPath: '/tmp/take.m4a',
+      );
+      final coordinator = RecordingRealtimeCoordinator(
+        recordingService: recordingService,
+        automaticSilenceStop: false,
+        observeLifecycle: false,
+        realtimeShutdown: (_) async {},
+      );
+
+      // Not recording — stop should be a no-op
+      final result = await coordinator.stopRecording(
+        finalizeRecording:
+            ({required path, required startedAt, required automatic}) async =>
+                Gravacao(
+                  id: 1,
+                  usuarioId: 1,
+                  nome: 'Take',
+                  caminhoArquivo: path,
+                  dataCriacao: startedAt.toIso8601String(),
+                ),
+        onHistory: (_, _, {recordingId, projectId}) {},
+      );
+
+      expect(result, isNull);
+      expect(recordingService.stopCalls, 0);
+
+      coordinator.dispose();
+    });
   });
 }
 

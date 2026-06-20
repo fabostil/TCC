@@ -422,6 +422,10 @@ class _HomePageState extends State<HomePage>
     if (mounted) {
       await Navigator.push(context, route);
     }
+    // Clear the executing flag before restart so that a speech result arriving
+    // during _retomarEscutaAposNavegacao is not dropped by the guard in
+    // processContextualVoiceInput.
+    voiceExecutandoComando = false;
     await _retomarEscutaAposNavegacao();
   }
 

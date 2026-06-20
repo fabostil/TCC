@@ -136,6 +136,34 @@ void main() {
     });
   });
 
+  group('ConfiguracoesPage HOTFIX PROBLEMA 9: tema somente em Configuracoes', () {
+    testWidgets('ativar tema escuro e tratado em Configuracoes sem global', (
+      tester,
+    ) async {
+      await _pumpConfiguracoes(tester, _usuario);
+
+      // Configuracoes has voiceHandlesGlobalCommands=false, so global service
+      // is skipped; the page-level handler processes the theme command itself.
+      final result = await _dispatchSettingsCommand(tester, 'ativar tema escuro');
+
+      // The command must be handled (orientation or success — never a global bypass)
+      expect(result.handled, isTrue);
+    });
+
+    testWidgets('desativar tema escuro e tratado em Configuracoes', (
+      tester,
+    ) async {
+      await _pumpConfiguracoes(tester, _usuario);
+
+      final result = await _dispatchSettingsCommand(
+        tester,
+        'desativar tema escuro',
+      );
+
+      expect(result.handled, isTrue);
+    });
+  });
+
   group('ConfiguracoesPage H11.6 ajuda contextual', () {
     testWidgets('ajuda por voz abre dialog com comandos de configuracoes',
         (tester) async {
@@ -220,6 +248,10 @@ class _FakeSettingsController extends SettingsController {
     ),
     customCommands: const [],
   );
+
+  @override
+  Future<ConfiguracaoApp> setDarkTheme(bool active) async =>
+      ConfiguracaoApp.padrao().copyWith(temaEscuro: active);
 }
 
 class _FakeConfiguracaoRepo implements ConfiguracaoAppRepository {
