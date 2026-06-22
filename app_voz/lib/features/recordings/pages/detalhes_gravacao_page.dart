@@ -20,6 +20,7 @@ import '../../projects/pages/meus_projetos_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_confirmation_controller.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
@@ -394,6 +395,83 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     }
   }
 
+  Future<VoiceCommandPageResult> _abrirModalRenomearComVoz(
+    String novoNomeSugerido,
+  ) async {
+    final gravacao = _details?.gravacao;
+    if (gravacao == null) {
+      return VoiceCommandPageResult.handled(
+        message: 'Não há gravação para renomear nesta tela.',
+      );
+    }
+
+    debugPrint('[RenameVoice] owner=detalhes_gravacao');
+    debugPrint('[RenameVoice] command=renomearGravacao');
+    debugPrint('[RenameVoice] targetId=${gravacao.id}');
+    debugPrint('[RenameVoice] proposedName=$novoNomeSugerido');
+    debugPrint('[RenameVoice] modalOpenAttempt=true');
+
+    voiceExecutandoComando = false;
+    voiceIaPensando = false;
+    voiceSetState(() {
+      voiceStatusMessage =
+          'Novo nome pronto. Diga "confirmar" para salvar ou "cancelar" para desistir.';
+    });
+    scheduleVoiceContinuousRestart();
+
+    var completedByVoice = false;
+    final externalController =
+        TextEditingController(text: novoNomeSugerido);
+
+    final novoNome = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        voiceConfirmationController.register(
+          VoiceConfirmationRequest(
+            id: 'renomear_gravacao_detalhes_${gravacao.id}',
+            description: 'Renomeação de "${gravacao.nome}"',
+            onConfirm: () {
+              completedByVoice = true;
+              final nome = externalController.text.trim();
+              Navigator.pop(dialogContext, nome.isNotEmpty ? nome : null);
+            },
+            onCancel: () {
+              completedByVoice = true;
+              Navigator.pop(dialogContext, null);
+            },
+            destructive: false,
+          ),
+        );
+        return _RenomearGravacaoDialog(
+          nomeInicial: novoNomeSugerido,
+          textController: externalController,
+        );
+      },
+    );
+
+    externalController.dispose();
+
+    if (!completedByVoice) {
+      voiceConfirmationController.clear();
+    }
+
+    debugPrint('[RenameVoice] modalOpened=true');
+    debugPrint('[RenameVoice] confirmationRegistered=$completedByVoice');
+
+    if (mounted) {
+      scheduleVoiceContinuousRestart();
+    }
+
+    if (novoNome == null || novoNome.isEmpty) {
+      debugPrint('[RenameVoice] action=cancelled');
+      return VoiceCommandPageResult.handled();
+    }
+
+    debugPrint('[RenameVoice] action=saved');
+    await _salvarNovoNome(novoNome, origemVoz: true);
+    return VoiceCommandPageResult.handled();
+  }
+
   Future<void> _excluirGravacao() async {
     final gravacao = _details?.gravacao;
     if (gravacao == null) {
@@ -463,6 +541,13 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     }
   }
 
+  @visibleForTesting
+  Future<VoiceCommandPageResult> debugHandleVoiceCommandForTesting(
+    String text,
+  ) {
+    return _dispatchContextualVoice(const CommandService().interpret(text));
+  }
+
   Future<VoiceCommandPageResult> _dispatchContextualVoice(
     CommandResult resultado,
   ) async {
@@ -484,12 +569,10 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       case VoiceCommandType.renomearGravacao:
         final novoNome = resultado.parametroSecundario;
         if (novoNome == null || novoNome.trim().isEmpty) {
-          return VoiceCommandPageResult.handled(
-            message: 'Diga: "renomear para guitarra" ou "mudar nome para guitarra".',
-          );
+          // Frase incompleta — aguarda o usuário completar sem dar erro.
+          return VoiceCommandPageResult.handled(restartListening: true);
         }
-        await _salvarNovoNome(novoNome.trim(), origemVoz: true);
-        return VoiceCommandPageResult.handled();
+        return _abrirModalRenomearComVoz(novoNome.trim());
       case VoiceCommandType.excluirGravacao:
         await _excluirGravacao();
         return VoiceCommandPageResult.handled(restartListening: false);
@@ -567,6 +650,12 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       case VoiceCommandType.ativarComandoPersonalizado:
       case VoiceCommandType.desativarComandoPersonalizado:
       case VoiceCommandType.excluirComandoPersonalizado:
+      case VoiceCommandType.preencherFraseComando:
+      case VoiceCommandType.salvarComandoPersonalizado:
+      case VoiceCommandType.consultarTempoSilencio:
+      case VoiceCommandType.ajustarTempoSilencio:
+      case VoiceCommandType.consultarSensibilidadeSilencio:
+      case VoiceCommandType.ajustarSensibilidadeSilencio:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
         return VoiceCommandPageResult.unavailable(
@@ -1038,9 +1127,13 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _RenomearGravacaoDialog extends StatefulWidget {
-  const _RenomearGravacaoDialog({required this.nomeInicial});
+  const _RenomearGravacaoDialog({
+    required this.nomeInicial,
+    this.textController,
+  });
 
   final String nomeInicial;
+  final TextEditingController? textController;
 
   @override
   State<_RenomearGravacaoDialog> createState() =>
@@ -1050,12 +1143,15 @@ class _RenomearGravacaoDialog extends StatefulWidget {
 class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _controller;
+  late final bool _ownsController;
   late final FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.nomeInicial);
+    _ownsController = widget.textController == null;
+    _controller =
+        widget.textController ?? TextEditingController(text: widget.nomeInicial);
     _focusNode = FocusNode();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1073,7 +1169,7 @@ class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (_ownsController) _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }

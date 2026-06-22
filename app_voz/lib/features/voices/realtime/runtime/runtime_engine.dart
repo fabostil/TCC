@@ -844,6 +844,20 @@ class VoiceRuntimeEngine {
     recoveryPolicy.reset();
   }
 
+  // Cancela todos os Timers de recovery agendados para um dono específico.
+  // Deve ser chamado pelo dispose da página que agendou o recovery, para evitar
+  // que timers pendentes disparem depois do unmount.
+  void cancelOwnerRecovery(String ownerId) {
+    final prefix = 'recovery_${ownerId}_';
+    final toCancel = _recoveryTimers.keys
+        .where((k) => k.startsWith(prefix))
+        .toList(growable: false);
+    for (final key in toCancel) {
+      _recoveryTimers[key]?.cancel();
+      _recoveryTimers.remove(key);
+    }
+  }
+
   bool _markSpeechFailureProcessed(SpeechListeningFailedEvent event) {
     if (_processedSpeechFailureEventIds.contains(event.id) ||
         _processedSpeechFailureCorrelations.contains(event.correlationId)) {

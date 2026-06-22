@@ -19,9 +19,11 @@ import '../../projects/pages/meus_projetos_page.dart';
 import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_confirmation_controller.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
+import '../../voices/coordination/voice_session_state.dart';
 import '../../voices/services/command_service.dart';
 import '../../voices/widgets/voice_command_help_dialog.dart';
 import '../controllers/recordings_list_controller.dart';
@@ -80,6 +82,11 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   bool _confirmandoExclusaoPendente = false;
   bool _retomadaEscutaPlaybackPendente = false;
   bool _playerWasPlaying = false;
+  TextEditingController? _renameModalController;
+  // Monotonically-incrementing token; each new dispatch creates a new token.
+  // A handler captures the token at entry and checks it before executing to
+  // guard against stale transcripts that arrive after a newer command.
+  int _commandToken = 0;
 
   RecordingsListState get _recordingsState => _recordingsController.state;
 
@@ -338,6 +345,7 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       return;
     }
 
+    debugPrint('[RenameVoice] listReloaded=true');
     voiceSetState(() {
       voiceStatusMessage =
           'Gravação renomeada para ${gravacaoAtualizada.nome}.';
@@ -437,17 +445,46 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     _playerStateSubscription?.cancel();
     _recordingsController.removeListener(_onRecordingsStateChanged);
     _recordingsController.dispose();
+    // _renameModalController is disposed through the dialog's onDisposed callback
+    // (fires after the exit animation, when the TextField has unmounted).
+    // Setting to null here prevents stale writes if the page dies mid-animation.
+    _renameModalController = null;
     super.dispose();
   }
 
   Future<VoiceCommandPageResult> _dispatchContextualVoice(
     CommandResult resultado,
   ) async {
+    final token = ++_commandToken;
+    debugPrint(
+      '[RecordingsVoice] commandId=$token '
+      'raw=${resultado.originalText} '
+      'parsedType=${resultado.type.name} '
+      'dispatchStarted=true',
+    );
+    final result = await _dispatchContextualVoiceImpl(resultado, token);
+    if (_commandToken == token) {
+      debugPrint(
+        '[RecordingsVoice] commandId=$token dispatchCompleted=true',
+      );
+    } else {
+      debugPrint(
+        '[RecordingsVoice] commandId=$token '
+        'staleActionIgnored=true supersededBy=$_commandToken',
+      );
+    }
+    return result;
+  }
+
+  Future<VoiceCommandPageResult> _dispatchContextualVoiceImpl(
+    CommandResult resultado,
+    int token,
+  ) async {
     switch (resultado.type) {
       case VoiceCommandType.abrirDetalhesGravacao:
-        return _handleAbrirDetalhesPorVoz(resultado.parametro);
+        return _handleAbrirDetalhesPorVoz(resultado.parametro, token: token);
       case VoiceCommandType.reproduzirGravacao:
-        return _handleReproduzirPorNome(resultado);
+        return _handleReproduzirPorNome(resultado, token: token);
       case VoiceCommandType.pararReproducao:
         await _recordingsController.stopPlayback();
         await _retomarEscutaAposPlayback();
@@ -461,9 +498,10 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
         return _handleRenomearPorVoz(
           resultado.parametro,
           resultado.parametroSecundario,
+          token: token,
         );
       case VoiceCommandType.excluirGravacao:
-        return _handleExcluirPorVoz(resultado.parametro);
+        return _handleExcluirPorVoz(resultado.parametro, token: token);
       case VoiceCommandType.confirmarAcao:
         return _handleConfirmarExclusaoPendente();
       case VoiceCommandType.cancelarAcao:
@@ -472,6 +510,27 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
           voiceStatusMessage = 'Exclusão cancelada.';
         });
         return VoiceCommandPageResult.handled(message: 'Exclusão cancelada.');
+      case VoiceCommandType.preencherFraseComando:
+        final renameCtrl = _renameModalController;
+        if (renameCtrl != null && resultado.parametro != null) {
+          renameCtrl.text = resultado.parametro!;
+          debugPrint(
+            '[RenameVoice] nameFilled=${resultado.parametro}',
+          );
+          debugPrint(
+            '[RecordingsVoice] commandId=$token '
+            'resolvedAction=renameFieldFill '
+            'newName=${resultado.parametro}',
+          );
+          return VoiceCommandPageResult.handled(
+            message:
+                'Novo nome: "${resultado.parametro}". Diga confirmar para salvar.',
+          );
+        }
+        return _handleReferenciaParcialDeGravacao(
+          resultado.normalizedText,
+          token: token,
+        );
       case VoiceCommandType.scrollBaixo:
       case VoiceCommandType.scrollCima:
       case VoiceCommandType.scrollTopo:
@@ -509,6 +568,9 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
+        return VoiceCommandPageResult.handled(
+          message: 'Você já está na tela de gravações.',
+        );
       case VoiceCommandType.abrirAssistente:
         unawaited(openContextualVoiceHelp(VoiceCommandHelpContext.recordings));
         return VoiceCommandPageResult.handled(
@@ -537,8 +599,16 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       case VoiceCommandType.ativarComandoPersonalizado:
       case VoiceCommandType.desativarComandoPersonalizado:
       case VoiceCommandType.excluirComandoPersonalizado:
+      case VoiceCommandType.salvarComandoPersonalizado:
+      case VoiceCommandType.consultarTempoSilencio:
+      case VoiceCommandType.ajustarTempoSilencio:
+      case VoiceCommandType.consultarSensibilidadeSilencio:
+      case VoiceCommandType.ajustarSensibilidadeSilencio:
       case VoiceCommandType.desconhecido:
-        return _handleReferenciaParcialDeGravacao(resultado.normalizedText);
+        return _handleReferenciaParcialDeGravacao(
+          resultado.normalizedText,
+          token: token,
+        );
       case VoiceCommandType.sair:
         return VoiceCommandPageResult.unavailable(
           recognized: resultado.recognized,
@@ -628,15 +698,32 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   }
 
   Future<VoiceCommandPageResult> _handleReproduzirPorNome(
-    CommandResult resultado,
-  ) async {
+    CommandResult resultado, {
+    required int token,
+  }) async {
     final referencia = _referenciaPlaybackDoResultado(resultado);
+    debugPrint(
+      '[RecordingsVoice] commandId=$token '
+      'resolvedAction=play '
+      'resolvedRecordingRef=$referencia',
+    );
     final resolution = _recordingsController.resolvePlaybackCommand(referencia);
     final gravacao = resolution.recording;
     if (gravacao == null) {
       return VoiceCommandPageResult.handled(message: resolution.message);
     }
 
+    if (_commandToken != token) {
+      debugPrint(
+        '[RecordingsVoice] commandId=$token '
+        'staleActionIgnored=true action=play supersededBy=$_commandToken',
+      );
+      return VoiceCommandPageResult.handled();
+    }
+    debugPrint(
+      '[RecordingsVoice] commandId=$token '
+      'resolvedRecordingId=${gravacao.id}',
+    );
     final action = await _alternarReproducao(gravacao);
     return VoiceCommandPageResult.handled(
       restartListening: action != _PlaybackAction.started,
@@ -652,9 +739,51 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
     return resultado.parametro;
   }
 
+  // Verbos que iniciam um comando de renomeação — resultado parcial não deve
+  // disparar reprodução enquanto a frase completa ainda está sendo reconhecida.
+  static final _renameVerbPrefix = RegExp(
+    r'^(renomear|nomear|mudar nome|alterar nome|trocar nome)',
+  );
+
+  // Matches "gravacao N" or "gravação N" (with or without accent) — these
+  // appear as STT partial transcripts before "detalhes da gravacao N" or
+  // "renomear gravacao N" arrive as final. Block playback and wait.
+  static final _gravacaoNRef = RegExp(
+    r'^grava(?:cao|ção) ([0-9]+|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove)$',
+  );
+
   Future<VoiceCommandPageResult> _handleReferenciaParcialDeGravacao(
-    String referencia,
-  ) async {
+    String referencia, {
+    required int token,
+  }) async {
+    debugPrint(
+      '[RecordingsVoice] commandId=$token '
+      'raw=$referencia '
+      'parsedType=desconhecido',
+    );
+
+    if (_renameVerbPrefix.hasMatch(referencia)) {
+      // Rename verb prefix: wait for the full phrase before acting.
+      return VoiceCommandPageResult.handled(
+        message: voiceStatusMessage,
+        restartListening: true,
+      );
+    }
+
+    // "gravacao N" without a preceding action verb is almost always a partial
+    // transcript (the user is saying "detalhes da gravacao N" or "renomear
+    // gravacao N"). Never trigger playback here — wait for the full command.
+    if (_gravacaoNRef.hasMatch(referencia)) {
+      debugPrint(
+        '[RecordingsVoice] commandId=$token '
+        'raw=$referencia partialGravacaoRef=true waitingForFullCommand=true',
+      );
+      return VoiceCommandPageResult.handled(
+        message: voiceStatusMessage,
+        restartListening: true,
+      );
+    }
+
     final resolution = _recordingsController.resolvePlaybackCommand(referencia);
     final gravacao = resolution.recording;
     if (gravacao == null) {
@@ -664,6 +793,17 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
       return VoiceCommandPageResult.unavailable(recognized: false);
     }
 
+    if (_commandToken != token) {
+      debugPrint(
+        '[RecordingsVoice] commandId=$token '
+        'staleActionIgnored=true action=play supersededBy=$_commandToken',
+      );
+      return VoiceCommandPageResult.handled();
+    }
+    debugPrint(
+      '[RecordingsVoice] commandId=$token '
+      'resolvedAction=play resolvedRecordingId=${gravacao.id}',
+    );
     final action = await _alternarReproducao(gravacao);
     return VoiceCommandPageResult.handled(
       restartListening: action != _PlaybackAction.started,
@@ -682,26 +822,63 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
   ) {
     return _handleReferenciaParcialDeGravacao(
       const CommandService().normalize(referencia),
+      token: _commandToken,
+    );
+  }
+
+  @visibleForTesting
+  Future<VoiceCommandPageResult> debugHandleRenameForTesting(
+    String nomeAtual,
+    String novoNome,
+  ) {
+    return _handleRenomearPorVoz(
+      const CommandService().normalize(nomeAtual),
+      const CommandService().normalize(novoNome),
+      token: _commandToken,
     );
   }
 
   Future<VoiceCommandPageResult> _handleAbrirDetalhesPorVoz(
-    String? nome,
-  ) async {
-    final gravacao =
-        _resolverGravacaoPorReferencia(nome) ??
-        _buscarGravacaoPorNome(nome) ??
-        (_recordingsState.recordings.isNotEmpty
-            ? _recordingsState.recordings.first
-            : null);
+    String? nome, {
+    required int token,
+  }) async {
+    debugPrint(
+      '[RecordingsVoice] commandId=$token '
+      'resolvedAction=details '
+      'nome=${nome ?? "(vazio)"}',
+    );
 
-    if (gravacao == null) {
+    // Bare "detalhes" with no reference: ask for clarification.
+    if (nome == null || nome.trim().isEmpty) {
       return VoiceCommandPageResult.handled(
         message:
-            'Não encontrei gravações para abrir detalhes. Grave um áudio no editor primeiro.',
+            'Qual gravação você deseja abrir? Diga, por exemplo, '
+            '"detalhes do item 1" ou "detalhes da gravação 2".',
       );
     }
 
+    final gravacao =
+        _resolverGravacaoPorReferencia(nome) ?? _buscarGravacaoPorNome(nome);
+
+    if (gravacao == null) {
+      return VoiceCommandPageResult.handled(
+        message: _recordingsState.recordings.isEmpty
+            ? 'Não encontrei gravações. Grave um áudio no editor primeiro.'
+            : 'Não encontrei "$nome". Diga o nome ou "detalhes do item 1".',
+      );
+    }
+
+    if (_commandToken != token) {
+      debugPrint(
+        '[RecordingsVoice] commandId=$token '
+        'staleActionIgnored=true action=details supersededBy=$_commandToken',
+      );
+      return VoiceCommandPageResult.handled();
+    }
+    debugPrint(
+      '[RecordingsVoice] commandId=$token '
+      'resolvedRecordingId=${gravacao.id}',
+    );
     await _abrirDetalhesGravacao(gravacao);
     return VoiceCommandPageResult.handled(restartListening: false);
   }
@@ -724,21 +901,151 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
   Future<VoiceCommandPageResult> _handleRenomearPorVoz(
     String? nomeAtual,
-    String? novoNome,
-  ) async {
-    final gravacao = _buscarGravacaoPorNome(nomeAtual);
+    String? novoNome, {
+    required int token,
+  }) async {
+    debugPrint(
+      '[RecordingsVoice] commandId=$token '
+      'resolvedAction=rename '
+      'nomeAtual=$nomeAtual novoNome=$novoNome',
+    );
 
-    if (gravacao == null || novoNome == null || novoNome.trim().isEmpty) {
+    // 1. Resolve exact reference ("gravacao N", "item N") before substring.
+    // 2. Substring name fallback.
+    // 3. Pure numeric index fallback.
+    Gravacao? gravacao =
+        _resolverGravacaoPorReferencia(nomeAtual) ??
+        _buscarGravacaoPorNome(nomeAtual);
+
+    if (gravacao == null && nomeAtual != null) {
+      final index = int.tryParse(nomeAtual.trim());
+      if (index != null && index > 0) {
+        final recordings = _recordingsController.state.recordings;
+        if (index <= recordings.length) {
+          gravacao = recordings[index - 1];
+        }
+      }
+    }
+
+    if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Diga: renomear gravação nome atual para novo nome.',
+        message:
+            'Não encontrei essa gravação. Diga o nome ou "renomear item 1".',
       );
     }
 
-    await _salvarNovoNomeGravacao(gravacao, novoNome.trim());
+    // If novoNome is null (e.g. "renomear gravacao 2" without "para"),
+    // open the modal pre-filled with the current name.
+    final nomeParaModal = (novoNome?.trim().isNotEmpty == true)
+        ? novoNome!.trim()
+        : gravacao.nome;
+    return _abrirModalRenomearComVoz(gravacao, nomeParaModal);
+  }
+
+  /// Abre o modal visual existente de renomeação pré-preenchido com [novoNomeSugerido].
+  /// Enquanto o modal estiver aberto, voz "confirmar/sim/salvar" salva e
+  /// "cancelar/voltar/não" descarta — outros comandos ficam bloqueados.
+  Future<VoiceCommandPageResult> _abrirModalRenomearComVoz(
+    Gravacao gravacao,
+    String novoNomeSugerido,
+  ) async {
+    // Libera o flag de execução e agenda reinício do STT durante o dialog,
+    // idêntico ao que showVoiceConfirmationDialog faz no mixin.
+    voiceExecutandoComando = false;
+    voiceIaPensando = false;
+    voiceSessionState = voiceSessionState.transitionTo(
+      VoiceSessionPhase.idle,
+      message: voiceStatusMessage,
+    );
+    voiceSetState(() {
+      voiceStatusMessage =
+          'Diga "nome [novo nome]" para alterar, "confirmar" para salvar ou "cancelar".';
+    });
+    scheduleVoiceContinuousRestart();
+
+    var completedByVoice = false;
+    // Prevents double-pop if voice "confirmar" and button tap race each other.
+    var dialogClosed = false;
+    final externalController = TextEditingController(text: novoNomeSugerido);
+    _renameModalController = externalController;
+    debugPrint('[RenameVoice] modalOpened=true gravacaoId=${gravacao.id}');
+
+    final novoNome = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        voiceConfirmationController.register(
+          VoiceConfirmationRequest(
+            id: 'renomear_gravacao_${gravacao.id}',
+            description: 'Renomeação de "${gravacao.nome}"',
+            onConfirm: () {
+              if (dialogClosed) {
+                debugPrint('[RenameVoice] duplicateCloseIgnored=true');
+                return;
+              }
+              dialogClosed = true;
+              completedByVoice = true;
+              final nome = externalController.text.trim();
+              debugPrint('[RenameVoice] confirmRequested=true nome=$nome');
+              Navigator.pop(dialogContext, nome.isNotEmpty ? nome : null);
+            },
+            onCancel: () {
+              if (dialogClosed) {
+                debugPrint('[RenameVoice] duplicateCloseIgnored=true');
+                return;
+              }
+              dialogClosed = true;
+              completedByVoice = true;
+              Navigator.pop(dialogContext, null);
+            },
+            destructive: false,
+          ),
+        );
+        return _RenomearGravacaoDialog(
+          nomeInicial: novoNomeSugerido,
+          textController: externalController,
+          // Dispose is deferred to after the exit animation completes —
+          // calling dispose() here (while TextField is still mounted) would
+          // trigger the _dependents.isEmpty assertion in ChangeNotifier.
+          onDisposed: () {
+            debugPrint('[RenameVoice] modalClosed=true');
+            externalController.dispose();
+          },
+        );
+      },
+    );
+
+    // The externalController is disposed asynchronously via onDisposed; do NOT
+    // call dispose() here. Clear the page-level reference so new commands don't
+    // try to write to a closing modal.
+    _renameModalController = null;
+
+    if (!completedByVoice) {
+      voiceConfirmationController.clear();
+    }
+
+    // Re-agenda reinício do STT após fechar o dialog (sessão pode ter expirado).
+    if (mounted) {
+      scheduleVoiceContinuousRestart();
+    }
+
+    if (novoNome == null || novoNome.isEmpty) {
+      return VoiceCommandPageResult.handled();
+    }
+
+    debugPrint('[RenameVoice] saveStarted=true novoNome=$novoNome');
+    await _salvarNovoNomeGravacao(gravacao, novoNome);
+    debugPrint('[RenameVoice] saveCompleted=true');
     return VoiceCommandPageResult.handled();
   }
 
-  Future<VoiceCommandPageResult> _handleExcluirPorVoz(String? nome) async {
+  Future<VoiceCommandPageResult> _handleExcluirPorVoz(
+    String? nome, {
+    required int token,
+  }) async {
+    debugPrint(
+      '[RecordingsVoice] commandId=$token '
+      'resolvedAction=delete nome=$nome',
+    );
     final gravacao =
         _resolverGravacaoPorReferencia(nome) ?? _buscarGravacaoPorNome(nome);
 
@@ -1096,8 +1403,18 @@ class _MinhasGravacoesPageState extends State<MinhasGravacoesPage>
 
 class _RenomearGravacaoDialog extends StatefulWidget {
   final String nomeInicial;
+  // Quando fornecido pelo caminho de voz, o controller externo é gerenciado
+  // pelo chamador e NÃO deve ser descartado pelo dialog.
+  final TextEditingController? textController;
+  // Chamado em dispose() do State, APÓS a animação de saída completar e o
+  // TextField ser desmontado — seguro para descartar o textController externo.
+  final VoidCallback? onDisposed;
 
-  const _RenomearGravacaoDialog({required this.nomeInicial});
+  const _RenomearGravacaoDialog({
+    required this.nomeInicial,
+    this.textController,
+    this.onDisposed,
+  });
 
   @override
   State<_RenomearGravacaoDialog> createState() =>
@@ -1175,12 +1492,15 @@ class _ConfirmacaoExclusaoCard extends StatelessWidget {
 class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _controller;
+  late final bool _ownsController;
   late final FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.nomeInicial);
+    _ownsController = widget.textController == null;
+    _controller =
+        widget.textController ?? TextEditingController(text: widget.nomeInicial);
     _focusNode = FocusNode();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1196,8 +1516,12 @@ class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (_ownsController) _controller.dispose();
     _focusNode.dispose();
+    // Called after exit animation — safe to dispose the external controller
+    // here because the TextField has already been unmounted.
+    widget.onDisposed?.call();
+    debugPrint('[RenameVoice] controllerDisposed=${!_ownsController}');
     super.dispose();
   }
 

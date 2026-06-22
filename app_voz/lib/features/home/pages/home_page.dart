@@ -19,6 +19,7 @@ import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/auth_session_service.dart';
 import '../../voices/services/command_service.dart';
+import '../../voices/services/speech_service.dart';
 import '../../voices/services/voice_permission_service.dart';
 import '../../voices/widgets/voice_command_help_dialog.dart';
 
@@ -29,6 +30,7 @@ class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     required this.usuario,
+    this.fromPermissionGrant = false,
     this.authSessionService,
     this.voicePermissionService,
     this.buscarConfiguracao,
@@ -36,6 +38,11 @@ class HomePage extends StatefulWidget {
     this.loginBuilder,
   });
 
+  /// True when this instance was created immediately after the user granted
+  /// microphone permission on [MicrophonePermissionPage].  Triggers a
+  /// force-reset + settling delay before the first STT start so that Android's
+  /// audio session is fully open before we try to listen.
+  final bool fromPermissionGrant;
   final AuthSessionService? authSessionService;
   final VoicePermissionService? voicePermissionService;
   final Future<ConfiguracaoApp> Function()? buscarConfiguracao;
@@ -55,6 +62,8 @@ class _HomePageState extends State<HomePage>
   bool _escutaInicialSolicitada = false;
   DateTime? _ultimoComandoExecutadoEm;
   String? _ultimoComandoNormalizado;
+  int _handoffCounter = 0;
+  String? _currentHandoffSession;
 
   VoicePermissionService get _voicePermissionService =>
       widget.voicePermissionService ?? const VoicePermissionService();
@@ -163,7 +172,11 @@ class _HomePageState extends State<HomePage>
         }
       });
     } else if (configuracao.comandosVozAtivos) {
-      _agendarEscutaInicial();
+      if (widget.fromPermissionGrant) {
+        _agendarEscutaAposPermissao();
+      } else {
+        _agendarEscutaInicial();
+      }
     }
   }
 
@@ -245,6 +258,87 @@ class _HomePageState extends State<HomePage>
         unawaited(startContinuousVoiceListeningIfActive());
       }
     });
+  }
+
+  void _agendarEscutaAposPermissao() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      _handoffCounter++;
+      final session = 'handoff_$_handoffCounter';
+      _currentHandoffSession = session;
+      debugPrint('[PermissionVoice] session=$session created');
+
+      voiceParadaManual = false;
+      voiceSessionManager.cancelPendingRecovery(
+        ownerId: voiceOwnerId,
+        reason: 'permission_granted_handoff',
+      );
+      await voiceSessionManager.forceResetListeningSession(
+        ownerId: voiceOwnerId,
+        reason: 'permission_granted',
+        clearBusyCooldown: true,
+      );
+      if (!mounted) return;
+
+      // State: nativeInitializing — pre-warm without callbacks so Android's
+      // init-time onStatus('notListening') is absorbed by null _currentOnStatus.
+      debugPrint('[PermissionVoice] native_initialize_started session=$session');
+      bool initialized = await SpeechService.instance.initialize();
+      if (!mounted) return;
+
+      if (!initialized) {
+        debugPrint(
+          '[PermissionVoice] native_start_failed session=$session reason=init_failed',
+        );
+        debugPrint('[PermissionVoice] retry_once session=$session');
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        if (!mounted) return;
+        initialized = await SpeechService.instance.initialize();
+        if (!mounted) return;
+        if (!initialized) {
+          debugPrint(
+            '[PermissionVoice] native_start_failed session=$session reason=unavailable',
+          );
+          return;
+        }
+      }
+      debugPrint('[PermissionVoice] native_initialize_done session=$session');
+
+      // State: nativeListenRequested — defer UI update until Android fires
+      // onStatus('listening'), handled in onPermissionHandoffConfirmed().
+      debugPrint('[PermissionVoice] native_listen_requested session=$session');
+      activatePermissionHandoffMode();
+
+      await startContinuousVoiceListeningIfActive();
+      if (!mounted) return;
+
+      // If ownership was NOT claimed, startListening failed. ONE retry.
+      if (!voiceSessionManager.listeningActive) {
+        debugPrint(
+          '[PermissionVoice] native_start_failed session=$session reason=start_failed',
+        );
+        debugPrint('[PermissionVoice] retry_once session=$session');
+        await voiceSessionManager.forceResetListeningSession(
+          ownerId: voiceOwnerId,
+          reason: 'permission_retry',
+          clearBusyCooldown: true,
+        );
+        debugPrint('[PermissionVoice] stale_callback_ignored session=$session');
+        if (!mounted) return;
+        activatePermissionHandoffMode();
+        await startContinuousVoiceListeningIfActive();
+      }
+    });
+  }
+
+  @override
+  void onPermissionHandoffConfirmed() {
+    final session = _currentHandoffSession;
+    if (session != null) {
+      debugPrint('[PermissionVoice] native_listening_confirmed session=$session');
+      _currentHandoffSession = null;
+    }
   }
 
   Future<void> _alternarEscutaHome() async {

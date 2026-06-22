@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../models/usuario.dart';
+import '../../../repositories/configuracao_app_repository.dart';
 import '../../home/pages/home_page.dart';
 import '../../voices/services/voice_permission_service.dart';
 
@@ -68,15 +69,26 @@ class _MicrophonePermissionPageState extends State<MicrophonePermissionPage> {
 
   Future<void> _salvarENavegar({required bool micConcedido}) async {
     try {
-      await widget.salvarResultadoPermissao
-          ?.call(comandosVozAtivos: micConcedido);
+      if (widget.salvarResultadoPermissao != null) {
+        await widget.salvarResultadoPermissao!
+            .call(comandosVozAtivos: micConcedido);
+      } else {
+        // Salva antes de navegar para que a HomePage inicie o STT sem precisar
+        // re-solicitar a permissão de microfone.
+        await ConfiguracaoAppRepository.instance
+            .concluirPrimeiraExecucao(comandosVozAtivos: micConcedido);
+      }
     } catch (_) {}
     if (!mounted) return;
+    if (micConcedido) debugPrint('[PermissionVoice] granted=true');
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
         builder: (_) =>
             widget.homeBuilder?.call(widget.usuario) ??
-            HomePage(usuario: widget.usuario),
+            HomePage(
+              usuario: widget.usuario,
+              fromPermissionGrant: micConcedido,
+            ),
       ),
       (route) => false,
     );

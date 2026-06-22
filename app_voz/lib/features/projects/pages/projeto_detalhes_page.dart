@@ -21,10 +21,12 @@ import '../../recordings/widgets/recording_status_chip.dart';
 import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/coordination/contextual_voice_listening_mixin.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
+import '../../voices/coordination/voice_confirmation_controller.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/services/command_service.dart';
+import '../../../repositories/projeto_repository.dart';
 import 'meus_projetos_page.dart';
 import '../../voices/widgets/voice_command_help_dialog.dart';
 
@@ -35,6 +37,20 @@ String? _validateRecordingName(String? value) {
   final trimmed = value?.trim() ?? '';
   if (trimmed.isEmpty) {
     return 'Informe o nome da gravação.';
+  }
+  if (trimmed.length < _minRecordingNameLength) {
+    return 'O nome deve ter pelo menos 2 caracteres.';
+  }
+  if (trimmed.length > _maxRecordingNameLength) {
+    return 'O nome deve ter no máximo 80 caracteres.';
+  }
+  return null;
+}
+
+String? _validateProjectName(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return 'Informe o nome do projeto.';
   }
   if (trimmed.length < _minRecordingNameLength) {
     return 'O nome deve ter pelo menos 2 caracteres.';
@@ -73,6 +89,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
   StreamSubscription? _playerStateSubscription;
   int? _renomeandoGravacaoId;
   int? _excluindoGravacaoId;
+  late String _projetoNome;
 
   RecordingsListState get _recordingsState => _recordingsController.state;
 
@@ -94,6 +111,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
   @override
   void initState() {
     super.initState();
+    _projetoNome = widget.projeto.nome;
     _recordingsController =
         widget.recordingsController ?? RecordingsListController();
     voiceNavigationCommandHandler = VoiceNavigationCommandHandler(
@@ -433,6 +451,12 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       case VoiceCommandType.buscarProjetos:
       case VoiceCommandType.limparBusca:
       case VoiceCommandType.renomearProjeto:
+        final novoNomeProjeto = resultado.parametroSecundario;
+        if (novoNomeProjeto == null || novoNomeProjeto.trim().isEmpty) {
+          // Frase incompleta — aguarda o usuário completar sem dar erro.
+          return VoiceCommandPageResult.handled(restartListening: true);
+        }
+        return _abrirModalRenomearProjetoComVoz(novoNomeProjeto.trim());
       case VoiceCommandType.excluirProjeto:
       case VoiceCommandType.abrirNovoProjeto:
       case VoiceCommandType.criarProjeto:
@@ -469,6 +493,12 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
       case VoiceCommandType.ativarComandoPersonalizado:
       case VoiceCommandType.desativarComandoPersonalizado:
       case VoiceCommandType.excluirComandoPersonalizado:
+      case VoiceCommandType.preencherFraseComando:
+      case VoiceCommandType.salvarComandoPersonalizado:
+      case VoiceCommandType.consultarTempoSilencio:
+      case VoiceCommandType.ajustarTempoSilencio:
+      case VoiceCommandType.consultarSensibilidadeSilencio:
+      case VoiceCommandType.ajustarSensibilidadeSilencio:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
         return VoiceCommandPageResult.unavailable(
@@ -615,16 +645,192 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
     String? nomeAtual,
     String? novoNome,
   ) async {
+    if (novoNome == null || novoNome.trim().isEmpty) {
+      // Frase incompleta — aguarda o usuário completar sem dar erro.
+      return VoiceCommandPageResult.handled(restartListening: true);
+    }
+
     final gravacao = _buscarGravacaoPorNome(nomeAtual);
 
-    if (gravacao == null || novoNome == null || novoNome.trim().isEmpty) {
+    if (gravacao == null) {
       return VoiceCommandPageResult.handled(
-        message: 'Diga: renomear gravação nome atual para novo nome.',
+        message:
+            'Não encontrei "${nomeAtual ?? "gravação"}" no projeto. Diga o nome correto.',
       );
     }
 
-    await _salvarNovoNomeGravacao(gravacao, novoNome.trim());
+    return _abrirModalRenomearGravacaoComVoz(gravacao, novoNome.trim());
+  }
+
+  Future<VoiceCommandPageResult> _abrirModalRenomearGravacaoComVoz(
+    Gravacao gravacao,
+    String novoNomeSugerido,
+  ) async {
+    debugPrint('[RenameVoice] owner=projeto_detalhes');
+    debugPrint('[RenameVoice] command=renomearGravacao');
+    debugPrint('[RenameVoice] targetId=${gravacao.id}');
+    debugPrint('[RenameVoice] proposedName=$novoNomeSugerido');
+    debugPrint('[RenameVoice] modalOpenAttempt=true');
+
+    voiceExecutandoComando = false;
+    voiceIaPensando = false;
+    voiceSetState(() {
+      voiceStatusMessage =
+          'Novo nome pronto. Diga "confirmar" para salvar ou "cancelar" para desistir.';
+    });
+    scheduleVoiceContinuousRestart();
+
+    var completedByVoice = false;
+    final externalController =
+        TextEditingController(text: novoNomeSugerido);
+
+    final novoNome = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        voiceConfirmationController.register(
+          VoiceConfirmationRequest(
+            id: 'renomear_gravacao_projeto_${gravacao.id}',
+            description: 'Renomeação de "${gravacao.nome}"',
+            onConfirm: () {
+              completedByVoice = true;
+              final nome = externalController.text.trim();
+              Navigator.pop(dialogContext, nome.isNotEmpty ? nome : null);
+            },
+            onCancel: () {
+              completedByVoice = true;
+              Navigator.pop(dialogContext, null);
+            },
+            destructive: false,
+          ),
+        );
+        return _RenomearGravacaoDialog(
+          nomeInicial: novoNomeSugerido,
+          textController: externalController,
+        );
+      },
+    );
+
+    externalController.dispose();
+
+    if (!completedByVoice) {
+      voiceConfirmationController.clear();
+    }
+
+    debugPrint('[RenameVoice] modalOpened=true');
+    debugPrint('[RenameVoice] confirmationRegistered=$completedByVoice');
+
+    if (mounted) {
+      scheduleVoiceContinuousRestart();
+    }
+
+    if (novoNome == null || novoNome.isEmpty) {
+      debugPrint('[RenameVoice] action=cancelled');
+      return VoiceCommandPageResult.handled();
+    }
+
+    debugPrint('[RenameVoice] action=saved');
+    await _salvarNovoNomeGravacao(gravacao, novoNome);
     return VoiceCommandPageResult.handled();
+  }
+
+  Future<VoiceCommandPageResult> _abrirModalRenomearProjetoComVoz(
+    String novoNomeSugerido,
+  ) async {
+    debugPrint('[RenameVoice] owner=projeto_detalhes');
+    debugPrint('[RenameVoice] command=renomearProjeto');
+    debugPrint('[RenameVoice] targetId=${widget.projeto.id}');
+    debugPrint('[RenameVoice] proposedName=$novoNomeSugerido');
+    debugPrint('[RenameVoice] modalOpenAttempt=true');
+
+    voiceExecutandoComando = false;
+    voiceIaPensando = false;
+    voiceSetState(() {
+      voiceStatusMessage =
+          'Novo nome pronto. Diga "confirmar" para salvar ou "cancelar" para desistir.';
+    });
+    scheduleVoiceContinuousRestart();
+
+    var completedByVoice = false;
+    final externalController =
+        TextEditingController(text: novoNomeSugerido);
+
+    final novoNome = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        voiceConfirmationController.register(
+          VoiceConfirmationRequest(
+            id: 'renomear_projeto_${widget.projeto.id}',
+            description: 'Renomeação do projeto "$_projetoNome"',
+            onConfirm: () {
+              completedByVoice = true;
+              final nome = externalController.text.trim();
+              Navigator.pop(dialogContext, nome.isNotEmpty ? nome : null);
+            },
+            onCancel: () {
+              completedByVoice = true;
+              Navigator.pop(dialogContext, null);
+            },
+            destructive: false,
+          ),
+        );
+        return _RenomearProjetoDialog(
+          nomeInicial: novoNomeSugerido,
+          textController: externalController,
+        );
+      },
+    );
+
+    externalController.dispose();
+
+    if (!completedByVoice) {
+      voiceConfirmationController.clear();
+    }
+
+    debugPrint('[RenameVoice] modalOpened=true');
+    debugPrint('[RenameVoice] confirmationRegistered=$completedByVoice');
+
+    if (mounted) {
+      scheduleVoiceContinuousRestart();
+    }
+
+    if (novoNome == null || novoNome.isEmpty) {
+      debugPrint('[RenameVoice] action=cancelled');
+      return VoiceCommandPageResult.handled();
+    }
+
+    debugPrint('[RenameVoice] action=saved');
+    await _salvarNovoNomeProjeto(novoNome);
+    return VoiceCommandPageResult.handled();
+  }
+
+  Future<void> _salvarNovoNomeProjeto(String novoNome) async {
+    final projetoId = widget.projeto.id;
+    if (projetoId == null) return;
+
+    try {
+      final atualizado = Projeto(
+        id: projetoId,
+        usuarioId: widget.projeto.usuarioId,
+        nome: novoNome,
+        descricao: widget.projeto.descricao,
+        dataCriacao: widget.projeto.dataCriacao,
+      );
+      await ProjetoRepository.instance.atualizarProjeto(atualizado);
+
+      if (!mounted) return;
+
+      setState(() {
+        _projetoNome = novoNome;
+      });
+      voiceSetState(() {
+        voiceStatusMessage = 'Projeto renomeado para $novoNome.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      voiceSetState(() {
+        voiceStatusMessage = 'Não consegui renomear o projeto. Tente outro nome.';
+      });
+    }
   }
 
   Future<VoiceCommandPageResult> _handleExcluirPorVoz(String? nome) async {
@@ -674,7 +880,7 @@ class _ProjetoDetalhesPageState extends State<ProjetoDetalhesPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.projeto.nome),
+        title: Text(_projetoNome),
         centerTitle: true,
         actions: [
           IconButton(
@@ -937,9 +1143,13 @@ class _ResumoCard extends StatelessWidget {
 }
 
 class _RenomearGravacaoDialog extends StatefulWidget {
-  final String nomeInicial;
+  const _RenomearGravacaoDialog({
+    required this.nomeInicial,
+    this.textController,
+  });
 
-  const _RenomearGravacaoDialog({required this.nomeInicial});
+  final String nomeInicial;
+  final TextEditingController? textController;
 
   @override
   State<_RenomearGravacaoDialog> createState() =>
@@ -949,12 +1159,15 @@ class _RenomearGravacaoDialog extends StatefulWidget {
 class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _controller;
+  late final bool _ownsController;
   late final FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.nomeInicial);
+    _ownsController = widget.textController == null;
+    _controller =
+        widget.textController ?? TextEditingController(text: widget.nomeInicial);
     _focusNode = FocusNode();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -970,7 +1183,7 @@ class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (_ownsController) _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -997,6 +1210,86 @@ class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
           onFieldSubmitted: (_) => _salvar(),
           decoration: const InputDecoration(labelText: 'Novo nome'),
           validator: _validateRecordingName,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(onPressed: _salvar, child: const Text('Salvar')),
+      ],
+    );
+  }
+}
+
+class _RenomearProjetoDialog extends StatefulWidget {
+  const _RenomearProjetoDialog({
+    required this.nomeInicial,
+    this.textController,
+  });
+
+  final String nomeInicial;
+  final TextEditingController? textController;
+
+  @override
+  State<_RenomearProjetoDialog> createState() => _RenomearProjetoDialogState();
+}
+
+class _RenomearProjetoDialogState extends State<_RenomearProjetoDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _controller;
+  late final bool _ownsController;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _ownsController = widget.textController == null;
+    _controller =
+        widget.textController ?? TextEditingController(text: widget.nomeInicial);
+    _focusNode = FocusNode();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+        _controller.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _controller.text.length,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_ownsController) _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _salvar() {
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    Navigator.pop(context, _controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Renomear projeto'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          focusNode: _focusNode,
+          autofocus: false,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _salvar(),
+          decoration: const InputDecoration(labelText: 'Novo nome'),
+          validator: _validateProjectName,
         ),
       ),
       actions: [

@@ -339,21 +339,29 @@ class RecordingsListController extends ChangeNotifier {
 
   Gravacao? findByPlaybackReference(String? reference) {
     final normalized = _commandService.normalize(reference ?? '');
-    if (normalized.isEmpty) {
-      return null;
-    }
+    if (normalized.isEmpty) return null;
 
     final byExactTitle = findByExactVisibleTitle(normalized);
-    if (byExactTitle != null) {
-      return byExactTitle;
+    if (byExactTitle != null) return byExactTitle;
+
+    final itemIndex = _itemPositionFromReference(normalized);
+    if (itemIndex != null) {
+      if (itemIndex < 0 || itemIndex >= _state.recordings.length) return null;
+      return _state.recordings[itemIndex];
     }
 
-    final index = _playbackIndexFromReference(normalized);
-    if (index != null) {
-      if (index < 0 || index >= _state.recordings.length) {
-        return null;
+    final gravacaoN = _gravacaoNumberFromReference(normalized);
+    if (gravacaoN != null) {
+      final byTitle = _findByGravacaoNumber(gravacaoN);
+      if (byTitle != null) return byTitle;
+      // No exact title match — fall back to visual position (1-based → 0-based).
+      // Preserves semantics: title lookup is primary, position is only a
+      // safe fallback when no auto-title "Gravação N" exists in the list.
+      final idx = gravacaoN - 1;
+      if (idx >= 0 && idx < _state.recordings.length) {
+        return _state.recordings[idx];
       }
-      return _state.recordings[index];
+      return null;
     }
 
     return findByName(normalized);
@@ -361,8 +369,17 @@ class RecordingsListController extends ChangeNotifier {
 
   bool isPlaybackReferenceOutOfRange(String? reference) {
     final normalized = _commandService.normalize(reference ?? '');
-    final index = _playbackIndexFromReference(normalized);
-    return index != null && (index < 0 || index >= _state.recordings.length);
+    final itemIndex = _itemPositionFromReference(normalized);
+    if (itemIndex != null) {
+      return itemIndex < 0 || itemIndex >= _state.recordings.length;
+    }
+    // Treat "gravacao N" out-of-visual-range the same as "item N" out-of-range.
+    final gravacaoN = _gravacaoNumberFromReference(normalized);
+    if (gravacaoN != null && _findByGravacaoNumber(gravacaoN) == null) {
+      final idx = gravacaoN - 1;
+      return idx < 0 || idx >= _state.recordings.length;
+    }
+    return false;
   }
 
   RecordingPlaybackResolution resolvePlaybackCommand(String? reference) {
@@ -377,16 +394,13 @@ class RecordingsListController extends ChangeNotifier {
       if (_state.recordings.length == 1) {
         return RecordingPlaybackResolution.play(_state.recordings.single);
       }
-
       return RecordingPlaybackResolution.message(
         'Diga qual gravação deseja tocar, por exemplo: tocar item 1.',
       );
     }
 
     final recording = findByPlaybackReference(trimmed);
-    if (recording != null) {
-      return RecordingPlaybackResolution.play(recording);
-    }
+    if (recording != null) return RecordingPlaybackResolution.play(recording);
 
     return RecordingPlaybackResolution.message(
       isPlaybackReferenceOutOfRange(trimmed)
@@ -430,24 +444,13 @@ class RecordingsListController extends ChangeNotifier {
     }
   }
 
-  int? _playbackIndexFromReference(String reference) {
-    // Match "item N" or "posicao N" with a numeric digit
+  // Handles ONLY "item N"/"posicao N" (positional) and ordinals — NOT "gravacao N".
+  int? _itemPositionFromReference(String reference) {
     final itemNumberMatch = RegExp(
       r'(^| )(?:item|posicao|posição) ([0-9]+)( |$)',
     ).firstMatch(reference);
     final itemNumeric = int.tryParse(itemNumberMatch?.group(2) ?? '');
-    if (itemNumeric != null) {
-      return itemNumeric - 1;
-    }
-
-    // Match "gravacao N" or "gravação N" with a numeric digit
-    final gravacaoNumberMatch = RegExp(
-      r'(^| )grava(?:cao|ção) ([0-9]+)( |$)',
-    ).firstMatch(reference);
-    final gravacaoNumeric = int.tryParse(gravacaoNumberMatch?.group(2) ?? '');
-    if (gravacaoNumeric != null) {
-      return gravacaoNumeric - 1;
-    }
+    if (itemNumeric != null) return itemNumeric - 1;
 
     const numberWords = {
       'um': 0,
@@ -463,19 +466,9 @@ class RecordingsListController extends ChangeNotifier {
       'nove': 8,
     };
 
-    // Match "item [word]" or "posicao [word]"
     for (final entry in numberWords.entries) {
       if (RegExp(
         r'(^| )(?:item|posicao|posição) ' '${entry.key}' r'( |$)',
-      ).hasMatch(reference)) {
-        return entry.value;
-      }
-    }
-
-    // Match "gravacao [word]"
-    for (final entry in numberWords.entries) {
-      if (RegExp(
-        r'(^| )grava(?:cao|ção) ' '${entry.key}' r'( |$)',
       ).hasMatch(reference)) {
         return entry.value;
       }
@@ -500,6 +493,39 @@ class RecordingsListController extends ChangeNotifier {
       }
     }
 
+    return null;
+  }
+
+  // Returns 1-based recording number for "gravacao N" references (title lookup).
+  int? _gravacaoNumberFromReference(String reference) {
+    final gravacaoNumberMatch = RegExp(
+      r'(^| )grava(?:cao|ção) ([0-9]+)( |$)',
+    ).firstMatch(reference);
+    final gravacaoNumeric = int.tryParse(gravacaoNumberMatch?.group(2) ?? '');
+    if (gravacaoNumeric != null) return gravacaoNumeric;
+
+    const wordNumbers = {
+      'um': 1, 'uma': 1, 'dois': 2, 'duas': 2, 'tres': 3,
+      'quatro': 4, 'cinco': 5, 'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9,
+    };
+
+    for (final entry in wordNumbers.entries) {
+      if (RegExp(
+        r'(^| )grava(?:cao|ção) ' '${entry.key}' r'( |$)',
+      ).hasMatch(reference)) {
+        return entry.value;
+      }
+    }
+
+    return null;
+  }
+
+  // Exact title match: finds recording where normalize(nome) == "gravacao N".
+  Gravacao? _findByGravacaoNumber(int n) {
+    final target = 'gravacao $n';
+    for (final recording in _state.recordings) {
+      if (_commandService.normalize(recording.nome) == target) return recording;
+    }
     return null;
   }
 

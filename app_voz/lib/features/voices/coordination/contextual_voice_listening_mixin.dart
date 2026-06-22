@@ -48,6 +48,9 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
   bool _voiceRouteRecoveryAttempted = false;
   bool _voiceRecoveryPending = false;
   bool _voiceSpeechResultReceived = false;
+  // When true, startContextualVoiceListening skips the premature UI set and
+  // waits for the real onStatus('listening') native callback instead.
+  bool _voiceAwaitingNativeConfirmation = false;
   String? _voiceResultPending;
   Timer? _voiceCoalescingTimer;
   bool _voiceHelpOpen = false;
@@ -339,6 +342,16 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
     await restartContextualVoiceListeningManually();
   }
 
+  /// Call before [startContinuousVoiceListeningIfActive] on permission handoff
+  /// to defer the listening UI state until Android's onStatus('listening').
+  void activatePermissionHandoffMode() {
+    _voiceAwaitingNativeConfirmation = true;
+  }
+
+  /// Override in the using class to receive the native listening confirmation
+  /// that was triggered by [activatePermissionHandoffMode].
+  void onPermissionHandoffConfirmed() {}
+
   @visibleForTesting
   Future<void> restartContextualVoiceListeningManually() async {
     _debugVoiceCommandFlow(
@@ -356,6 +369,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       return;
     }
 
+    _voiceAwaitingNativeConfirmation = false;
     _voiceRecoveryPending = false;
     voiceParadaManual = false;
     voiceSessionManager.cancelPendingRecovery(
@@ -486,14 +500,16 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
       return;
     }
 
-    voiceSetState(() {
-      setVoiceSession(
-        VoiceSessionPhase.listening,
-        message: voiceListeningPrompt,
-        listening: true,
-        thinking: false,
-      );
-    });
+    if (!_voiceAwaitingNativeConfirmation) {
+      voiceSetState(() {
+        setVoiceSession(
+          VoiceSessionPhase.listening,
+          message: voiceListeningPrompt,
+          listening: true,
+          thinking: false,
+        );
+      });
+    }
     _debugVoiceCommandFlow(
       'startRequested owner=$voiceOwnerId allowed=true '
       'reason=${manualOverride ? 'manual' : 'continuous'}',
@@ -534,7 +550,22 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         }
         _debugVoiceCommandFlow('sttStatus=$status owner=$voiceOwnerId');
 
+        if (status == 'listening' && _voiceAwaitingNativeConfirmation) {
+          _voiceAwaitingNativeConfirmation = false;
+          voiceSetState(() {
+            setVoiceSession(
+              VoiceSessionPhase.listening,
+              message: voiceListeningPrompt,
+              listening: true,
+              thinking: false,
+            );
+          });
+          onPermissionHandoffConfirmed();
+          return;
+        }
+
         if (status == 'done' || status == 'notListening') {
+          _voiceAwaitingNativeConfirmation = false;
           if (voiceExecutandoComando ||
               _voiceSpeechResultReceived ||
               _voiceResultPending != null) {
@@ -560,6 +591,7 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
         if (!mounted || !_voiceRouteActive) {
           return;
         }
+        _voiceAwaitingNativeConfirmation = false;
 
         // error_no_match and error_speech_timeout mean the engine stopped
         // without recognising speech — normal silence, not a real error.

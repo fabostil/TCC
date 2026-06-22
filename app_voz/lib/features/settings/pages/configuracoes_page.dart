@@ -48,6 +48,11 @@ String? _validateCommandPhrase(String? value) {
   return null;
 }
 
+class _AmbiguousCommandError {
+  const _AmbiguousCommandError(this.matches);
+  final List<ComandoPersonalizado> matches;
+}
+
 class ConfiguracoesPage extends StatefulWidget {
   final Usuario? usuario;
   @visibleForTesting
@@ -486,6 +491,23 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
     await _sairDaContaLogout();
   }
 
+  // Looks up a custom command by normalized frase target from the loaded list.
+  // Returns the single match, null if not found, or throws _AmbiguousCommandError
+  // if more than one command shares the same normalized prefix.
+  ComandoPersonalizado? _buscarComandoPorFrase(String target) {
+    final normalized = const CommandService().normalize(target);
+    final commands = _settingsState.customCommands;
+    final matches = commands
+        .where(
+          (c) =>
+              const CommandService().normalize(c.frase) == normalized ||
+              c.frase.toLowerCase().trim() == target.toLowerCase().trim(),
+        )
+        .toList();
+    if (matches.length > 1) throw _AmbiguousCommandError(matches);
+    return matches.isEmpty ? null : matches.first;
+  }
+
   // Returns -dB value when the text contains a recognizable silence threshold
   // like "menos trinta", "menos 30", "sensibilidade 40" etc.
   double? _extrairLimiarDb(String text) {
@@ -552,24 +574,49 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       );
     }
 
-    // Handle silence threshold voice commands before the main switch so we
-    // don't need a new VoiceCommandType (avoids updating every page dispatcher).
+    // Handle silence threshold voice commands before the main switch.
+    // Relative-direction commands (aumentar/diminuir/baixar/subir) are
+    // handled by dedicated types in the switch below — skip them here.
     final rawText = resultado.normalizedText;
     {
       final normalized = rawText.trim();
-      final isThresholdCommand = normalized.contains('limiar') ||
-          normalized.contains('sensibilidade') ||
-          (normalized.contains('silencio') &&
-              (normalized.contains('decibei') ||
-                  normalized.contains('menos') ||
-                  RegExp(r'\d').hasMatch(normalized)));
+      // "mais sensivel/sensibilidade" and "mais/menos tempo" are relative
+      // adjustments — bypass the explicit-dB threshold extractor. Other
+      // phrases containing "mais"/"menos" (e.g. "menos trinta") still need
+      // the threshold path, so we match the context word, not the particle alone.
+      final hasRelativeDirection = normalized.contains('aumentar') ||
+          normalized.contains('diminuir') ||
+          normalized.contains('baixar') ||
+          normalized.contains('subir') ||
+          normalized.contains('reduzir') ||
+          normalized.contains('mais sensiv') ||
+          normalized.contains('menos sensiv') ||
+          normalized.contains('mais tempo') ||
+          normalized.contains('menos tempo');
+      final isThresholdCommand = !hasRelativeDirection &&
+          (normalized.contains('limiar') ||
+              normalized.contains('sensibilidade') ||
+              (normalized.contains('silencio') &&
+                  (normalized.contains('decibei') ||
+                      normalized.contains('menos') ||
+                      RegExp(r'\d').hasMatch(normalized))));
       if (isThresholdCommand) {
         final db = _extrairLimiarDb(normalized);
+        debugPrint(
+          '[SettingsVoice] raw=${resultado.originalText} normalized=$normalized '
+          'intent=threshold target=limiarSilencioDb value_before=${configuracao.limiarSilencioDb}',
+        );
         if (db != null) {
           await _salvarLimiarSilencio(configuracao, db);
           if (!mounted) {
             return VoiceCommandPageResult.handled(restartListening: false);
           }
+          debugPrint(
+            '[SettingsVoice] value_after=$db persisted=true',
+          );
+          debugPrint(
+            '[RecordingConfig] applied silenceDuration=${configuracao.tempoSilencioSegundos * 1000} silenceSensitivity=$db',
+          );
           _atualizarStatus('Limiar de silêncio definido para ${db.toInt()} dB.');
           return VoiceCommandPageResult.handled();
         }
@@ -733,11 +780,19 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
           );
           return VoiceCommandPageResult.handled();
         }
-        final extracted = _extrairComandoPersonalizado(
-          resultado.normalizedText.trim(),
+        // resultado.parametro is set when "criar comando personalizado [frase]"
+        // was spoken without " para "; fall back to regex extraction otherwise.
+        final directFrase = resultado.parametro;
+        final extracted = directFrase != null && directFrase.isNotEmpty
+            ? (frase: directFrase, tipoComando: null as String?)
+            : _extrairComandoPersonalizado(resultado.normalizedText.trim());
+        debugPrint(
+          '[SettingsVoice] raw=${resultado.originalText} '
+          'normalized=${resultado.normalizedText} '
+          'intent=criarComandoPersonalizado target=form frase=${extracted.frase}',
         );
         _irParaFormularioComandoPersonalizado(
-          frase: extracted.frase,
+          frase: extracted.frase.isNotEmpty ? extracted.frase : null,
           tipoComando: extracted.tipoComando,
         );
         _atualizarStatus(
@@ -746,6 +801,113 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
               : 'Role até o formulário e preencha a frase e a ação desejada.',
         );
         return VoiceCommandPageResult.handled();
+      case VoiceCommandType.preencherFraseComando:
+        final frase = resultado.parametro ?? '';
+        debugPrint(
+          '[SettingsVoice] raw=${resultado.originalText} '
+          'intent=preencherFraseComando target=fraseField value_after=$frase',
+        );
+        if (frase.isEmpty) {
+          _atualizarStatus('Não entendi a frase. Tente: frase modo palco.');
+          return VoiceCommandPageResult.handled();
+        }
+        _frasePersonalizadaController.text = frase;
+        _atualizarStatus('Frase preenchida: $frase. Diga "salvar comando" para salvar.');
+        return VoiceCommandPageResult.handled();
+      case VoiceCommandType.salvarComandoPersonalizado:
+        debugPrint(
+          '[SettingsVoice] raw=${resultado.originalText} '
+          'intent=salvarComandoPersonalizado',
+        );
+        if (widget.usuario == null) {
+          _atualizarStatus('Entre na sua conta para salvar comandos.');
+          return VoiceCommandPageResult.handled();
+        }
+        await _salvarComandoPersonalizado();
+        return VoiceCommandPageResult.handled();
+      case VoiceCommandType.consultarTempoSilencio:
+        debugPrint(
+          '[SettingsVoice] raw=${resultado.originalText} '
+          'intent=consultarTempoSilencio value=${configuracao.tempoSilencioSegundos}',
+        );
+        _atualizarStatus(
+          'Tempo de silêncio atual: ${configuracao.tempoSilencioSegundos} segundos.',
+        );
+        return VoiceCommandPageResult.handled();
+      case VoiceCommandType.ajustarTempoSilencio:
+        {
+          final direcao = resultado.parametro ?? 'aumentar';
+          final atual = configuracao.tempoSilencioSegundos;
+          final novo = direcao == 'aumentar'
+              ? (atual + 1).clamp(3, 12)
+              : (atual - 1).clamp(3, 12);
+          debugPrint(
+            '[SettingsVoice] raw=${resultado.originalText} '
+            'intent=ajustarTempoSilencio target=tempoSilencioSegundos '
+            'value_before=$atual value_after=$novo direction=$direcao',
+          );
+          await _salvar(
+            configuracao.copyWith(
+              paradaSilencio: true,
+              tempoSilencioSegundos: novo,
+            ),
+          );
+          if (!mounted) {
+            return VoiceCommandPageResult.handled(restartListening: false);
+          }
+          debugPrint(
+            '[SettingsVoice] persisted=true',
+          );
+          debugPrint(
+            '[RecordingConfig] applied silenceDuration=${novo * 1000} silenceSensitivity=${configuracao.limiarSilencioDb}',
+          );
+          _atualizarStatus('Tempo de silêncio: $novo segundos.');
+          return VoiceCommandPageResult.handled();
+        }
+      case VoiceCommandType.consultarSensibilidadeSilencio:
+        debugPrint(
+          '[SettingsVoice] raw=${resultado.originalText} '
+          'intent=consultarSensibilidadeSilencio value=${configuracao.limiarSilencioDb}',
+        );
+        _atualizarStatus(
+          'Sensibilidade atual: ${configuracao.limiarSilencioDb.toInt()} dB.',
+        );
+        return VoiceCommandPageResult.handled();
+      case VoiceCommandType.ajustarSensibilidadeSilencio:
+        {
+          final direcao = resultado.parametro ?? 'aumentar';
+          final atual = configuracao.limiarSilencioDb;
+          // Increasing sensitivity = raising threshold closer to 0 (less negative)
+          // Decreasing sensitivity = lowering threshold further from 0 (more negative)
+          final novo = direcao == 'aumentar'
+              ? (atual + 1.0).clamp(
+                  ConfiguracaoApp.limiarSilencioDbMin,
+                  ConfiguracaoApp.limiarSilencioDbMax,
+                )
+              : (atual - 1.0).clamp(
+                  ConfiguracaoApp.limiarSilencioDbMin,
+                  ConfiguracaoApp.limiarSilencioDbMax,
+                );
+          debugPrint(
+            '[SettingsVoice] raw=${resultado.originalText} '
+            'intent=ajustarSensibilidadeSilencio target=limiarSilencioDb '
+            'value_before=$atual value_after=$novo direction=$direcao',
+          );
+          await _salvarLimiarSilencio(configuracao, novo);
+          if (!mounted) {
+            return VoiceCommandPageResult.handled(restartListening: false);
+          }
+          debugPrint(
+            '[SettingsVoice] persisted=true',
+          );
+          debugPrint(
+            '[RecordingConfig] applied silenceDuration=${configuracao.tempoSilencioSegundos * 1000} silenceSensitivity=$novo',
+          );
+          _atualizarStatus(
+            'Sensibilidade de silêncio: ${novo.toInt()} dB.',
+          );
+          return VoiceCommandPageResult.handled();
+        }
       case VoiceCommandType.abrirDashboard:
       case VoiceCommandType.abrirProjetos:
       case VoiceCommandType.abrirGravacoes:
@@ -763,11 +925,143 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
       case VoiceCommandType.continuarFluxo:
       case VoiceCommandType.entrarConta:
       case VoiceCommandType.ativarComandoPersonalizado:
+        {
+          final target = resultado.parametro;
+          debugPrint('[SettingsVoice] alias_matched=${resultado.normalizedText}');
+          debugPrint('[SettingsVoice] custom_command_target=$target');
+          if (target == null || target.isEmpty) {
+            _atualizarStatus(
+              'Qual comando deseja ativar? Diga, por exemplo: ativar comando escudo.',
+            );
+            return VoiceCommandPageResult.handled();
+          }
+          if (widget.usuario == null) {
+            _atualizarStatus('Entre na sua conta para gerenciar comandos.');
+            return VoiceCommandPageResult.handled();
+          }
+          try {
+            final cmd = _buscarComandoPorFrase(target);
+            debugPrint('[SettingsVoice] custom_command_found=${cmd != null}');
+            if (cmd == null) {
+              _atualizarStatus('Comando "$target" não encontrado.');
+              return VoiceCommandPageResult.handled();
+            }
+            if (cmd.ativo) {
+              _atualizarStatus('O comando "$target" já está ativo.');
+              return VoiceCommandPageResult.handled();
+            }
+            await _alternarComandoPersonalizado(cmd, true);
+            if (!mounted) {
+              return VoiceCommandPageResult.handled(restartListening: false);
+            }
+            debugPrint('[SettingsVoice] custom_command_action=activate');
+            debugPrint('[SettingsVoice] custom_command_persisted=true');
+            _atualizarStatus('Comando "$target" ativado.');
+            return VoiceCommandPageResult.handled();
+          } on _AmbiguousCommandError catch (e) {
+            final phrases = e.matches.map((c) => c.frase).join(', ');
+            _atualizarStatus(
+              'Há ${e.matches.length} comandos parecidos: $phrases. Diga a frase completa.',
+            );
+            return VoiceCommandPageResult.handled();
+          }
+        }
       case VoiceCommandType.desativarComandoPersonalizado:
+        {
+          final target = resultado.parametro;
+          debugPrint('[SettingsVoice] alias_matched=${resultado.normalizedText}');
+          debugPrint('[SettingsVoice] custom_command_target=$target');
+          if (target == null || target.isEmpty) {
+            _atualizarStatus(
+              'Qual comando deseja desativar? Diga, por exemplo: desativar comando escudo.',
+            );
+            return VoiceCommandPageResult.handled();
+          }
+          if (widget.usuario == null) {
+            _atualizarStatus('Entre na sua conta para gerenciar comandos.');
+            return VoiceCommandPageResult.handled();
+          }
+          try {
+            final cmd = _buscarComandoPorFrase(target);
+            debugPrint('[SettingsVoice] custom_command_found=${cmd != null}');
+            if (cmd == null) {
+              _atualizarStatus('Comando "$target" não encontrado.');
+              return VoiceCommandPageResult.handled();
+            }
+            if (!cmd.ativo) {
+              _atualizarStatus('O comando "$target" já está desativado.');
+              return VoiceCommandPageResult.handled();
+            }
+            await _alternarComandoPersonalizado(cmd, false);
+            if (!mounted) {
+              return VoiceCommandPageResult.handled(restartListening: false);
+            }
+            debugPrint('[SettingsVoice] custom_command_action=deactivate');
+            debugPrint('[SettingsVoice] custom_command_persisted=true');
+            _atualizarStatus('Comando "$target" desativado.');
+            return VoiceCommandPageResult.handled();
+          } on _AmbiguousCommandError catch (e) {
+            final phrases = e.matches.map((c) => c.frase).join(', ');
+            _atualizarStatus(
+              'Há ${e.matches.length} comandos parecidos: $phrases. Diga a frase completa.',
+            );
+            return VoiceCommandPageResult.handled();
+          }
+        }
       case VoiceCommandType.excluirComandoPersonalizado:
-        return VoiceCommandPageResult.unavailable(
-          recognized: resultado.recognized,
-        );
+        {
+          final target = resultado.parametro;
+          debugPrint('[SettingsVoice] alias_matched=${resultado.normalizedText}');
+          debugPrint('[SettingsVoice] custom_command_target=$target');
+          if (target == null || target.isEmpty) {
+            _atualizarStatus(
+              'Qual comando deseja excluir? Diga, por exemplo: excluir comando escudo.',
+            );
+            return VoiceCommandPageResult.handled();
+          }
+          if (widget.usuario == null) {
+            _atualizarStatus('Entre na sua conta para gerenciar comandos.');
+            return VoiceCommandPageResult.handled();
+          }
+          try {
+            final cmd = _buscarComandoPorFrase(target);
+            debugPrint('[SettingsVoice] custom_command_found=${cmd != null}');
+            if (cmd == null) {
+              _atualizarStatus('Comando "$target" não encontrado.');
+              return VoiceCommandPageResult.handled();
+            }
+            debugPrint('[SettingsVoice] delete_confirmation_requested=true');
+            final confirmed = await showVoiceConfirmationDialog(
+              id: 'excluir_comando_$target',
+              title: 'Excluir comando "$target"?',
+              message:
+                  'Deseja excluir o comando $target?',
+              confirmLabel: 'Excluir',
+              cancelLabel: 'Cancelar',
+              destructive: true,
+            );
+            if (!mounted) {
+              return VoiceCommandPageResult.handled(restartListening: false);
+            }
+            if (!confirmed) {
+              _atualizarStatus('Exclusão cancelada.');
+              return VoiceCommandPageResult.handled();
+            }
+            await _excluirComandoPersonalizado(cmd);
+            if (!mounted) {
+              return VoiceCommandPageResult.handled(restartListening: false);
+            }
+            debugPrint('[SettingsVoice] custom_command_action=delete');
+            debugPrint('[SettingsVoice] custom_command_persisted=true');
+            return VoiceCommandPageResult.handled();
+          } on _AmbiguousCommandError catch (e) {
+            final phrases = e.matches.map((c) => c.frase).join(', ');
+            _atualizarStatus(
+              'Há ${e.matches.length} comandos parecidos: $phrases. Diga a frase completa.',
+            );
+            return VoiceCommandPageResult.handled();
+          }
+        }
       case VoiceCommandType.sair:
         final confirmed = await showVoiceConfirmationDialog(
           id: 'logout',

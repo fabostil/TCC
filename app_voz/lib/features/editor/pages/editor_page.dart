@@ -20,12 +20,14 @@ import '../../settings/pages/configuracoes_page.dart';
 import '../../voices/controllers/voice_command_controller.dart';
 import '../../voices/coordination/voice_command_dispatcher.dart';
 import '../../voices/coordination/voice_navigation_command_handler.dart';
+import '../../voices/coordination/voice_scroll_handler.dart';
 import '../../voices/coordination/voice_page_owners.dart';
 import '../../voices/coordination/voice_route_observer.dart';
 import '../../voices/coordination/voice_session_manager.dart';
 import '../../voices/coordination/voice_session_state.dart';
 import '../../voices/coordination/voice_state_machine.dart';
 import '../../voices/realtime/nlu/voice_intent.dart';
+import '../../voices/realtime/runtime/runtime_engine.dart' as rte;
 import '../../voices/realtime/runtime/voice_realtime_ecosystem.dart';
 import '../../voices/realtime/voice_realtime_event_bus.dart';
 import '../../voices/realtime/voice_realtime_events.dart';
@@ -34,6 +36,7 @@ import '../../voices/services/voice_global_command_service.dart';
 import '../../voices/services/voice_recognition_error_guard.dart';
 import '../../voices/widgets/voice_command_help_dialog.dart';
 import '../controllers/recording_realtime_coordinator.dart';
+import '../services/audio_recording_capture.dart';
 
 enum EditorInteractionMode { normal, recording }
 
@@ -47,8 +50,24 @@ enum _EditorFsmVisualState {
 class EditorPage extends StatefulWidget {
   final Usuario usuario;
   final Projeto? projeto;
+  @visibleForTesting
+  final bool enableVoiceListening;
+  @visibleForTesting
+  final RecordingManagementService? recordingServiceForTesting;
+  @visibleForTesting
+  final ScrollController? scrollControllerForTesting;
+  @visibleForTesting
+  final AudioRecordingCapture? recordingCaptureForTesting;
 
-  const EditorPage({super.key, required this.usuario, this.projeto});
+  const EditorPage({
+    super.key,
+    required this.usuario,
+    this.projeto,
+    this.enableVoiceListening = true,
+    this.recordingServiceForTesting,
+    this.scrollControllerForTesting,
+    this.recordingCaptureForTesting,
+  });
 
   @override
   State<EditorPage> createState() => _EditorPageState();
@@ -71,10 +90,9 @@ class _EditorPageState extends State<EditorPage>
   final VoiceRecognitionErrorGuard _voiceErrorGuard =
       VoiceRecognitionErrorGuard();
   late final VoiceNavigationCommandHandler _navigationCommandHandler;
-  final RecordingRealtimeCoordinator _recordingCoordinator =
-      RecordingRealtimeCoordinator(ownerId: _voiceOwnerId);
-  final RecordingManagementService _recordingService =
-      RecordingManagementService();
+  late final RecordingManagementService _recordingService;
+  late final RecordingRealtimeCoordinator _recordingCoordinator;
+  late final ScrollController _voiceScrollController;
   StreamSubscription<VoiceCommandInterpretedEvent>?
   _realtimeCommandSubscription;
 
@@ -89,6 +107,14 @@ class _EditorPageState extends State<EditorPage>
   bool _executandoComandoVoz = false;
   bool _interpretandoComando = false;
   bool _saidaEditorEmAndamento = false;
+  bool _isHelpDialogOpen = false;
+  // Non-null while the help dialog is open; carries a monotonic token so stale
+  // callbacks can be detected and ignored even before the finally-block fires.
+  String? _helpSessionToken;
+  // Raised the moment a close command is issued; prevents a second concurrent
+  // onResult("fechar") from issuing a second Navigator.maybePop.
+  bool _helpCloseInProgress = false;
+  int _helpDialogCounter = 0;
   bool _retomarEscutaAposPlayback = false;
   bool _recuperacaoPlaybackAgendada = false;
   bool _playbackAtivoNaUltimaAtualizacao = false;
@@ -165,6 +191,14 @@ class _EditorPageState extends State<EditorPage>
   @override
   void initState() {
     super.initState();
+    _recordingService =
+        widget.recordingServiceForTesting ?? RecordingManagementService();
+    _recordingCoordinator = RecordingRealtimeCoordinator(
+      ownerId: _voiceOwnerId,
+      recordingService: widget.recordingCaptureForTesting,
+    );
+    _voiceScrollController =
+        widget.scrollControllerForTesting ?? ScrollController();
     WidgetsBinding.instance.addObserver(this);
     _navigationCommandHandler = VoiceNavigationCommandHandler(
       currentDestination: VoiceNavigationDestination.other,
@@ -215,6 +249,11 @@ class _EditorPageState extends State<EditorPage>
   @override
   void didPushNext() {
     _routeActive = false;
+    if (_helpSessionToken != null) {
+      debugPrint('[EditorHelpModal] route_pause_ignored session=$_helpSessionToken');
+      _routePausePending = Future<void>.value();
+      return;
+    }
     _routePausePending = _pauseVoiceForCoveredRoute();
   }
 
@@ -339,7 +378,8 @@ class _EditorPageState extends State<EditorPage>
       }
 
       _aplicarConfiguracao(configuracao);
-      if (configuracao.comandosVozAtivos &&
+      if (widget.enableVoiceListening &&
+          configuracao.comandosVozAtivos &&
           configuracao.escutaContinua &&
           !gravando &&
           !ouvindo) {
@@ -403,7 +443,7 @@ class _EditorPageState extends State<EditorPage>
     final configuracao = await ConfiguracaoAppRepository.instance
         .buscarConfiguracao();
 
-    if (!mounted || !_routeActive) {
+    if (!mounted || (!_routeActive && !_isHelpDialogOpen)) {
       return;
     }
 
@@ -455,7 +495,7 @@ class _EditorPageState extends State<EditorPage>
       final started = await _voiceSessionManager.startListening(
         ownerId: _voiceOwnerId,
         onResult: (resultado) {
-          if (!mounted || !_routeActive) {
+          if (!mounted || (!_routeActive && !_isHelpDialogOpen)) {
             return;
           }
           _voiceErrorGuard.reset();
@@ -472,7 +512,7 @@ class _EditorPageState extends State<EditorPage>
           unawaited(interpretarComando(resultado));
         },
         onStatus: (status) {
-          if (!mounted || !_routeActive) {
+          if (!mounted || (!_routeActive && !_isHelpDialogOpen)) {
             return;
           }
 
@@ -498,7 +538,7 @@ class _EditorPageState extends State<EditorPage>
           }
         },
         onError: (error) {
-          if (!mounted || !_routeActive) {
+          if (!mounted || (!_routeActive && !_isHelpDialogOpen)) {
             return;
           }
 
@@ -572,7 +612,7 @@ class _EditorPageState extends State<EditorPage>
       reason: reason,
       shouldRecover: () =>
           mounted &&
-          _routeActive &&
+          (_routeActive || _isHelpDialogOpen) &&
           escutaContinuaAtiva &&
           !_paradaManualEscuta &&
           !gravando &&
@@ -702,7 +742,37 @@ class _EditorPageState extends State<EditorPage>
   }
 
   Future<void> interpretarComando(String comando) async {
+    debugPrint('[EditorVoice] raw=$comando');
+    debugPrint('[EditorVoice] final=true');
+
+    // MUST come before _interpretandoComando: the help dialog is opened via
+    // `await _abrirAjudaComandosEditor()` inside interpretarComando, which
+    // holds _interpretandoComando = true for the entire time showDialog is
+    // awaiting.  Placing the modal-close check after the flag would silently
+    // drop every "fechar" spoken while the dialog is open.
+    final helpSession = _helpSessionToken;
+    if (helpSession != null) {
+      debugPrint('[EditorHelpModal] stt_result session=$helpSession raw=$comando');
+      final normalized = commandService.normalize(comando);
+      if (normalized == 'fechar' || normalized == 'voltar' || normalized == 'cancelar') {
+        debugPrint('[EditorHelpModal] close_requested session=$helpSession command=$normalized');
+        if (_helpCloseInProgress) {
+          debugPrint('[EditorHelpModal] stale_event_ignored session=$helpSession');
+          return;
+        }
+        _helpCloseInProgress = true;
+        if (mounted) {
+          // rootNavigator: true matches the navigator used by showDialog's
+          // default useRootNavigator: true.
+          Navigator.of(context, rootNavigator: true).maybePop();
+          debugPrint('[EditorHelpModal] close_success session=$helpSession');
+        }
+        return;
+      }
+    }
+
     if (_interpretandoComando) {
+      debugPrint('[EditorVoice] route=blocked reason=already_interpreting');
       return;
     }
 
@@ -737,7 +807,11 @@ class _EditorPageState extends State<EditorPage>
       );
       final resultado = resultadoController.commandResult;
 
+      debugPrint('[EditorVoice] normalized=${resultado.normalizedText}');
+      debugPrint('[EditorVoice] type=${resultado.type}');
+
       if (resultado.normalizedText.isEmpty) {
+        debugPrint('[EditorVoice] route=unknown reason=empty_normalized');
         return;
       }
 
@@ -750,16 +824,22 @@ class _EditorPageState extends State<EditorPage>
       }
 
       if (_executandoComandoVoz) {
+        debugPrint('[EditorVoice] route=blocked reason=executing_command');
         return;
       }
 
       if (_voiceFlowPolicy.isRecordingCommand(resultado.type)) {
+        debugPrint('[EditorVoice] route=recording');
+        debugPrint('[EditorVoice] action=${resultado.type}');
         await _executeEditorRecordingCommand(resultado.type, comando);
+        debugPrint('[EditorVoice] executed=true');
         return;
       }
 
       final globalResult = await _globalCommandService.execute(resultado);
       if (globalResult.handled) {
+        debugPrint('[EditorVoice] route=global');
+        debugPrint('[EditorVoice] action=${resultado.type}');
         if (!mounted) {
           return;
         }
@@ -790,6 +870,7 @@ class _EditorPageState extends State<EditorPage>
         if (!globalResult.shouldStopListening) {
           _reiniciarEscutaContinuaSeNecessario();
         }
+        debugPrint('[EditorVoice] executed=true');
         return;
       }
 
@@ -797,6 +878,8 @@ class _EditorPageState extends State<EditorPage>
         resultado,
       );
       if (navigationResult != null) {
+        debugPrint('[EditorVoice] route=navigation');
+        debugPrint('[EditorVoice] action=${resultado.type}');
         if (!mounted) {
           return;
         }
@@ -810,62 +893,101 @@ class _EditorPageState extends State<EditorPage>
         if (navigationResult.restartListening) {
           _reiniciarEscutaContinuaSeNecessario();
         }
+        debugPrint('[EditorVoice] executed=true');
         return;
       }
 
       if (gravando && resultado.type == VoiceCommandType.sair) {
+        debugPrint('[EditorVoice] route=local action=sair_com_gravacao');
         final podeSair = await _confirmarSaidaEditor();
         if (podeSair && mounted) {
           Navigator.maybePop(context);
         }
+        debugPrint('[EditorVoice] executed=true');
         return;
       }
 
       switch (resultado.type) {
         case VoiceCommandType.iniciarGravacao:
+          debugPrint('[EditorVoice] route=local action=iniciarGravacao');
           await iniciarGravacao(comando);
+          debugPrint('[EditorVoice] executed=true');
           return;
         case VoiceCommandType.pausarGravacao:
+          debugPrint('[EditorVoice] route=local action=pausarGravacao');
           await pausarGravacao(comando);
+          debugPrint('[EditorVoice] executed=true');
           return;
         case VoiceCommandType.retomarGravacao:
+          debugPrint('[EditorVoice] route=local action=retomarGravacao');
           await retomarGravacao(comando);
+          debugPrint('[EditorVoice] executed=true');
           return;
         case VoiceCommandType.encerrarGravacao:
+          debugPrint('[EditorVoice] route=local action=encerrarGravacao');
           await encerrarGravacao(comando);
+          debugPrint('[EditorVoice] executed=true');
           return;
         case VoiceCommandType.pararReproducao:
+          debugPrint('[EditorVoice] route=local action=pararReproducao');
           await pararReproducao(comando);
+          debugPrint('[EditorVoice] executed=true');
           return;
         case VoiceCommandType.reproduzirGravacao:
+          debugPrint('[EditorVoice] route=local action=reproduzirGravacao');
           await reproduzirProjeto(comando);
+          debugPrint('[EditorVoice] executed=true');
           return;
         case VoiceCommandType.criarMarcador:
+          debugPrint('[EditorVoice] route=local action=criarMarcador');
           criarMarcador(comando);
+          debugPrint('[EditorVoice] executed=true');
           return;
         case VoiceCommandType.limparTexto:
+          debugPrint('[EditorVoice] route=local action=limparTexto');
           limparTexto(comando);
+          debugPrint('[EditorVoice] executed=true');
           return;
         case VoiceCommandType.listarGravacoes:
+          debugPrint('[EditorVoice] route=local action=listarGravacoes');
           setState(() {
             statusProjeto = 'Lista de gravações disponível nesta tela.';
           });
+          debugPrint('[EditorVoice] executed=true');
           return;
         case VoiceCommandType.buscarGravacoes:
         case VoiceCommandType.buscarProjetos:
         case VoiceCommandType.limparBusca:
+          setState(() {
+            statusProjeto = 'Busca não disponível no editor.';
+          });
+          return;
         case VoiceCommandType.scrollBaixo:
         case VoiceCommandType.scrollCima:
         case VoiceCommandType.scrollTopo:
         case VoiceCommandType.scrollFim:
-          setState(() {
-            statusProjeto = 'Não há lista para rolar nesta tela.';
-          });
+          debugPrint('[EditorVoice] route=scroll action=${resultado.type}');
+          final scrollResult = await VoiceScrollHandler(
+            controller: _voiceScrollController,
+          ).handle(resultado);
+          debugPrint('[EditorVoice] executed=${scrollResult != null}');
+          if (scrollResult?.statusMessage != null && mounted) {
+            setState(() {
+              statusProjeto = scrollResult!.statusMessage!;
+            });
+          }
+          _reiniciarEscutaContinuaSeNecessario();
           return;
         case VoiceCommandType.abrirEditor:
           setState(() {
             statusProjeto = 'Editor já está aberto.';
           });
+          return;
+        case VoiceCommandType.abrirDetalhesGravacao:
+        case VoiceCommandType.abrirAssistente:
+          debugPrint('[EditorVoice] route=local action=ajuda');
+          await _abrirAjudaComandosEditor();
+          debugPrint('[EditorVoice] executed=true');
           return;
         case VoiceCommandType.definirNomeProjeto:
         case VoiceCommandType.definirDescricaoProjeto:
@@ -880,10 +1002,6 @@ class _EditorPageState extends State<EditorPage>
         case VoiceCommandType.abrirDashboard:
         case VoiceCommandType.abrirProjetos:
         case VoiceCommandType.abrirGravacoes:
-        case VoiceCommandType.abrirDetalhesGravacao:
-        case VoiceCommandType.abrirAssistente:
-          unawaited(_abrirAjudaComandosEditor());
-          return;
         case VoiceCommandType.abrirConfiguracoes:
         case VoiceCommandType.abrirHistorico:
         case VoiceCommandType.voltar:
@@ -912,12 +1030,20 @@ class _EditorPageState extends State<EditorPage>
         case VoiceCommandType.ativarComandoPersonalizado:
         case VoiceCommandType.desativarComandoPersonalizado:
         case VoiceCommandType.excluirComandoPersonalizado:
+        case VoiceCommandType.preencherFraseComando:
+        case VoiceCommandType.salvarComandoPersonalizado:
+        case VoiceCommandType.consultarTempoSilencio:
+        case VoiceCommandType.ajustarTempoSilencio:
+        case VoiceCommandType.consultarSensibilidadeSilencio:
+        case VoiceCommandType.ajustarSensibilidadeSilencio:
+          debugPrint('[EditorVoice] route=unknown action=${resultado.type}');
           setState(() {
             statusProjeto =
                 'Esse comando não está disponível no editor. Use os botões da tela inicial para navegar.';
           });
           return;
         case VoiceCommandType.desconhecido:
+          debugPrint('[EditorVoice] route=unknown action=desconhecido');
           break;
       }
 
@@ -1124,7 +1250,7 @@ class _EditorPageState extends State<EditorPage>
     }
 
     if (route != null) {
-      await Navigator.push(context, route);
+      unawaited(Navigator.push(context, route));
     } else {
       onNavigate?.call();
     }
@@ -1643,15 +1769,42 @@ class _EditorPageState extends State<EditorPage>
     _clearRealtimeContext();
     unawaited(_voiceSessionManager.stopListening(_voiceOwnerId));
     _recordingCoordinator.dispose();
+    _voiceScrollController.dispose();
+    rte.VoiceRuntimeEngine.instance.cancelOwnerRecovery(_voiceOwnerId);
     super.dispose();
   }
 
-  Future<void> _abrirAjudaComandosEditor() {
-    return showVoiceCommandHelpDialog(
-      context,
-      contextType: VoiceCommandHelpContext.editor,
-    );
+  Future<void> _abrirAjudaComandosEditor() async {
+    _helpCloseInProgress = false;
+    _helpDialogCounter++;
+    final token = 'help_$_helpDialogCounter';
+    setState(() {
+      _isHelpDialogOpen = true;
+      _helpSessionToken = token;
+    });
+    debugPrint('[EditorHelpModal] opened session=$token');
+    try {
+      await showVoiceCommandHelpDialog(
+        context,
+        contextType: VoiceCommandHelpContext.editor,
+      );
+    } finally {
+      if (mounted) {
+        final closedToken = _helpSessionToken;
+        setState(() {
+          _isHelpDialogOpen = false;
+          _helpSessionToken = null;
+          _helpCloseInProgress = false;
+        });
+        debugPrint('[EditorHelpModal] closed session=$closedToken');
+        _reiniciarEscutaContinuaSeNecessario();
+      }
+    }
   }
+
+  @visibleForTesting
+  Future<void> debugHandleVoiceCommandForTesting(String text) =>
+      interpretarComando(text);
 
   @override
   Widget build(BuildContext context) {
@@ -1707,6 +1860,7 @@ class _EditorPageState extends State<EditorPage>
             ),
             child: SafeArea(
               child: SingleChildScrollView(
+                controller: _voiceScrollController,
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                 child: Center(
                   child: ConstrainedBox(

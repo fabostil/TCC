@@ -148,6 +148,12 @@ class VoiceGlobalCommandService {
       case VoiceCommandType.ativarComandoPersonalizado:
       case VoiceCommandType.desativarComandoPersonalizado:
       case VoiceCommandType.excluirComandoPersonalizado:
+      case VoiceCommandType.preencherFraseComando:
+      case VoiceCommandType.salvarComandoPersonalizado:
+      case VoiceCommandType.consultarTempoSilencio:
+      case VoiceCommandType.ajustarTempoSilencio:
+      case VoiceCommandType.consultarSensibilidadeSilencio:
+      case VoiceCommandType.ajustarSensibilidadeSilencio:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
         return const VoiceGlobalCommandResult.notHandled();

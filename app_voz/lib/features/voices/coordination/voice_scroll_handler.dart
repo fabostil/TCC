@@ -20,9 +20,14 @@ class VoiceScrollHandler {
     }
 
     if (!_controller.hasClients) {
-      return VoiceCommandPageResult.handled(
-        message: 'Não há mais conteúdo para rolar.',
-      );
+      // Aguarda um frame: o controller pode ainda estar se conectando ao
+      // widget após uma navegação ou rebuild recente.
+      await SchedulerBinding.instance.endOfFrame;
+      if (!_controller.hasClients) {
+        return VoiceCommandPageResult.handled(
+          message: 'Não há mais conteúdo para rolar.',
+        );
+      }
     }
 
     final position = _controller.position;
@@ -74,8 +79,6 @@ class VoiceScrollHandler {
   }
 
   Future<void> _adjustToLatestBottomIfNeeded() async {
-    await SchedulerBinding.instance.endOfFrame;
-
     if (!_controller.hasClients) {
       return;
     }

@@ -108,22 +108,31 @@ class VoiceCommandHelpDialog extends StatelessWidget {
       title: 'Reprodução',
       commands: [
         'Tocar item 1',
-        'Tocar gravação 1',
+        'Reproduzir gravação 2',
+        'Tocar guitarra',
         'Primeira gravação',
         'Parar reprodução',
       ],
     ),
     _VoiceCommandHelpSection(
       title: 'Gravações',
-      commands: ['Abrir detalhes', 'Excluir gravação'],
+      commands: [
+        'Detalhes da gravação 2',
+        'Detalhes do item 1',
+        'Detalhes de guitarra',
+        'Abrir detalhes',
+        'Renomear gravação 2',
+        'Excluir gravação 2',
+        'Excluir gravação',
+      ],
+    ),
+    _VoiceCommandHelpSection(
+      title: 'Renomear',
+      commands: ['Nome guitarra', 'Confirmar', 'Cancelar'],
     ),
     _VoiceCommandHelpSection(
       title: 'Lista',
       commands: ['Descer', 'Subir', 'Ir para o topo', 'Ir para o fim'],
-    ),
-    _VoiceCommandHelpSection(
-      title: 'Confirmação',
-      commands: ['Confirmar', 'Cancelar'],
     ),
   ];
 
@@ -169,7 +178,17 @@ class VoiceCommandHelpDialog extends StatelessWidget {
       commands: [
         'Ativar parada por silêncio',
         'Desativar parada por silêncio',
+        'Tempo de silêncio',
+        'Aumentar tempo de silêncio',
+        'Mais tempo de silêncio',
+        'Diminuir tempo de silêncio',
+        'Menos tempo de silêncio',
         'Definir silêncio para três segundos',
+        'Sensibilidade de silêncio',
+        'Aumentar sensibilidade',
+        'Mais sensível',
+        'Baixar sensibilidade',
+        'Menos sensível',
         'Limiar menos trinta',
         'Sensibilidade menos quarenta',
       ],
@@ -177,9 +196,14 @@ class VoiceCommandHelpDialog extends StatelessWidget {
     _VoiceCommandHelpSection(
       title: 'Comandos personalizados',
       commands: [
-        'Criar comando',
+        'Criar comando personalizado escudo',
         'Criar comando modo palco para abrir editor',
-        'Excluir comando',
+        'Frase modo palco',
+        'Nome escudo',
+        'Salvar comando',
+        'Ativar comando escudo',
+        'Desativar comando escudo',
+        'Excluir comando escudo',
       ],
     ),
     _VoiceCommandHelpSection(

@@ -1157,6 +1157,70 @@ void main() {
     });
   });
 
+  group('CommandService FINAL — renomear gravacao por referencia visual', () {
+    test('renomear gravacao N para Y extrai referencia numerica e novo nome', () {
+      final r = service.interpret('renomear gravação 1 para abacate');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, '1');
+      expect(r.parametroSecundario, 'abacate');
+    });
+
+    test('mudar nome da gravacao N para Y resolve como renomearGravacao', () {
+      final r = service.interpret('mudar nome da gravação 1 para abacate');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, '1');
+      expect(r.parametroSecundario, 'abacate');
+    });
+
+    test('alterar nome da gravacao N para Y resolve como renomearGravacao', () {
+      final r = service.interpret('alterar nome da gravação 1 para beats');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, '1');
+      expect(r.parametroSecundario, 'beats');
+    });
+
+    test('trocar nome da gravacao N para Y resolve como renomearGravacao', () {
+      final r = service.interpret('trocar nome da gravação 1 para refrao');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, '1');
+      expect(r.parametroSecundario, 'refrao');
+    });
+
+    test('renomear item N para Y extrai referencia e novo nome', () {
+      final r = service.interpret('renomear item 1 para abacate');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, '1');
+      expect(r.parametroSecundario, 'abacate');
+    });
+
+    test('renomear gravacao por nome textual continua funcionando', () {
+      final r = service.interpret('renomear gravacao ideia um para refrao final');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, 'ideia um');
+      expect(r.parametroSecundario, 'refrao final');
+    });
+
+    test('reproduzir gravacao 1 nao vira renomearGravacao', () {
+      final r = service.interpret('reproduzir gravação 1');
+      expect(r.type, VoiceCommandType.reproduzirGravacao);
+      expect(r.parametro, '1');
+    });
+
+    test('parcial renomear gravacao 1 sem para nao e renomearGravacao', () {
+      // Resultado parcial do STT sem o novo nome — cai em desconhecido,
+      // nunca deve ser interpretado como reprodução.
+      final r = service.interpret('renomear gravação 1');
+      expect(r.type, isNot(VoiceCommandType.reproduzirGravacao));
+    });
+
+    test('renomear gravacao por nome com espaco continua correto', () {
+      final r = service.interpret('renomear gravação verso bonito para coro');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, 'verso bonito');
+      expect(r.parametroSecundario, 'coro');
+    });
+  });
+
   group('CommandService HOTFIX — PROBLEMA 8: sair exige correspondencia exata', () {
     test('sair exato mapeia para sair', () {
       expect(service.interpret('sair').type, VoiceCommandType.sair);
@@ -1187,6 +1251,64 @@ void main() {
 
     test('fazer logout exato mapeia para sair', () {
       expect(service.interpret('fazer logout').type, VoiceCommandType.sair);
+    });
+  });
+
+  group('CommandService FINAL — renomear projeto variantes e artigo opcional', () {
+    test('renomear projeto tomate para alface (classico) ainda funciona', () {
+      final r = service.interpret('renomear projeto tomate para alface');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, 'tomate');
+      expect(r.parametroSecundario, 'alface');
+    });
+
+    test('renomear o projeto tomate para alface aceita artigo o', () {
+      final r = service.interpret('renomear o projeto tomate para alface');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, 'tomate');
+      expect(r.parametroSecundario, 'alface');
+    });
+
+    test('mudar nome do projeto tomate para alface aceita preposicao do', () {
+      final r = service.interpret('mudar nome do projeto tomate para alface');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, 'tomate');
+      expect(r.parametroSecundario, 'alface');
+    });
+
+    test('mudar o nome do projeto tomate para alface aceita artigo e preposicao', () {
+      final r = service.interpret('mudar o nome do projeto tomate para alface');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, 'tomate');
+      expect(r.parametroSecundario, 'alface');
+    });
+
+    test('renomear projeto para guitarra sem nome usa projeto atual (parametro null)', () {
+      final r = service.interpret('renomear projeto para guitarra');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, isNull);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('renomear o projeto para guitarra sem nome usa projeto atual (parametro null)', () {
+      final r = service.interpret('renomear o projeto para guitarra');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, isNull);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('mudar nome da projeto para beats sem nome usa projeto atual', () {
+      final r = service.interpret('mudar nome da projeto para beats');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, isNull);
+      expect(r.parametroSecundario, 'beats');
+    });
+
+    test('renomear projeto sem novo nome nao extrai nome atual como parametroSecundario', () {
+      // "renomear projeto" standalone → sem parametroSecundario
+      final r = service.interpret('renomear projeto');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametroSecundario, isNull);
     });
   });
 }

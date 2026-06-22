@@ -55,6 +55,15 @@ class VoiceConfirmationController {
       );
     }
 
+    // preencherFraseComando passes through to the page dispatcher — rename
+    // modals can update their text field without dismissing the pending confirmation.
+    if (command.type == VoiceCommandType.preencherFraseComando) {
+      return const VoiceConfirmationResult(
+        action: VoiceConfirmationAction.notHandled,
+        message: '',
+      );
+    }
+
     if (pending.destructive && _isDestructiveConfirmationAlias(command)) {
       _pending = null;
       await pending.onConfirm();
@@ -136,6 +145,12 @@ class VoiceConfirmationController {
       case VoiceCommandType.ativarComandoPersonalizado:
       case VoiceCommandType.desativarComandoPersonalizado:
       case VoiceCommandType.excluirComandoPersonalizado:
+      case VoiceCommandType.preencherFraseComando:
+      case VoiceCommandType.salvarComandoPersonalizado:
+      case VoiceCommandType.consultarTempoSilencio:
+      case VoiceCommandType.ajustarTempoSilencio:
+      case VoiceCommandType.consultarSensibilidadeSilencio:
+      case VoiceCommandType.ajustarSensibilidadeSilencio:
       case VoiceCommandType.sair:
       case VoiceCommandType.desconhecido:
         return VoiceConfirmationResult(

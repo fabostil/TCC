@@ -68,11 +68,19 @@ void main() {
     return await future;
   }
 
-  test('sem ScrollController anexado retorna mensagem segura', () async {
+  testWidgets('sem ScrollController anexado retorna mensagem segura', (
+    tester,
+  ) async {
     final controller = ScrollController();
-    final result = await VoiceScrollHandler(
-      controller: controller,
-    ).handle(command('descer'));
+    addTearDown(controller.dispose);
+    // Widget mínimo para que endOfFrame (usado no retry de hasClients) possa
+    // ser processado pelo pump.
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+
+    final future =
+        VoiceScrollHandler(controller: controller).handle(command('descer'));
+    await tester.pump();
+    final result = await future;
 
     expect(result?.handled, isTrue);
     expect(result?.statusMessage, 'Não há mais conteúdo para rolar.');

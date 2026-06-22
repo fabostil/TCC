@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:app_voz/features/recordings/controllers/recordings_list_controller.dart';
 import 'package:app_voz/features/recordings/pages/minhas_gravacoes_page.dart';
+import 'package:app_voz/features/voices/coordination/voice_confirmation_controller.dart';
+import 'package:app_voz/features/voices/services/command_service.dart';
 import 'package:app_voz/models/gravacao.dart';
 import 'package:app_voz/models/usuario.dart';
 import 'package:flutter/material.dart';
@@ -127,6 +129,8 @@ void main() {
     await tester.pump();
 
     final state = tester.state(find.byType(MinhasGravacoesPage)) as dynamic;
+    // Bare "gravacao N" is now BLOCKED (waits for full command like
+    // "detalhes da gravação 1") — does NOT trigger playback.
     await state.debugHandleRecordingReferenceForTesting('gravação 1');
     await tester.pump();
     await state.debugHandleRecordingReferenceForTesting('item 1');
@@ -136,8 +140,52 @@ void main() {
     await state.debugHandleRecordingReferenceForTesting('primeira gravação');
     await tester.pump();
 
-    expect(controller.playedIds, [2, 4, 3, 4]);
+    // 'gravação 1' → blocked (partial); 'item 1' → id=4; 'item 2' → id=3;
+    // 'primeira gravação' → first item = id=4.
+    expect(controller.playedIds, [4, 3, 4]);
   });
+
+  testWidgets(
+    'parcial gravacao N nao dispara reproducao',
+    (tester) async {
+      final controller = _RecordingsHelpTestController(
+        recordings: [
+          _recording(id: 4, name: 'Gravação 3'),
+          _recording(id: 3, name: 'Gravação 2'),
+          _recording(id: 2, name: 'Gravação 1'),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MinhasGravacoesPage(
+            usuario: _usuarioSemId,
+            recordingsController: controller,
+            enableVoiceListening: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final state = tester.state(find.byType(MinhasGravacoesPage)) as dynamic;
+
+      // These are partial STT transcripts before "detalhes da gravação N" or
+      // "renomear gravação N" arrive as the final result. Must NOT trigger
+      // playback — they should wait for the complete command.
+      await state.debugHandleRecordingReferenceForTesting('gravação 1');
+      await tester.pump();
+      await state.debugHandleRecordingReferenceForTesting('gravação 2');
+      await tester.pump();
+      await state.debugHandleRecordingReferenceForTesting('gravação 3');
+      await tester.pump();
+
+      expect(
+        controller.playedIds,
+        isEmpty,
+        reason: 'Parcial "gravacao N" não pode disparar reprodução',
+      );
+    },
+  );
 
   testWidgets('referencias locais de lista nao usam IA contextual', (
     tester,
@@ -250,6 +298,257 @@ void main() {
     expect(resumed, 1);
     expect(controller.playedIds, isEmpty);
   });
+
+  testWidgets(
+    'parcial renomear gravacao nao dispara reproducao',
+    (tester) async {
+      final controller = _RecordingsHelpTestController(
+        recordings: [
+          _recording(id: 4, name: 'Gravação 3'),
+          _recording(id: 3, name: 'Gravação 2'),
+          _recording(id: 2, name: 'Gravação 1'),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MinhasGravacoesPage(
+            usuario: _usuarioSemId,
+            recordingsController: controller,
+            enableVoiceListening: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final state = tester.state(find.byType(MinhasGravacoesPage)) as dynamic;
+
+      // Resultado parcial do STT — "renomear gravação 1" sem o "para X"
+      // NÃO deve disparar reprodução.
+      await state.debugHandleRecordingReferenceForTesting('renomear gravação 1');
+      await tester.pump();
+      await state.debugHandleRecordingReferenceForTesting('mudar nome da gravação 2');
+      await tester.pump();
+
+      expect(controller.playedIds, isEmpty,
+          reason: 'Parcial de renomear não pode disparar reprodução');
+    },
+  );
+
+  testWidgets(
+    'renomear gravacao 1 por voz abre modal com nome pre-preenchido',
+    (tester) async {
+      final recordings = [
+        _recording(id: 4, name: 'Gravação 3'),
+        _recording(id: 3, name: 'Gravação 2'),
+        _recording(id: 2, name: 'Gravação 1'),
+      ];
+      final controller = _RecordingsHelpTestController(recordings: recordings);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MinhasGravacoesPage(
+            usuario: _usuarioSemId,
+            recordingsController: controller,
+            enableVoiceListening: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final state = tester.state(find.byType(MinhasGravacoesPage)) as dynamic;
+
+      // "1" → primeiro item visível (id=4, "Gravação 3") → abre modal
+      final renameFuture = state.debugHandleRenameForTesting('1', 'abacate');
+      await tester.pump();
+
+      expect(find.text('Renomear gravação'), findsOneWidget,
+          reason: 'Modal de renomeação deve abrir');
+      expect(find.text('abacate'), findsOneWidget,
+          reason: 'Campo deve estar pré-preenchido com o novo nome');
+
+      // Confirma tocando "Salvar"
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+      await renameFuture;
+
+      expect(controller.renamedPairs, hasLength(1));
+      expect(controller.renamedPairs.first.$1, 4,
+          reason: 'Deve renomear o primeiro item visível (id=4)');
+      expect(controller.renamedPairs.first.$2, 'abacate');
+    },
+  );
+
+  testWidgets(
+    'renomear gravacao por nome textual resolve pelo nome e salva ao confirmar por voz',
+    (tester) async {
+      final recordings = [
+        _recording(id: 4, name: 'Gravação 3'),
+        _recording(id: 3, name: 'Refrão'),
+        _recording(id: 2, name: 'Gravação 1'),
+      ];
+      final controller = _RecordingsHelpTestController(recordings: recordings);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MinhasGravacoesPage(
+            usuario: _usuarioSemId,
+            recordingsController: controller,
+            enableVoiceListening: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final state = tester.state(find.byType(MinhasGravacoesPage)) as dynamic;
+
+      // "refrao" → encontra por nome normalizado (id=3)
+      final renameFuture = state.debugHandleRenameForTesting('refrao', 'beats');
+      await tester.pump();
+
+      expect(find.text('Renomear gravação'), findsOneWidget);
+      expect(state.voiceConfirmationController.hasPendingConfirmation, isTrue,
+          reason: 'VoiceConfirmationController deve bloquear outros comandos enquanto modal estiver aberto');
+
+      // Confirma via voz — simula VoiceConfirmationController recebendo "confirmar"
+      await (state.voiceConfirmationController as VoiceConfirmationController)
+          .handle(const CommandResult(
+        originalText: 'confirmar',
+        normalizedText: 'confirmar',
+        type: VoiceCommandType.confirmarAcao,
+        recognized: true,
+        tipoComando: 'confirmarAcao',
+      ));
+      await tester.pumpAndSettle();
+      await renameFuture;
+
+      expect(controller.renamedPairs, hasLength(1));
+      expect(controller.renamedPairs.first.$1, 3,
+          reason: 'Deve renomear por correspondência de nome (id=3)');
+      expect(controller.renamedPairs.first.$2, 'beats');
+    },
+  );
+
+  testWidgets(
+    'voz cancelar durante modal de renomear nao salva',
+    (tester) async {
+      final controller = _RecordingsHelpTestController(
+        recordings: [_recording(id: 1, name: 'Ideia')],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MinhasGravacoesPage(
+            usuario: _usuarioSemId,
+            recordingsController: controller,
+            enableVoiceListening: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final state = tester.state(find.byType(MinhasGravacoesPage)) as dynamic;
+
+      final renameFuture = state.debugHandleRenameForTesting('1', 'novo nome');
+      await tester.pump();
+
+      expect(find.text('Renomear gravação'), findsOneWidget);
+
+      // Cancela via voz
+      await (state.voiceConfirmationController as VoiceConfirmationController)
+          .handle(const CommandResult(
+        originalText: 'cancelar',
+        normalizedText: 'cancelar',
+        type: VoiceCommandType.cancelarAcao,
+        recognized: true,
+        tipoComando: 'cancelarAcao',
+      ));
+      await tester.pumpAndSettle();
+      await renameFuture;
+
+      expect(controller.renamedPairs, isEmpty,
+          reason: 'Cancelar por voz não deve salvar a renomeação');
+    },
+  );
+
+  testWidgets(
+    'modal renomear bloqueia reproducao por voz via voiceConfirmationController',
+    (tester) async {
+      final controller = _RecordingsHelpTestController(
+        recordings: [_recording(id: 1, name: 'Ideia')],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MinhasGravacoesPage(
+            usuario: _usuarioSemId,
+            recordingsController: controller,
+            enableVoiceListening: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final state = tester.state(find.byType(MinhasGravacoesPage)) as dynamic;
+
+      final renameFuture = state.debugHandleRenameForTesting('1', 'beats');
+      await tester.pump();
+
+      expect(find.text('Renomear gravação'), findsOneWidget);
+
+      // Enquanto modal está aberto, "reproduzir gravação 1" deve ser bloqueado
+      final result = await (state.voiceConfirmationController
+              as VoiceConfirmationController)
+          .handle(const CommandResult(
+        originalText: 'reproduzir gravacao 1',
+        normalizedText: 'reproduzir gravacao 1',
+        type: VoiceCommandType.reproduzirGravacao,
+        recognized: true,
+        tipoComando: 'reproduzirGravacao',
+        parametro: '1',
+      ));
+
+      expect(result.action, VoiceConfirmationAction.blocked,
+          reason: 'Reprodução deve ser bloqueada durante modal de renomeação');
+      expect(controller.playedIds, isEmpty);
+
+      // Cleanup
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      await renameFuture;
+    },
+  );
+
+  testWidgets(
+    'renomear referencia inexistente nao abre modal nem causa crash',
+    (tester) async {
+      final controller = _RecordingsHelpTestController(
+        recordings: [_recording(id: 1, name: 'Ideia')],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MinhasGravacoesPage(
+            usuario: _usuarioSemId,
+            recordingsController: controller,
+            enableVoiceListening: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final state = tester.state(find.byType(MinhasGravacoesPage)) as dynamic;
+
+      // Índice 99 está fora do range — não deve abrir modal, nem renomear.
+      await state.debugHandleRenameForTesting('99', 'abacate');
+      await tester.pump();
+
+      expect(find.text('Renomear gravação'), findsNothing,
+          reason: 'Modal não deve abrir para referência inválida');
+      expect(controller.renamedPairs, isEmpty);
+      expect(controller.playedIds, isEmpty);
+    },
+  );
 }
 
 final _usuario = Usuario(
@@ -355,6 +654,35 @@ class _RecordingsHelpTestController extends RecordingsListController {
       text.toLowerCase(),
       (current, entry) => current.replaceAll(entry.key, entry.value),
     );
+  }
+
+  final renamedPairs = <(int?, String)>[];
+
+  @override
+  Future<Gravacao> renameRecording({
+    required Gravacao gravacao,
+    required String newName,
+    required int? usuarioId,
+    bool byVoice = false,
+  }) async {
+    renamedPairs.add((gravacao.id, newName));
+    final updated = Gravacao(
+      id: gravacao.id,
+      usuarioId: gravacao.usuarioId,
+      projetoId: gravacao.projetoId,
+      nome: newName,
+      caminhoArquivo: gravacao.caminhoArquivo,
+      dataCriacao: gravacao.dataCriacao,
+      duracaoSegundos: gravacao.duracaoSegundos,
+      tamanhoBytes: gravacao.tamanhoBytes,
+      formatoAudio: gravacao.formatoAudio,
+    );
+    final recordings = List.of(_testState.recordings);
+    final idx = recordings.indexWhere((r) => r.id == gravacao.id);
+    if (idx != -1) recordings[idx] = updated;
+    _testState = _testState.copyWith(recordings: recordings);
+    notifyListeners();
+    return updated;
   }
 
   @override

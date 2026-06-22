@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 enum VoiceCommandType {
   iniciarGravacao,
   pausarGravacao,
@@ -59,6 +61,12 @@ enum VoiceCommandType {
   ativarComandoPersonalizado,
   desativarComandoPersonalizado,
   excluirComandoPersonalizado,
+  preencherFraseComando,
+  salvarComandoPersonalizado,
+  consultarTempoSilencio,
+  ajustarTempoSilencio,
+  consultarSensibilidadeSilencio,
+  ajustarSensibilidadeSilencio,
   desconhecido,
 }
 
@@ -374,8 +382,16 @@ class CommandService {
       'eu quero que voce coloque o nome',
       'chamar de',
       'salvar como',
+      // Low-priority bare "nome X" — reached only if _interpretEssentialCommand
+      // did not capture it (e.g. after adding project-passthrough exclusion).
+      'nome',
     ]);
     if (nomeProjeto != null) {
+      debugPrint(
+        '[VoiceParser] raw=$text '
+        'matched_rule=definirNomeProjeto_extract '
+        'priority=normal context=project type=definirNomeProjeto',
+      );
       return _recognized(
         text,
         normalizedText,
@@ -616,56 +632,110 @@ class CommandService {
       );
     }
 
-    final detalhesGravacao = _extractAfterAny(normalizedText, const [
-      'abrir detalhes da gravacao',
-      'abrir detalhes gravacao',
-      'abrir detalhes',
-      'ver detalhes',
-      'detalhes',
-      'ver detalhes da gravacao',
-      'ver detalhes gravacao',
-      'mostrar detalhes da gravacao',
-      'mostrar detalhes gravacao',
-      'informacoes da gravacao',
-      'informacoes gravacao',
-      'detalhes da gravacao',
-      'detalhes gravacao',
+    // "detalhes do item N" → visual position lookup (parametro = "item N")
+    final detalhesItemRef = _extractAfterAny(normalizedText, const [
+      'abrir detalhes do item',
+      'ver detalhes do item',
+      'mostrar detalhes do item',
+      'detalhes do item',
     ]);
-    if (detalhesGravacao != null) {
+    if (detalhesItemRef != null) {
+      debugPrint(
+        '[VoiceParser] raw=$text matched_rule=detalhes_item '
+        'priority=normal context=recordings referenceType=item '
+        'requestedTarget=$detalhesItemRef',
+      );
       return _recognized(
         text,
         normalizedText,
         VoiceCommandType.abrirDetalhesGravacao,
         tipoComando: 'abrir_detalhes_gravacao',
-        acaoExecutada: 'Abrir detalhes da gravação',
-        parametro: detalhesGravacao,
+        acaoExecutada: 'Abrir detalhes por posição',
+        parametro: 'item $detalhesItemRef',
       );
     }
-    if (_containsAny(normalizedText, const [
+
+    // "detalhes da gravacao N" → title lookup (parametro = "gravacao N" for numbers)
+    final detalhesGravacaoRef = _extractAfterAny(normalizedText, const [
       'abrir detalhes da gravacao',
       'abrir detalhes gravacao',
-      'abrir detalhes',
-      'ver detalhes',
-      'detalhes',
       'ver detalhes da gravacao',
       'ver detalhes gravacao',
       'mostrar detalhes da gravacao',
       'mostrar detalhes gravacao',
       'informacoes da gravacao',
       'informacoes gravacao',
+      'descricao da gravacao',
       'detalhes da gravacao',
       'detalhes gravacao',
+    ]);
+    if (detalhesGravacaoRef != null) {
+      final param = _gravacaoRefParam(detalhesGravacaoRef);
+      debugPrint(
+        '[VoiceParser] raw=$text matched_rule=detalhes_gravacao '
+        'priority=normal context=recordings referenceType=gravacaoTitle '
+        'requestedTarget=$detalhesGravacaoRef',
+      );
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirDetalhesGravacao,
+        tipoComando: 'abrir_detalhes_gravacao',
+        acaoExecutada: 'Abrir detalhes por título',
+        parametro: param,
+      );
+    }
+
+    // "detalhes de [nome]" → name lookup
+    final detalhesDeNome = _extractAfterAny(normalizedText, const [
+      'abrir detalhes de',
+      'ver detalhes de',
+      'detalhes de',
+    ]);
+    if (detalhesDeNome != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirDetalhesGravacao,
+        tipoComando: 'abrir_detalhes_gravacao',
+        acaoExecutada: 'Abrir detalhes por nome',
+        parametro: detalhesDeNome,
+      );
+    }
+
+    // Generic "abrir detalhes [algo]" / "ver detalhes [algo]" / "detalhes [algo]"
+    final detalhesGenerico = _extractAfterAny(normalizedText, const [
+      'abrir detalhes',
+      'ver detalhes',
+      'detalhes',
+    ]);
+    if (detalhesGenerico != null) {
+      return _recognized(
+        text,
+        normalizedText,
+        VoiceCommandType.abrirDetalhesGravacao,
+        tipoComando: 'abrir_detalhes_gravacao',
+        acaoExecutada: 'Abrir detalhes',
+        parametro: detalhesGenerico,
+      );
+    }
+    if (_containsAny(normalizedText, const [
+      'abrir detalhes',
+      'ver detalhes',
+      'informacoes',
+      'detalhes',
     ])) {
       return _recognized(
         text,
         normalizedText,
         VoiceCommandType.abrirDetalhesGravacao,
         tipoComando: 'abrir_detalhes_gravacao',
-        acaoExecutada: 'Abrir detalhes da gravação',
+        acaoExecutada: 'Abrir detalhes',
       );
     }
 
-    final gravacaoParaExcluir = _extractAfterAny(normalizedText, const [
+    // "excluir gravacao N" / "apagar gravacao N" → title lookup for numbers
+    final gravacaoParaExcluirRaw = _extractAfterAny(normalizedText, const [
       'excluir gravacao',
       'apagar gravacao',
       'remover gravacao',
@@ -675,14 +745,15 @@ class CommandService {
       'remover audio',
       'deletar audio',
     ]);
-    if (gravacaoParaExcluir != null) {
+    if (gravacaoParaExcluirRaw != null) {
+      final param = _gravacaoRefParam(gravacaoParaExcluirRaw);
       return _recognized(
         text,
         normalizedText,
         VoiceCommandType.excluirGravacao,
         tipoComando: 'excluir_gravacao',
         acaoExecutada: 'Excluir gravação',
-        parametro: gravacaoParaExcluir,
+        parametro: param,
       );
     }
     if (const [
@@ -1138,6 +1209,9 @@ class CommandService {
       'volta',
       'retornar',
       'retorna',
+      'fechar',
+      'fecha',
+      'fechar tela',
       'voltar tela',
       'voltar uma tela',
       'voltar para home',
@@ -1399,6 +1473,79 @@ class CommandService {
       );
     }
 
+    // "ativar/reativar/ligar comando [frase]" — with target
+    for (final prefix in const [
+      'ativar o comando ',
+      'ativar comando ',
+      'reativar o comando ',
+      'reativar comando ',
+      'ligar o comando ',
+      'ligar comando ',
+    ]) {
+      if (normalizedText.startsWith(prefix)) {
+        final frase = normalizedText.replaceFirst(prefix, '').trim();
+        if (frase.isNotEmpty) {
+          return _recognized(
+            originalText,
+            normalizedText,
+            VoiceCommandType.ativarComandoPersonalizado,
+            tipoComando: 'ativar_comando_personalizado',
+            acaoExecutada: 'Ativar comando personalizado',
+            parametro: frase,
+          );
+        }
+      }
+    }
+
+    // "desativar/pausar/desligar comando [frase]" — with target
+    for (final prefix in const [
+      'desativar o comando ',
+      'desativar comando ',
+      'pausar o comando ',
+      'pausar comando ',
+      'desligar o comando ',
+      'desligar comando ',
+    ]) {
+      if (normalizedText.startsWith(prefix)) {
+        final frase = normalizedText.replaceFirst(prefix, '').trim();
+        if (frase.isNotEmpty) {
+          return _recognized(
+            originalText,
+            normalizedText,
+            VoiceCommandType.desativarComandoPersonalizado,
+            tipoComando: 'desativar_comando_personalizado',
+            acaoExecutada: 'Desativar comando personalizado',
+            parametro: frase,
+          );
+        }
+      }
+    }
+
+    // "excluir/apagar/remover comando [frase]" — with target
+    for (final prefix in const [
+      'excluir o comando ',
+      'excluir comando ',
+      'apagar o comando ',
+      'apagar comando ',
+      'remover o comando ',
+      'remover comando ',
+    ]) {
+      if (normalizedText.startsWith(prefix)) {
+        final frase = normalizedText.replaceFirst(prefix, '').trim();
+        if (frase.isNotEmpty) {
+          return _recognized(
+            originalText,
+            normalizedText,
+            VoiceCommandType.excluirComandoPersonalizado,
+            tipoComando: 'excluir_comando_personalizado',
+            acaoExecutada: 'Excluir comando personalizado',
+            parametro: frase,
+          );
+        }
+      }
+    }
+
+    // Bare ativar/desativar/excluir (no target)
     if (_equalsAny(normalizedText, const ['ativar comando'])) {
       return _recognized(
         originalText,
@@ -1426,6 +1573,268 @@ class CommandService {
         VoiceCommandType.excluirComandoPersonalizado,
         tipoComando: 'excluir_comando_personalizado',
         acaoExecutada: 'Excluir comando personalizado',
+      );
+    }
+
+    // "criar comando personalizado [frase]" — shortcut without "para"
+    if (normalizedText.startsWith('criar comando personalizado ') &&
+        !normalizedText.contains(' para ')) {
+      final frase =
+          normalizedText.replaceFirst('criar comando personalizado ', '').trim();
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.criarComandoPersonalizado,
+        tipoComando: 'criar_comando_personalizado',
+        acaoExecutada: 'Criar comando personalizado',
+        parametro: frase.isNotEmpty ? frase : null,
+      );
+    }
+
+    // Project-name commands — HIGH PRIORITY, must beat "nome [texto]" below.
+    // "nome do projeto X", "nome projeto X", "colocar nome do projeto X",
+    // "definir nome do projeto X" — all route to definirNomeProjeto.
+    for (final prefix in const [
+      'nome do projeto ',
+      'nome projeto ',
+      'colocar nome do projeto ',
+      'colocar o nome do projeto ',
+      'definir nome do projeto ',
+      'definir o nome do projeto ',
+    ]) {
+      if (normalizedText.startsWith(prefix)) {
+        final value = normalizedText.substring(prefix.length).trim();
+        if (value.isNotEmpty) {
+          debugPrint(
+            '[VoiceParser] raw=$originalText '
+            'matched_rule=definirNomeProjeto_prefix '
+            'priority=high context=project type=definirNomeProjeto',
+          );
+          return _recognized(
+            originalText,
+            normalizedText,
+            VoiceCommandType.definirNomeProjeto,
+            tipoComando: 'definir_nome_projeto',
+            acaoExecutada: 'Definir nome do projeto',
+            parametro: _cleanShortName(value),
+          );
+        }
+      }
+    }
+
+    // Recordings: "renomear gravacao N" / "renomear item N" without "para" —
+    // opens the rename modal for the specified recording immediately.
+    // Patterns with " para " fall through to _extractRenameRecording in the
+    // main interpret() body.
+    for (final entry in const [
+      ('renomear gravacao ', 'gravacao'),
+      ('renomear item ', 'item'),
+      ('mudar nome da gravacao ', 'gravacao'),
+      ('alterar nome da gravacao ', 'gravacao'),
+      ('trocar nome da gravacao ', 'gravacao'),
+      ('mudar nome do item ', 'item'),
+      ('alterar nome do item ', 'item'),
+    ]) {
+      final pfx = entry.$1;
+      final refType = entry.$2;
+      if (normalizedText.startsWith(pfx) &&
+          !normalizedText.contains(' para ')) {
+        final raw = normalizedText.substring(pfx.length).trim();
+        if (raw.isNotEmpty) {
+          final param =
+              refType == 'gravacao' ? _gravacaoRefParam(raw) : 'item $raw';
+          debugPrint(
+            '[VoiceParser] raw=$originalText '
+            'matched_rule=renomearGravacao_direct '
+            'priority=high context=recordings '
+            'referenceType=$refType requestedTarget=$raw',
+          );
+          return _recognized(
+            originalText,
+            normalizedText,
+            VoiceCommandType.renomearGravacao,
+            tipoComando: 'renomear_gravacao',
+            acaoExecutada: 'Renomear gravação',
+            parametro: param,
+          );
+        }
+      }
+    }
+
+    // "frase [texto]" / "nome [texto]" — fill the custom command phrase field.
+    // Project-name patterns (starting with "do projeto" or "projeto") must NOT
+    // be captured here; they fall through to the main interpret() body where
+    // _extractAfterAny handles them as definirNomeProjeto.
+    for (final prefix in const ['frase ', 'nome ']) {
+      if (normalizedText.startsWith(prefix)) {
+        final texto = normalizedText.replaceFirst(prefix, '').trim();
+        if (texto.isNotEmpty) {
+          if (prefix == 'nome ' &&
+              (texto.startsWith('do projeto') ||
+                  texto.startsWith('projeto') ||
+                  texto.startsWith('da gravacao') ||
+                  texto.startsWith('da gravação') ||
+                  texto.startsWith('do item'))) {
+            // Yield to definirNomeProjeto in main interpret().
+            debugPrint(
+              '[VoiceParser] raw=$originalText '
+              'matched_rule=nome_project_passthrough '
+              'priority=high context=project type=definirNomeProjeto(deferred)',
+            );
+            break;
+          }
+          debugPrint(
+            '[VoiceParser] raw=$originalText '
+            'matched_rule=preencherFraseComando '
+            'priority=high context=settings type=preencherFraseComando',
+          );
+          return _recognized(
+            originalText,
+            normalizedText,
+            VoiceCommandType.preencherFraseComando,
+            tipoComando: 'preencher_frase_comando',
+            acaoExecutada: 'Preencher frase',
+            parametro: texto,
+          );
+        }
+      }
+    }
+
+    // "salvar comando" / "confirmar comando"
+    if (_equalsAny(normalizedText, const [
+      'salvar comando',
+      'confirmar comando',
+      'salvar comando personalizado',
+      'confirmar comando personalizado',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.salvarComandoPersonalizado,
+        tipoComando: 'salvar_comando_personalizado',
+        acaoExecutada: 'Salvar comando personalizado',
+      );
+    }
+
+    // Bare "tempo de silencio" / "sensibilidade de silencio" — consult current value
+    if (_equalsAny(normalizedText, const [
+      'tempo de silencio',
+      'tempo silencio',
+      'qual o tempo de silencio',
+      'quanto e o tempo de silencio',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.consultarTempoSilencio,
+        tipoComando: 'consultar_tempo_silencio',
+        acaoExecutada: 'Consultar tempo de silêncio',
+      );
+    }
+
+    // "aumentar/mais tempo de silencio" (and article variants)
+    if (_containsAny(normalizedText, const [
+          'aumentar tempo de silencio',
+          'mais tempo de silencio',
+          'subir tempo de silencio',
+        ]) ||
+        (normalizedText.contains('tempo de silencio') &&
+            (normalizedText.contains('aumentar') ||
+                normalizedText.contains('subir') ||
+                normalizedText.contains('mais')))) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.ajustarTempoSilencio,
+        tipoComando: 'ajustar_tempo_silencio',
+        acaoExecutada: 'Aumentar tempo de silêncio',
+        parametro: 'aumentar',
+      );
+    }
+    // "diminuir/menos tempo de silencio" (and article variants)
+    if (_containsAny(normalizedText, const [
+          'diminuir tempo de silencio',
+          'menos tempo de silencio',
+          'baixar tempo de silencio',
+          'reduzir tempo de silencio',
+        ]) ||
+        (normalizedText.contains('tempo de silencio') &&
+            (normalizedText.contains('diminuir') ||
+                normalizedText.contains('baixar') ||
+                normalizedText.contains('reduzir') ||
+                normalizedText.contains('menos')))) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.ajustarTempoSilencio,
+        tipoComando: 'ajustar_tempo_silencio',
+        acaoExecutada: 'Diminuir tempo de silêncio',
+        parametro: 'diminuir',
+      );
+    }
+
+    // Bare "sensibilidade de silencio" — consult current value
+    if (_equalsAny(normalizedText, const [
+      'sensibilidade de silencio',
+      'sensibilidade do silencio',
+      'sensibilidade',
+      'qual a sensibilidade de silencio',
+      'quanto e a sensibilidade de silencio',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.consultarSensibilidadeSilencio,
+        tipoComando: 'consultar_sensibilidade_silencio',
+        acaoExecutada: 'Consultar sensibilidade de silêncio',
+      );
+    }
+
+    // "aumentar/mais sensibilidade" (article variants + "mais sensivel")
+    if (_containsAny(normalizedText, const [
+      'aumentar sensibilidade',
+      'aumentar a sensibilidade',
+      'mais sensivel',
+      'mais sensibilidade',
+      'mais a sensibilidade',
+      'aumentar limiar',
+      'subir sensibilidade',
+      'subir a sensibilidade',
+      'subir limiar',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.ajustarSensibilidadeSilencio,
+        tipoComando: 'ajustar_sensibilidade_silencio',
+        acaoExecutada: 'Aumentar sensibilidade de silêncio',
+        parametro: 'aumentar',
+      );
+    }
+    // "diminuir/baixar/menos sensibilidade" (article variants + "menos sensivel")
+    if (_containsAny(normalizedText, const [
+      'diminuir sensibilidade',
+      'diminuir a sensibilidade',
+      'baixar sensibilidade',
+      'baixar a sensibilidade',
+      'reduzir sensibilidade',
+      'reduzir a sensibilidade',
+      'menos sensivel',
+      'menos sensibilidade',
+      'menos a sensibilidade',
+      'diminuir limiar',
+      'baixar limiar',
+      'reduzir limiar',
+      'sensibilidade baixar',
+      'sensibilidade diminuir',
+    ])) {
+      return _recognized(
+        originalText,
+        normalizedText,
+        VoiceCommandType.ajustarSensibilidadeSilencio,
+        tipoComando: 'ajustar_sensibilidade_silencio',
+        acaoExecutada: 'Diminuir sensibilidade de silêncio',
+        parametro: 'diminuir',
       );
     }
 
@@ -1796,17 +2205,31 @@ class CommandService {
     return null;
   }
 
+  String _gravacaoRefParam(String raw) {
+    const wordNumbers = {
+      'um', 'uma', 'dois', 'duas', 'tres', 'quatro', 'cinco',
+      'seis', 'sete', 'oito', 'nove',
+    };
+    if (RegExp(r'^[0-9]+$').hasMatch(raw) || wordNumbers.contains(raw)) {
+      return 'gravacao $raw';
+    }
+    return raw;
+  }
+
   (String, String)? _extractRenameRecording(String text) {
+    // Aceita "renomear gravacao X para Y", "renomear item X para Y",
+    // "mudar nome da gravacao X para Y", "alterar nome da gravacao X para Y",
+    // "trocar nome da gravacao X para Y" e variantes com audio/faixa.
     final match = RegExp(
-      r'^(renomear|nomear) gravacao (.+) para (.+)$',
+      r'^(?:renomear|nomear|mudar nome da|alterar nome da|trocar nome da) (?:gravacao|item|audio|faixa) (.+) para (.+)$',
     ).firstMatch(text);
 
     if (match == null) {
       return null;
     }
 
-    final atual = match.group(2)?.trim();
-    final novo = match.group(3)?.trim();
+    final atual = match.group(1)?.trim();
+    final novo = match.group(2)?.trim();
 
     if (atual == null || atual.isEmpty || novo == null || novo.isEmpty) {
       return null;
@@ -1815,23 +2238,38 @@ class CommandService {
     return (atual, novo);
   }
 
-  (String, String)? _extractRenameProject(String text) {
-    final match = RegExp(
-      r'^(renomear|nomear|editar|alterar) projeto (.+) para (.+)$',
+  // Returns (nomeProjeto, novoNome) where nomeProjeto can be null (use current
+  // project). Accepts article "o" and "mudar [o] nome d[ao] [o] projeto".
+  (String?, String)? _extractRenameProject(String text) {
+    // With explicit project name.
+    final withName = RegExp(
+      r'^(?:renomear|nomear|editar|alterar) (?:o )?projeto (.+) para (.+)$'
+      r'|^mudar (?:o )?nome d[ao] (?:o )?projeto (.+) para (.+)$',
     ).firstMatch(text);
-
-    if (match == null) {
-      return null;
+    if (withName != null) {
+      final atual =
+          (withName.group(1) ?? withName.group(3))?.trim();
+      final novo =
+          (withName.group(2) ?? withName.group(4))?.trim();
+      if (atual != null && atual.isNotEmpty && novo != null && novo.isNotEmpty) {
+        return (atual, novo);
+      }
     }
 
-    final atual = match.group(2)?.trim();
-    final novo = match.group(3)?.trim();
-
-    if (atual == null || atual.isEmpty || novo == null || novo.isEmpty) {
-      return null;
+    // Without explicit project name — use the current project (owner decides).
+    final withoutName = RegExp(
+      r'^(?:renomear|alterar) (?:o )?projeto para (.+)$'
+      r'|^mudar (?:o )?nome d[ao] (?:o )?projeto para (.+)$',
+    ).firstMatch(text);
+    if (withoutName != null) {
+      final novo =
+          (withoutName.group(1) ?? withoutName.group(2))?.trim();
+      if (novo != null && novo.isNotEmpty) {
+        return (null, novo);
+      }
     }
 
-    return (atual, novo);
+    return null;
   }
 
   String? _extractProjectReplacement(String text, List<String> fields) {
