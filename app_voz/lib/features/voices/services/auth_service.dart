@@ -1,0 +1,132 @@
+import '../../../models/google_identity.dart';
+import '../../../models/usuario.dart';
+import '../../../repositories/usuario_repository.dart';
+import 'auth_session_service.dart';
+import 'google_auth_service.dart';
+
+class AuthGoogleLoginException implements Exception {
+  const AuthGoogleLoginException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+const String authGoogleAccountPreparationMessage =
+    'Nao foi possivel preparar sua conta no app. Tente novamente.';
+
+const String authGoogleSignupPreparationMessage =
+    'Nao foi possivel criar a conta com Google agora. Tente novamente.';
+
+/// Orquestra autenticacao local e conversao de identidade externa em usuario.
+///
+/// O GoogleAuthService autentica apenas no provedor Google; este servico
+/// transforma a identidade retornada em sessao/usuario local persistido.
+class AuthService {
+  AuthService({
+    Future<GoogleIdentity?> Function()? googleIdentityProvider,
+    Future<Usuario> Function({
+      required String nome,
+      required String email,
+      required String googleId,
+      String? fotoUrl,
+    })?
+    googleUserResolver,
+    Future<Usuario?> Function({required String email, required String senha})?
+    localAuthenticator,
+    Future<bool> Function({
+      required String nome,
+      required String email,
+      required String senha,
+    })?
+    localRegister,
+    AuthSessionService? sessionService,
+  }) : _googleIdentityProvider = googleIdentityProvider,
+       _googleUserResolver = googleUserResolver,
+       _localAuthenticator = localAuthenticator,
+       _localRegister = localRegister,
+       _sessionService = sessionService;
+
+  static final AuthService instance = AuthService();
+
+  final Future<GoogleIdentity?> Function()? _googleIdentityProvider;
+  final Future<Usuario> Function({
+    required String nome,
+    required String email,
+    required String googleId,
+    String? fotoUrl,
+  })?
+  _googleUserResolver;
+  final Future<Usuario?> Function({
+    required String email,
+    required String senha,
+  })?
+  _localAuthenticator;
+  final Future<bool> Function({
+    required String nome,
+    required String email,
+    required String senha,
+  })?
+  _localRegister;
+  final AuthSessionService? _sessionService;
+
+  /// Entra com Google e resolve a identidade externa para um usuario local.
+  ///
+  /// O idToken fica preservado em GoogleIdentity para validacao futura por
+  /// backend, mas a persistencia local continua em UsuarioRepository.
+  Future<Usuario?> entrarComGoogle() async {
+    final identityProvider =
+        _googleIdentityProvider ?? GoogleAuthService.instance.entrarComGoogle;
+    final identity = await identityProvider();
+
+    if (identity == null) {
+      return null;
+    }
+
+    final resolver =
+        _googleUserResolver ?? UsuarioRepository.instance.autenticarComGoogle;
+    try {
+      final usuario = await resolver(
+        nome: identity.nome,
+        email: identity.email,
+        googleId: identity.googleId,
+        fotoUrl: identity.fotoUrl,
+      );
+      await _saveSession(usuario);
+      return usuario;
+    } on GoogleAuthException {
+      rethrow;
+    } catch (_) {
+      throw const AuthGoogleLoginException(authGoogleAccountPreparationMessage);
+    }
+  }
+
+  Future<Usuario?> autenticarUsuario({
+    required String email,
+    required String senha,
+  }) async {
+    final authenticator =
+        _localAuthenticator ?? UsuarioRepository.instance.autenticarUsuario;
+    final usuario = await authenticator(email: email, senha: senha);
+    if (usuario != null) {
+      await _saveSession(usuario);
+    }
+    return usuario;
+  }
+
+  Future<bool> cadastrarUsuario({
+    required String nome,
+    required String email,
+    required String senha,
+  }) {
+    final register =
+        _localRegister ?? UsuarioRepository.instance.cadastrarUsuario;
+    return register(nome: nome, email: email, senha: senha);
+  }
+
+  Future<void> _saveSession(Usuario usuario) {
+    final sessionService = _sessionService ?? AuthSessionService.instance;
+    return sessionService.saveAuthenticatedUser(usuario);
+  }
+}

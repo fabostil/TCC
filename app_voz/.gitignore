@@ -1,0 +1,86 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code (opcional)
+#.vscode/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+
+# Generated docs
+**/doc/api/
+
+# Local AI project memory / technical context
+AGENTS.md
+SESSION_SUMMARY.md
+TASKS.md
+ARCHITECTURE.md
+DATABASE.md
+VOICE_SYSTEM.md
+UI_UX.md
+ROADMAP.md
+TCC_ALIGNMENT.md
+DEVELOPMENT_RULES.md
+
+# Android build outputs
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Symbolication
+app.*.symbols
+
+# Obfuscation
+app.*.map.json
+
+# Optional platforms (ignore if not used)
+# ios/
+# linux/
+# macos/
+windows/
+
+lib/core/config/picovoice_config.dart
+
+# LaTeX / Overleaf generated files
+*.aux
+*.out
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.xdv
+*.nav
+*.snm
+*.vrb
+*.bak
+*.tmp

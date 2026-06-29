@@ -1,0 +1,1314 @@
+import 'package:app_voz/features/voices/services/command_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  const service = CommandService();
+
+  group('CommandService', () {
+    test('normaliza texto removendo acentos e espacos duplicados', () {
+      expect(
+        service.normalize('  Iniciar   Grava\u00e7\u00e3o  '),
+        'iniciar gravacao',
+      );
+      expect(
+        service.normalize('  Abrir,   Hist\u00f3rico!  '),
+        'abrir historico',
+      );
+    });
+
+    test('normalizacao permite matching com caixa alta e pontuacao', () {
+      expect(
+        service.interpret('Configura\u00e7\u00f5es!!!').type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
+        service.interpret('  Abrir   Hist\u00f3rico  ').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(
+        service.interpret('INICIAR GRAVA\u00c7\u00c3O').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+      expect(
+        service.interpret('come\u00e7ar a gravar').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+    });
+
+    test('reconhece comandos de gravacao', () {
+      expect(
+        service.interpret('iniciar grava\u00e7\u00e3o').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+      expect(
+        service.interpret('gravar').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+      expect(
+        service.interpret('come\u00e7ar grava\u00e7\u00e3o').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+      expect(
+        service.interpret('come\u00e7ar a gravar').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+      expect(
+        service.interpret('registrar \u00e1udio').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+      expect(service.interpret('pausar').type, VoiceCommandType.pausarGravacao);
+      expect(service.interpret('pausa').type, VoiceCommandType.pausarGravacao);
+      expect(
+        service.interpret('dar pausa').type,
+        VoiceCommandType.pausarGravacao,
+      );
+      expect(
+        service.interpret('pausar grava\u00e7\u00e3o').type,
+        VoiceCommandType.pausarGravacao,
+      );
+      expect(
+        service.interpret('retomar grava\u00e7\u00e3o').type,
+        VoiceCommandType.retomarGravacao,
+      );
+      expect(
+        service.interpret('continuar grava\u00e7\u00e3o').type,
+        VoiceCommandType.retomarGravacao,
+      );
+      expect(
+        service.interpret('voltar a gravar').type,
+        VoiceCommandType.retomarGravacao,
+      );
+      expect(
+        service.interpret('parar grava\u00e7\u00e3o').type,
+        VoiceCommandType.encerrarGravacao,
+      );
+      expect(
+        service.interpret('encerrar grava\u00e7\u00e3o').type,
+        VoiceCommandType.encerrarGravacao,
+      );
+      expect(
+        service.interpret('finalizar grava\u00e7\u00e3o').type,
+        VoiceCommandType.encerrarGravacao,
+      );
+      expect(
+        service.interpret('salvar grava\u00e7\u00e3o').type,
+        VoiceCommandType.encerrarGravacao,
+      );
+    });
+
+    test('reconhece comandos de reproducao, lista e marcador', () {
+      expect(
+        service.interpret('parar reprodu\u00e7\u00e3o').type,
+        VoiceCommandType.pararReproducao,
+      );
+      expect(service.interpret('parar').type, VoiceCommandType.pararReproducao);
+      expect(
+        service.interpret('tocar').type,
+        VoiceCommandType.reproduzirGravacao,
+      );
+      expect(
+        service.interpret('dar play').type,
+        VoiceCommandType.reproduzirGravacao,
+      );
+      expect(
+        service.interpret('ouvir grava\u00e7\u00e3o').type,
+        VoiceCommandType.reproduzirGravacao,
+      );
+      expect(
+        service.interpret('reproduzir grava\u00e7\u00e3o 1').parametro,
+        '1',
+      );
+      expect(service.interpret('tocar grava\u00e7\u00e3o 2').parametro, '2');
+      expect(
+        service.interpret('dar play na grava\u00e7\u00e3o 1').parametro,
+        '1',
+      );
+      expect(
+        service.interpret('tocar a segunda grava\u00e7\u00e3o').parametro,
+        'segunda gravacao',
+      );
+      expect(service.interpret('reproduzir a segunda').parametro, 'segunda');
+      expect(service.interpret('tocar a primeira').parametro, 'primeira');
+      expect(
+        service.interpret('mostrar grava\u00e7\u00f5es').type,
+        VoiceCommandType.listarGravacoes,
+      );
+      expect(
+        service.interpret('criar marcador').type,
+        VoiceCommandType.criarMarcador,
+      );
+    });
+
+    test('referencia visual sem verbo nao vira playback global', () {
+      final result = service.interpret('grava\u00e7\u00e3o 1');
+
+      expect(result.type, VoiceCommandType.desconhecido);
+      expect(result.recognized, isFalse);
+      expect(result.normalizedText, 'gravacao 1');
+    });
+
+    test('item visual sem contexto nao vira playback global', () {
+      final result = service.interpret('item 1');
+
+      expect(result.type, VoiceCommandType.desconhecido);
+      expect(result.recognized, isFalse);
+      expect(result.normalizedText, 'item 1');
+    });
+
+    test('reconhece comandos de navegacao', () {
+      expect(
+        service.interpret('dashboard').type,
+        VoiceCommandType.abrirDashboard,
+      );
+      expect(
+        service.interpret('abrir dashboard').type,
+        VoiceCommandType.abrirDashboard,
+      );
+      expect(
+        service.interpret('ver indicadores').type,
+        VoiceCommandType.abrirDashboard,
+      );
+      expect(
+        service.interpret('meu painel').type,
+        VoiceCommandType.abrirDashboard,
+      );
+      expect(
+        service.interpret('projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('vai para projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('gravacoes').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
+        service.interpret('minhas grava\u00e7\u00f5es').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
+        service.interpret('abre grava\u00e7\u00f5es').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
+        service.interpret('configura\u00e7\u00f5es').type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
+        service.interpret('abrir configura\u00e7\u00f5es').type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
+        service.interpret('prefer\u00eancias').type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
+        service.interpret('hist\u00f3rico').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(
+        service.interpret('abrir hist\u00f3rico').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(
+        service.interpret('novo projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+      expect(
+        service.interpret('adicionar projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+      expect(
+        service.interpret('nova m\u00fasica').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+      expect(
+        service.interpret('criar projeto').type,
+        VoiceCommandType.criarProjeto,
+      );
+      expect(
+        service.interpret('abrir editor').type,
+        VoiceCommandType.abrirEditor,
+      );
+      expect(service.interpret('editor').type, VoiceCommandType.abrirEditor);
+      expect(
+        service.interpret('abre editor').type,
+        VoiceCommandType.abrirEditor,
+      );
+      expect(
+        service.interpret('ir para o editor').type,
+        VoiceCommandType.abrirEditor,
+      );
+      expect(
+        service.interpret('abrir meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('abre meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('entrar em meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('abrir minhas grava\u00e7\u00f5es').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(service.interpret('voltar').type, VoiceCommandType.voltar);
+      expect(service.interpret('volta').type, VoiceCommandType.voltar);
+      expect(service.interpret('home').type, VoiceCommandType.voltar);
+      expect(service.interpret('in\u00edcio').type, VoiceCommandType.voltar);
+      expect(service.interpret('inicio').type, VoiceCommandType.voltar);
+      expect(
+        service.interpret('configuracoes').type,
+        VoiceCommandType.abrirConfiguracoes,
+      );
+      expect(
+        service.interpret('gravacoes').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
+        service.interpret('historico').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(service.interpret('inicio').type, VoiceCommandType.voltar);
+      expect(service.interpret('tela inicial').type, VoiceCommandType.voltar);
+      expect(
+        service.interpret('voltar para tela inicial').type,
+        VoiceCommandType.voltar,
+      );
+      expect(
+        service.interpret('ir para o in\u00edcio').type,
+        VoiceCommandType.voltar,
+      );
+      expect(
+        service.interpret('voltar para o in\u00edcio').type,
+        VoiceCommandType.voltar,
+      );
+      expect(
+        service.interpret('abre tela inicial').type,
+        VoiceCommandType.voltar,
+      );
+      expect(
+        service.interpret('abrir tela inicial').type,
+        VoiceCommandType.voltar,
+      );
+      expect(service.interpret('sair').type, VoiceCommandType.sair);
+    });
+
+    test('reconhece comandos de scroll sem conflitar com navegacao', () {
+      expect(
+        service.interpret('rolar para baixo').type,
+        VoiceCommandType.scrollBaixo,
+      );
+      expect(service.interpret('descer').type, VoiceCommandType.scrollBaixo);
+      expect(service.interpret('ver mais').type, VoiceCommandType.scrollBaixo);
+      expect(
+        service.interpret('rolar para cima').type,
+        VoiceCommandType.scrollCima,
+      );
+      expect(service.interpret('subir').type, VoiceCommandType.scrollCima);
+      expect(
+        service.interpret('ir para o topo').type,
+        VoiceCommandType.scrollTopo,
+      );
+      expect(
+        service.interpret('ir para o fim').type,
+        VoiceCommandType.scrollFim,
+      );
+      expect(
+        service.interpret('fim da lista').type,
+        VoiceCommandType.scrollFim,
+      );
+      expect(service.interpret('voltar').type, VoiceCommandType.voltar);
+      expect(service.interpret('tela inicial').type, VoiceCommandType.voltar);
+    });
+
+    test('reconhece comandos contextuais com parametros', () {
+      final criarComNome = service.interpret('criar projeto abacate');
+      expect(criarComNome.type, VoiceCommandType.abrirNovoProjeto);
+      expect(criarComNome.parametro, 'abacate');
+
+      final nomeProjeto = service.interpret('nome do projeto beat novo');
+      expect(nomeProjeto.type, VoiceCommandType.definirNomeProjeto);
+      expect(nomeProjeto.parametro, 'beat novo');
+
+      final nomeNatural = service.interpret(
+        'eu quero que voce coloque o nome abacate',
+      );
+      expect(nomeNatural.type, VoiceCommandType.definirNomeProjeto);
+      expect(nomeNatural.parametro, 'abacate');
+
+      final descricao = service.interpret(
+        'descricao do projeto ideia simples para tocar na rua',
+      );
+      expect(descricao.type, VoiceCommandType.definirDescricaoProjeto);
+      expect(descricao.parametro, 'Ideia simples para tocar na rua.');
+
+      final descricaoCurta = service.interpret('descricao abacate e bom');
+      expect(descricaoCurta.type, VoiceCommandType.definirDescricaoProjeto);
+      expect(descricaoCurta.parametro, 'Abacate e bom.');
+
+      for (final text in [
+        'descricao',
+        'editar descricao',
+        'campo descricao',
+        'descricao do projeto',
+      ]) {
+        final result = service.interpret(text);
+        expect(result.type, VoiceCommandType.definirDescricaoProjeto);
+        expect(result.parametro, isNull);
+      }
+
+      final substituirNome = service.interpret(
+        'apague o nome abacate e coloque alface',
+      );
+      expect(substituirNome.type, VoiceCommandType.substituirNomeProjeto);
+      expect(substituirNome.parametro, 'alface');
+
+      final substituirDescricao = service.interpret(
+        'apague a descricao e coloque minha alface e muito boa',
+      );
+      expect(
+        substituirDescricao.type,
+        VoiceCommandType.substituirDescricaoProjeto,
+      );
+      expect(substituirDescricao.parametro, 'Minha alface e muito boa.');
+
+      final abrirProjeto = service.interpret('abrir projeto demo acustica');
+      expect(abrirProjeto.type, VoiceCommandType.abrirProjetoPorNome);
+      expect(abrirProjeto.parametro, 'demo acustica');
+
+      final abrirProjetoSemNome = service.interpret('abrir projeto');
+      expect(abrirProjetoSemNome.type, VoiceCommandType.abrirProjetoPorNome);
+      expect(abrirProjetoSemNome.parametro, isNull);
+
+      final renomearProjeto = service.interpret(
+        'renomear projeto tomate para alface',
+      );
+      expect(renomearProjeto.type, VoiceCommandType.renomearProjeto);
+      expect(renomearProjeto.parametro, 'tomate');
+      expect(renomearProjeto.parametroSecundario, 'alface');
+
+      final excluirProjeto = service.interpret('excluir projeto demo acustica');
+      expect(excluirProjeto.type, VoiceCommandType.excluirProjeto);
+      expect(excluirProjeto.parametro, 'demo acustica');
+
+      final excluirProjetoSemNome = service.interpret('apagar projeto');
+      expect(excluirProjetoSemNome.type, VoiceCommandType.excluirProjeto);
+      expect(excluirProjetoSemNome.parametro, isNull);
+
+      final renomearProjetoSemNome = service.interpret('renomear projeto');
+      expect(renomearProjetoSemNome.type, VoiceCommandType.renomearProjeto);
+      expect(renomearProjetoSemNome.parametro, isNull);
+
+      final reproduzir = service.interpret('reproduzir gravacao ideia um');
+      expect(reproduzir.type, VoiceCommandType.reproduzirGravacao);
+      expect(reproduzir.parametro, 'ideia um');
+
+      final detalhes = service.interpret('abrir detalhes da gravacao ideia um');
+      expect(detalhes.type, VoiceCommandType.abrirDetalhesGravacao);
+      expect(detalhes.parametro, 'ideia um');
+
+      final detalhesSemNome = service.interpret('ver detalhes');
+      expect(detalhesSemNome.type, VoiceCommandType.abrirDetalhesGravacao);
+      expect(detalhesSemNome.parametro, isNull);
+
+      final detalhesItem = service.interpret('abrir detalhes do item 1');
+      expect(detalhesItem.type, VoiceCommandType.abrirDetalhesGravacao);
+      expect(detalhesItem.parametro, 'item 1');
+
+      final excluirGravacao = service.interpret('apagar gravacao');
+      expect(excluirGravacao.type, VoiceCommandType.excluirGravacao);
+      expect(excluirGravacao.parametro, isNull);
+
+      final excluirItem = service.interpret('excluir item 1');
+      expect(excluirItem.type, VoiceCommandType.excluirGravacao);
+      expect(excluirItem.parametro, 'item 1');
+
+      final nomeGravacao = service.interpret('nome da gravacao teste');
+      expect(nomeGravacao.type, VoiceCommandType.renomearGravacao);
+      expect(nomeGravacao.parametroSecundario, 'teste');
+
+      final renomear = service.interpret(
+        'renomear gravacao ideia um para refrao final',
+      );
+      expect(renomear.type, VoiceCommandType.renomearGravacao);
+      expect(renomear.parametro, 'ideia um');
+      expect(renomear.parametroSecundario, 'refrao final');
+
+      final tempo = service.interpret('tempo de silencio 9 segundos');
+      expect(tempo.type, VoiceCommandType.definirTempoSilencio);
+      expect(tempo.parametro, '9');
+
+      final buscarProjeto = service.interpret('buscar projeto demo');
+      expect(buscarProjeto.type, VoiceCommandType.buscarProjetos);
+      expect(buscarProjeto.parametro, 'demo');
+
+      final buscarProjetos = service.interpret('buscar projetos demo');
+      expect(buscarProjetos.type, VoiceCommandType.buscarProjetos);
+      expect(buscarProjetos.parametro, 'demo');
+
+      final buscarGravacao = service.interpret('filtrar gravacoes refrao');
+      expect(buscarGravacao.type, VoiceCommandType.buscarGravacoes);
+      expect(buscarGravacao.parametro, 'refrao');
+
+      expect(
+        service.interpret('limpar busca').type,
+        VoiceCommandType.limparBusca,
+      );
+    });
+
+    test('reconhece frases naturais frequentes sem acionar IA', () {
+      expect(
+        service.interpret('quero ver minha atividade recente').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(
+        service.interpret('me mostra meus numeros').type,
+        VoiceCommandType.abrirDashboard,
+      );
+    });
+
+    test('respeita comandos negativos antes dos positivos', () {
+      expect(
+        service.interpret('desativar escuta continua').type,
+        VoiceCommandType.desativarEscutaContinua,
+      );
+      expect(
+        service.interpret('desativar feedback sonoro').type,
+        VoiceCommandType.desativarFeedbackSonoro,
+      );
+      expect(
+        service.interpret('desativar comandos de voz').type,
+        VoiceCommandType.desativarControleVoz,
+      );
+      expect(
+        service.interpret('desativar parada por silencio').type,
+        VoiceCommandType.desativarParadaSilencio,
+      );
+      expect(
+        service.interpret('ativar tema escuro').type,
+        VoiceCommandType.ativarTemaEscuro,
+      );
+      expect(
+        service.interpret('modo escuro').type,
+        VoiceCommandType.ativarTemaEscuro,
+      );
+      expect(
+        service.interpret('ativar tema claro').type,
+        VoiceCommandType.desativarTemaEscuro,
+      );
+      expect(
+        service.interpret('tema claro').type,
+        VoiceCommandType.desativarTemaEscuro,
+      );
+      expect(
+        service.interpret('ligar controle por voz').type,
+        VoiceCommandType.ativarControleVoz,
+      );
+      expect(
+        service.interpret('desligar escuta cont\u00ednua').type,
+        VoiceCommandType.desativarEscutaContinua,
+      );
+      expect(
+        service.interpret('ativar feedback sonoro').type,
+        VoiceCommandType.ativarFeedbackSonoro,
+      );
+      expect(service.interpret('sim').type, VoiceCommandType.confirmarAcao);
+      expect(service.interpret('nao').type, VoiceCommandType.cancelarAcao);
+      expect(service.interpret('desistir').type, VoiceCommandType.cancelarAcao);
+    });
+
+    test('contrato oficial da apresentacao resolve localmente', () {
+      final cases = <String, VoiceCommandType>{
+        'comecar': VoiceCommandType.comecarExperiencia,
+        'ja tenho conta': VoiceCommandType.jaTenhoConta,
+        'permitir microfone': VoiceCommandType.permitirMicrofone,
+        'continuar': VoiceCommandType.continuarFluxo,
+        'entrar': VoiceCommandType.entrarConta,
+        'descer': VoiceCommandType.scrollBaixo,
+        'subir': VoiceCommandType.scrollCima,
+        'ir para o topo': VoiceCommandType.scrollTopo,
+        'ir para o fim': VoiceCommandType.scrollFim,
+        'configuracoes': VoiceCommandType.abrirConfiguracoes,
+        'preferencias': VoiceCommandType.abrirConfiguracoes,
+        'projetos': VoiceCommandType.abrirProjetos,
+        'meus projetos': VoiceCommandType.abrirProjetos,
+        'abrir meus projetos': VoiceCommandType.abrirProjetos,
+        'novo projeto': VoiceCommandType.abrirNovoProjeto,
+        'abrir novo projeto': VoiceCommandType.abrirNovoProjeto,
+        'criar projeto': VoiceCommandType.criarProjeto,
+        'minhas gravacoes': VoiceCommandType.abrirGravacoes,
+        'gravacoes': VoiceCommandType.abrirGravacoes,
+        'dashboard': VoiceCommandType.abrirDashboard,
+        'painel': VoiceCommandType.abrirDashboard,
+        'historico': VoiceCommandType.abrirHistorico,
+        'editor': VoiceCommandType.abrirEditor,
+        'abrir editor': VoiceCommandType.abrirEditor,
+        'home': VoiceCommandType.voltar,
+        'inicio': VoiceCommandType.voltar,
+        'tela inicial': VoiceCommandType.voltar,
+        'voltar': VoiceCommandType.voltar,
+        'sair': VoiceCommandType.sair,
+        'confirmar': VoiceCommandType.confirmarAcao,
+        'sim': VoiceCommandType.confirmarAcao,
+        'cancelar': VoiceCommandType.cancelarAcao,
+        'nao': VoiceCommandType.cancelarAcao,
+        'gravar': VoiceCommandType.iniciarGravacao,
+        'iniciar gravacao': VoiceCommandType.iniciarGravacao,
+        'comecar gravacao': VoiceCommandType.iniciarGravacao,
+        'pausar gravacao': VoiceCommandType.pausarGravacao,
+        'retomar gravacao': VoiceCommandType.retomarGravacao,
+        'finalizar gravacao': VoiceCommandType.encerrarGravacao,
+        'salvar gravacao': VoiceCommandType.encerrarGravacao,
+        'parar reproducao': VoiceCommandType.pararReproducao,
+        'abrir detalhes': VoiceCommandType.abrirDetalhesGravacao,
+        'detalhes da gravacao': VoiceCommandType.abrirDetalhesGravacao,
+        'editar nome da gravacao': VoiceCommandType.renomearGravacao,
+        'renomear gravacao': VoiceCommandType.renomearGravacao,
+        'excluir gravacao': VoiceCommandType.excluirGravacao,
+        'criar comando personalizado':
+            VoiceCommandType.criarComandoPersonalizado,
+        'comando personalizado': VoiceCommandType.criarComandoPersonalizado,
+        'ativar comando': VoiceCommandType.ativarComandoPersonalizado,
+        'desativar comando': VoiceCommandType.desativarComandoPersonalizado,
+        'excluir comando': VoiceCommandType.excluirComandoPersonalizado,
+      };
+
+      for (final entry in cases.entries) {
+        final result = service.interpret(entry.key);
+        expect(result.recognized, isTrue, reason: entry.key);
+        expect(result.type, entry.value, reason: entry.key);
+      }
+    });
+
+    test('mantem comandos destrutivos ambiguos sem acao direta', () {
+      final apagar = service.interpret('apagar');
+      final excluir = service.interpret('excluir');
+      final excluirAgora = service.interpret('excluir agora');
+      final podeExcluir = service.interpret('pode excluir');
+      final simExcluir = service.interpret('sim excluir');
+
+      expect(apagar.type, VoiceCommandType.desconhecido);
+      expect(apagar.recognized, isFalse);
+      expect(excluir.type, VoiceCommandType.desconhecido);
+      expect(excluir.recognized, isFalse);
+      expect(excluirAgora.type, VoiceCommandType.desconhecido);
+      expect(excluirAgora.recognized, isFalse);
+      expect(podeExcluir.type, VoiceCommandType.desconhecido);
+      expect(podeExcluir.recognized, isFalse);
+      expect(simExcluir.type, VoiceCommandType.desconhecido);
+      expect(simExcluir.recognized, isFalse);
+    });
+
+    test('retorna desconhecido para comando nao mapeado', () {
+      final result = service.interpret('abrir afinador');
+
+      expect(result.type, VoiceCommandType.desconhecido);
+      expect(result.recognized, isFalse);
+      expect(result.statusReconhecimento, 'nao_reconhecido');
+    });
+
+    test('aliases completos de parada por silencio cobrem variantes habilitar/desabilitar', () {
+      const ativar = [
+        'habilitar parada por silencio',
+        'habilitar parada automatica',
+        'habilitar parada automatica por silencio',
+        'ativar parada automatica por silencio',
+        'ligar parada automatica',
+        'ligar parada automatica por silencio',
+      ];
+      for (final cmd in ativar) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.ativarParadaSilencio,
+          reason: cmd,
+        );
+      }
+
+      const desativar = [
+        'desabilitar parada por silencio',
+        'desabilitar parada automatica',
+        'desabilitar parada automatica por silencio',
+        'desativar parada automatica por silencio',
+        'desligar parada automatica',
+        'desligar parada automatica por silencio',
+      ];
+      for (final cmd in desativar) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.desativarParadaSilencio,
+          reason: cmd,
+        );
+      }
+    });
+
+    test('tempo de silencio aceita numeros por extenso', () {
+      final cases = {
+        'definir silencio para tres segundos': 3,
+        'tempo de silencio para seis': 6,
+        'definir silencio para cinco segundos': 5,
+        'ajustar tempo de silencio para dez': 10,
+        'silencio para doze segundos': 12,
+      };
+      for (final entry in cases.entries) {
+        final result = service.interpret(entry.key);
+        expect(result.type, VoiceCommandType.definirTempoSilencio, reason: entry.key);
+        expect(result.parametro, '${entry.value}', reason: entry.key);
+      }
+    });
+
+    test('criar comando personalizado aceita aliases adicionar/novo/cadastrar', () {
+      const aliases = [
+        'adicionar comando personalizado',
+        'novo comando personalizado',
+        'cadastrar comando personalizado',
+        'novo comando',
+        'adicionar comando',
+      ];
+      for (final cmd in aliases) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.criarComandoPersonalizado,
+          reason: cmd,
+        );
+      }
+    });
+
+    test('criar comando X para Y reconhecido como criarComandoPersonalizado', () {
+      const cases = [
+        'criar comando modo palco para abrir editor',
+        'adicionar comando abrir repertorio para abrir projetos',
+        'novo comando finalizar para encerrar gravacao',
+      ];
+      for (final cmd in cases) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.criarComandoPersonalizado,
+          reason: cmd,
+        );
+      }
+    });
+  });
+
+  group('CommandService H10.2 aliases naturais', () {
+    test('configuracoes/opcoes/preferencias resolvem igual', () {
+      for (final cmd in [
+        'opções',
+        'abrir opções',
+        'abrir preferências',
+        'entrar em configurações',
+      ]) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.abrirConfiguracoes,
+          reason: cmd,
+        );
+        expect(service.interpret(cmd).recognized, isTrue, reason: cmd);
+      }
+    });
+
+    test('projetos: entrar em projetos e lista de projetos', () {
+      expect(
+        service.interpret('entrar em projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('lista de projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+    });
+
+    test('projetos e novo projeto nao entram em conflito', () {
+      expect(
+        service.interpret('projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('meus projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+      expect(
+        service.interpret('novo projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+      expect(
+        service.interpret('cadastrar projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+      expect(
+        service.interpret('lista de projetos').type,
+        VoiceCommandType.abrirProjetos,
+      );
+    });
+
+    test('dashboard: abrir painel resolve localmente', () {
+      expect(
+        service.interpret('abrir painel').type,
+        VoiceCommandType.abrirDashboard,
+      );
+    });
+
+    test('historico: acoes recentes e registro', () {
+      expect(
+        service.interpret('ações recentes').type,
+        VoiceCommandType.abrirHistorico,
+      );
+      expect(
+        service.interpret('registro').type,
+        VoiceCommandType.abrirHistorico,
+      );
+    });
+
+    test('gravacoes: lista, audios e meus audios', () {
+      expect(
+        service.interpret('lista de gravações').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
+        service.interpret('áudios').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+      expect(
+        service.interpret('meus áudios').type,
+        VoiceCommandType.abrirGravacoes,
+      );
+    });
+
+    test('editor funciona como comando local com novos aliases', () {
+      for (final cmd in [
+        'entrar no editor',
+        'área de gravação',
+        'tela de gravação',
+      ]) {
+        expect(
+          service.interpret(cmd).type,
+          VoiceCommandType.abrirEditor,
+          reason: cmd,
+        );
+        expect(service.interpret(cmd).recognized, isTrue, reason: cmd);
+      }
+    });
+
+    test('confirmacao: confirmar acao, pode cancelar, deixa pra la', () {
+      expect(
+        service.interpret('confirmar ação').type,
+        VoiceCommandType.confirmarAcao,
+      );
+      expect(
+        service.interpret('pode cancelar').type,
+        VoiceCommandType.cancelarAcao,
+      );
+      expect(
+        service.interpret('deixa pra lá').type,
+        VoiceCommandType.cancelarAcao,
+      );
+    });
+
+    test('iniciar audio dispara gravacao', () {
+      expect(
+        service.interpret('iniciar áudio').type,
+        VoiceCommandType.iniciarGravacao,
+      );
+    });
+
+    test('pausar e interromper reproducao param o player', () {
+      expect(
+        service.interpret('pausar reprodução').type,
+        VoiceCommandType.pararReproducao,
+      );
+      expect(
+        service.interpret('interromper reprodução').type,
+        VoiceCommandType.pararReproducao,
+      );
+    });
+
+    test('pausar reproducao nao conflita com pausar gravacao', () {
+      expect(
+        service.interpret('pausar reprodução').type,
+        VoiceCommandType.pararReproducao,
+      );
+      expect(
+        service.interpret('pausar gravação').type,
+        VoiceCommandType.pausarGravacao,
+      );
+    });
+
+    test('parar gravacao nao conflita com parar reproducao', () {
+      expect(
+        service.interpret('parar gravação').type,
+        VoiceCommandType.encerrarGravacao,
+      );
+      expect(
+        service.interpret('parar reprodução').type,
+        VoiceCommandType.pararReproducao,
+      );
+    });
+
+    test('primeira e segunda gravacao disparam reproducao com parametro', () {
+      final primeira = service.interpret('primeira gravação');
+      expect(primeira.type, VoiceCommandType.reproduzirGravacao);
+      expect(primeira.parametro, 'primeira');
+
+      final segunda = service.interpret('segunda gravação');
+      expect(segunda.type, VoiceCommandType.reproduzirGravacao);
+      expect(segunda.parametro, 'segunda');
+    });
+
+    test('scroll: fim da pagina resolve como scrollFim', () {
+      expect(
+        service.interpret('fim da página').type,
+        VoiceCommandType.scrollFim,
+      );
+    });
+
+    test('variacoes de exclusao de item funcionam', () {
+      final apagar = service.interpret('apagar item 1');
+      expect(apagar.type, VoiceCommandType.excluirGravacao);
+      expect(apagar.parametro, 'item 1');
+
+      final remover = service.interpret('remover item 2');
+      expect(remover.type, VoiceCommandType.excluirGravacao);
+      expect(remover.parametro, 'item 2');
+
+      final excluir = service.interpret('excluir item 3');
+      expect(excluir.type, VoiceCommandType.excluirGravacao);
+      expect(excluir.parametro, 'item 3');
+    });
+
+    test('mudar nome da gravacao resolve como renomear', () {
+      expect(
+        service.interpret('mudar nome da gravação').type,
+        VoiceCommandType.renomearGravacao,
+      );
+    });
+
+    test('contrato oficial H10.2 resolve localmente sem Gemini', () {
+      final cases = <String, VoiceCommandType>{
+        'opções': VoiceCommandType.abrirConfiguracoes,
+        'abrir opções': VoiceCommandType.abrirConfiguracoes,
+        'abrir preferências': VoiceCommandType.abrirConfiguracoes,
+        'entrar em configurações': VoiceCommandType.abrirConfiguracoes,
+        'entrar em projetos': VoiceCommandType.abrirProjetos,
+        'lista de projetos': VoiceCommandType.abrirProjetos,
+        'cadastrar projeto': VoiceCommandType.abrirNovoProjeto,
+        'abrir painel': VoiceCommandType.abrirDashboard,
+        'ações recentes': VoiceCommandType.abrirHistorico,
+        'registro': VoiceCommandType.abrirHistorico,
+        'lista de gravações': VoiceCommandType.abrirGravacoes,
+        'áudios': VoiceCommandType.abrirGravacoes,
+        'meus áudios': VoiceCommandType.abrirGravacoes,
+        'entrar no editor': VoiceCommandType.abrirEditor,
+        'área de gravação': VoiceCommandType.abrirEditor,
+        'tela de gravação': VoiceCommandType.abrirEditor,
+        'confirmar ação': VoiceCommandType.confirmarAcao,
+        'pode cancelar': VoiceCommandType.cancelarAcao,
+        'deixa pra lá': VoiceCommandType.cancelarAcao,
+        'iniciar áudio': VoiceCommandType.iniciarGravacao,
+        'pausar reprodução': VoiceCommandType.pararReproducao,
+        'interromper reprodução': VoiceCommandType.pararReproducao,
+        'fim da página': VoiceCommandType.scrollFim,
+        'mudar nome da gravação': VoiceCommandType.renomearGravacao,
+      };
+
+      for (final entry in cases.entries) {
+        final result = service.interpret(entry.key);
+        expect(result.recognized, isTrue, reason: entry.key);
+        expect(result.type, entry.value, reason: entry.key);
+      }
+    });
+  });
+
+  group('CommandService H11.6 aliases sair', () {
+    test('encerrar sessao mapeia para sair', () {
+      final result = service.interpret('encerrar sessão');
+      expect(result.type, VoiceCommandType.sair);
+      expect(result.recognized, isTrue);
+    });
+
+    test('encerrar conta mapeia para sair', () {
+      final result = service.interpret('encerrar conta');
+      expect(result.type, VoiceCommandType.sair);
+      expect(result.recognized, isTrue);
+    });
+
+    test('fazer logout original mapeia para sair', () {
+      final result = service.interpret('fazer logout');
+      expect(result.type, VoiceCommandType.sair);
+      expect(result.recognized, isTrue);
+    });
+
+    test('deslogar original mapeia para sair', () {
+      final result = service.interpret('deslogar');
+      expect(result.type, VoiceCommandType.sair);
+      expect(result.recognized, isTrue);
+    });
+
+    test('sair original continua mapeando para sair', () {
+      final result = service.interpret('sair');
+      expect(result.type, VoiceCommandType.sair);
+      expect(result.recognized, isTrue);
+    });
+
+    test('todos os aliases sair sao reconhecidos sem Gemini', () {
+      for (final frase in [
+        'sair',
+        'fazer logout',
+        'deslogar',
+        'encerrar sessão',
+        'encerrar conta',
+      ]) {
+        final result = service.interpret(frase);
+        expect(result.type, VoiceCommandType.sair, reason: frase);
+        expect(result.recognized, isTrue, reason: frase);
+      }
+    });
+  });
+
+  group('CommandService H11 aliases WelcomePage', () {
+    test('iniciar e vamos comecar mapeiam para comecarExperiencia', () {
+      for (final frase in ['iniciar', 'vamos começar']) {
+        final result = service.interpret(frase);
+        expect(result.type, VoiceCommandType.comecarExperiencia, reason: frase);
+        expect(result.recognized, isTrue, reason: frase);
+      }
+    });
+
+    test('comecar original continua mapeando para comecarExperiencia', () {
+      final result = service.interpret('comecar');
+      expect(result.type, VoiceCommandType.comecarExperiencia);
+      expect(result.recognized, isTrue);
+    });
+
+    test('tenho conta mapeia para jaTenhoConta', () {
+      final result = service.interpret('tenho conta');
+      expect(result.type, VoiceCommandType.jaTenhoConta);
+      expect(result.recognized, isTrue);
+    });
+
+    test('ja tenho conta original continua mapeando para jaTenhoConta', () {
+      final result = service.interpret('já tenho conta');
+      expect(result.type, VoiceCommandType.jaTenhoConta);
+      expect(result.recognized, isTrue);
+    });
+
+    test('fazer login e login mapeiam para entrarConta', () {
+      for (final frase in ['fazer login', 'login']) {
+        final result = service.interpret(frase);
+        expect(result.type, VoiceCommandType.entrarConta, reason: frase);
+        expect(result.recognized, isTrue, reason: frase);
+      }
+    });
+
+    test('entrar original continua mapeando para entrarConta', () {
+      final result = service.interpret('entrar');
+      expect(result.type, VoiceCommandType.entrarConta);
+      expect(result.recognized, isTrue);
+    });
+
+    test(
+      'liberar microfone e ativar microfone mapeiam para permitirMicrofone',
+      () {
+        for (final frase in ['liberar microfone', 'ativar microfone']) {
+          final result = service.interpret(frase);
+          expect(
+            result.type,
+            VoiceCommandType.permitirMicrofone,
+            reason: frase,
+          );
+          expect(result.recognized, isTrue, reason: frase);
+        }
+      },
+    );
+
+    test('permitir microfone original continua mapeando corretamente', () {
+      final result = service.interpret('permitir microfone');
+      expect(result.type, VoiceCommandType.permitirMicrofone);
+      expect(result.recognized, isTrue);
+    });
+
+    test('continuar mapeia para continuarFluxo', () {
+      final result = service.interpret('continuar');
+      expect(result.type, VoiceCommandType.continuarFluxo);
+      expect(result.recognized, isTrue);
+    });
+
+    test(
+      'iniciar audio continua mapeando para iniciarGravacao sem conflito',
+      () {
+        final result = service.interpret('iniciar áudio');
+        expect(result.type, VoiceCommandType.iniciarGravacao);
+        expect(result.recognized, isTrue);
+      },
+    );
+
+    test('todos os aliases welcome sao reconhecidos sem Gemini', () {
+      final aliases = {
+        'iniciar': VoiceCommandType.comecarExperiencia,
+        'vamos começar': VoiceCommandType.comecarExperiencia,
+        'tenho conta': VoiceCommandType.jaTenhoConta,
+        'fazer login': VoiceCommandType.entrarConta,
+        'login': VoiceCommandType.entrarConta,
+        'liberar microfone': VoiceCommandType.permitirMicrofone,
+        'ativar microfone': VoiceCommandType.permitirMicrofone,
+      };
+      for (final entry in aliases.entries) {
+        final result = service.interpret(entry.key);
+        expect(result.type, entry.value, reason: entry.key);
+        expect(result.recognized, isTrue, reason: entry.key);
+      }
+    });
+  });
+
+  group('CommandService HOTFIX — PROBLEMA 2: frase ambiente nao dispara comando', () {
+    test('novo projeto exato funciona', () {
+      expect(
+        service.interpret('novo projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+    });
+
+    test('novo projeto com nome funciona', () {
+      final r = service.interpret('novo projeto guitarras');
+      expect(r.type, VoiceCommandType.abrirNovoProjeto);
+    });
+
+    test('abrir novo projeto funciona', () {
+      expect(
+        service.interpret('abrir novo projeto').type,
+        VoiceCommandType.abrirNovoProjeto,
+      );
+    });
+
+    test('frase longa contendo novo projeto no meio nao dispara comando', () {
+      // Phrase with 'novo projeto' embedded mid-sentence must be treated as
+      // desconhecido, not abrirNovoProjeto.
+      final r = service.interpret(
+        'eu queria falar sobre o novo projeto da escola hoje',
+      );
+      expect(r.type, isNot(VoiceCommandType.abrirNovoProjeto));
+      expect(r.recognized, isFalse);
+    });
+
+    test('frase longa com criar novo projeto no meio nao dispara comando', () {
+      final r = service.interpret(
+        'quero criar novo projeto mais tarde quando terminar',
+      );
+      expect(r.type, isNot(VoiceCommandType.abrirNovoProjeto));
+    });
+  });
+
+  group('CommandService HOTFIX — PROBLEMA 5: renomear gravacao por voz simplificado', () {
+    test('renomear para extrai novo nome', () {
+      final r = service.interpret('renomear para guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('renomear gravacao para extrai novo nome', () {
+      final r = service.interpret('renomear gravacao para guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('mudar nome para extrai novo nome', () {
+      final r = service.interpret('mudar nome para guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('alterar nome para extrai novo nome', () {
+      final r = service.interpret('alterar nome para guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('chamar de extrai novo nome', () {
+      final r = service.interpret('chamar de guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('chamar gravacao de extrai novo nome', () {
+      final r = service.interpret('chamar gravacao de guitarra');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('formato classico renomear gravacao X para Y ainda funciona', () {
+      final r = service.interpret('renomear gravacao ideia um para refrao final');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, 'ideia um');
+      expect(r.parametroSecundario, 'refrao final');
+    });
+
+    test('nome da gravacao com nome extrai parametroSecundario', () {
+      final r = service.interpret('nome da gravacao teste');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametroSecundario, 'teste');
+    });
+  });
+
+  group('CommandService FINAL — renomear gravacao por referencia visual', () {
+    test('renomear gravacao N para Y extrai referencia numerica e novo nome', () {
+      final r = service.interpret('renomear gravação 1 para abacate');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, '1');
+      expect(r.parametroSecundario, 'abacate');
+    });
+
+    test('mudar nome da gravacao N para Y resolve como renomearGravacao', () {
+      final r = service.interpret('mudar nome da gravação 1 para abacate');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, '1');
+      expect(r.parametroSecundario, 'abacate');
+    });
+
+    test('alterar nome da gravacao N para Y resolve como renomearGravacao', () {
+      final r = service.interpret('alterar nome da gravação 1 para beats');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, '1');
+      expect(r.parametroSecundario, 'beats');
+    });
+
+    test('trocar nome da gravacao N para Y resolve como renomearGravacao', () {
+      final r = service.interpret('trocar nome da gravação 1 para refrao');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, '1');
+      expect(r.parametroSecundario, 'refrao');
+    });
+
+    test('renomear item N para Y extrai referencia e novo nome', () {
+      final r = service.interpret('renomear item 1 para abacate');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, '1');
+      expect(r.parametroSecundario, 'abacate');
+    });
+
+    test('renomear gravacao por nome textual continua funcionando', () {
+      final r = service.interpret('renomear gravacao ideia um para refrao final');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, 'ideia um');
+      expect(r.parametroSecundario, 'refrao final');
+    });
+
+    test('reproduzir gravacao 1 nao vira renomearGravacao', () {
+      final r = service.interpret('reproduzir gravação 1');
+      expect(r.type, VoiceCommandType.reproduzirGravacao);
+      expect(r.parametro, '1');
+    });
+
+    test('parcial renomear gravacao 1 sem para nao e renomearGravacao', () {
+      // Resultado parcial do STT sem o novo nome — cai em desconhecido,
+      // nunca deve ser interpretado como reprodução.
+      final r = service.interpret('renomear gravação 1');
+      expect(r.type, isNot(VoiceCommandType.reproduzirGravacao));
+    });
+
+    test('renomear gravacao por nome com espaco continua correto', () {
+      final r = service.interpret('renomear gravação verso bonito para coro');
+      expect(r.type, VoiceCommandType.renomearGravacao);
+      expect(r.parametro, 'verso bonito');
+      expect(r.parametroSecundario, 'coro');
+    });
+  });
+
+  group('CommandService HOTFIX — PROBLEMA 8: sair exige correspondencia exata', () {
+    test('sair exato mapeia para sair', () {
+      expect(service.interpret('sair').type, VoiceCommandType.sair);
+    });
+
+    test('sair da conta mapeia para sair', () {
+      expect(service.interpret('sair da conta').type, VoiceCommandType.sair);
+    });
+
+    test('quero sair nao dispara sair', () {
+      final r = service.interpret('quero sair');
+      expect(r.type, isNot(VoiceCommandType.sair));
+    });
+
+    test('vai sair nao dispara sair', () {
+      final r = service.interpret('vai sair');
+      expect(r.type, isNot(VoiceCommandType.sair));
+    });
+
+    test('nao vou sair nao dispara sair', () {
+      final r = service.interpret('nao vou sair');
+      expect(r.type, isNot(VoiceCommandType.sair));
+    });
+
+    test('deslogar exato mapeia para sair', () {
+      expect(service.interpret('deslogar').type, VoiceCommandType.sair);
+    });
+
+    test('fazer logout exato mapeia para sair', () {
+      expect(service.interpret('fazer logout').type, VoiceCommandType.sair);
+    });
+  });
+
+  group('CommandService FINAL — renomear projeto variantes e artigo opcional', () {
+    test('renomear projeto tomate para alface (classico) ainda funciona', () {
+      final r = service.interpret('renomear projeto tomate para alface');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, 'tomate');
+      expect(r.parametroSecundario, 'alface');
+    });
+
+    test('renomear o projeto tomate para alface aceita artigo o', () {
+      final r = service.interpret('renomear o projeto tomate para alface');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, 'tomate');
+      expect(r.parametroSecundario, 'alface');
+    });
+
+    test('mudar nome do projeto tomate para alface aceita preposicao do', () {
+      final r = service.interpret('mudar nome do projeto tomate para alface');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, 'tomate');
+      expect(r.parametroSecundario, 'alface');
+    });
+
+    test('mudar o nome do projeto tomate para alface aceita artigo e preposicao', () {
+      final r = service.interpret('mudar o nome do projeto tomate para alface');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, 'tomate');
+      expect(r.parametroSecundario, 'alface');
+    });
+
+    test('renomear projeto para guitarra sem nome usa projeto atual (parametro null)', () {
+      final r = service.interpret('renomear projeto para guitarra');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, isNull);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('renomear o projeto para guitarra sem nome usa projeto atual (parametro null)', () {
+      final r = service.interpret('renomear o projeto para guitarra');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, isNull);
+      expect(r.parametroSecundario, 'guitarra');
+    });
+
+    test('mudar nome da projeto para beats sem nome usa projeto atual', () {
+      final r = service.interpret('mudar nome da projeto para beats');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametro, isNull);
+      expect(r.parametroSecundario, 'beats');
+    });
+
+    test('renomear projeto sem novo nome nao extrai nome atual como parametroSecundario', () {
+      // "renomear projeto" standalone → sem parametroSecundario
+      final r = service.interpret('renomear projeto');
+      expect(r.type, VoiceCommandType.renomearProjeto);
+      expect(r.parametroSecundario, isNull);
+    });
+  });
+}
