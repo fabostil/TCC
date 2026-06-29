@@ -1,65 +1,156 @@
-# Assistente Musical Voice-First
+# Touchless — Assistente Musical Voice-First
 
-Aplicativo Flutter para Android criado como projeto academico/TCC para apoiar musicos independentes na captura, organizacao, reproducao e acompanhamento de ideias musicais usando comandos de voz como experiencia principal e controles manuais como fallback.
+Aplicativo Android desenvolvido em Flutter/Dart como projeto de TCC para apoiar músicos independentes durante a produção musical. Permite capturar, organizar, reproduzir e acompanhar ideias musicais por **comandos de voz** como experiência principal, com controles por toque como fallback obrigatório.
 
-## Objetivo
+> **Princípio do produto:** voice-first, não voice-only. Se a voz falhar, o toque continua funcionando.
 
-Reduzir interrupcoes no fluxo criativo. O usuario pode navegar, criar projetos, gravar ideias, organizar gravacoes e consultar historico/dashboard por voz quando a escuta continua esta ativa.
+---
 
-## Estado Atual
+## Funcionalidades
 
-O app possui:
+- Autenticação local (e-mail + senha com PBKDF2-HMAC-SHA256) e Google Sign-In
+- Criação e organização de projetos musicais
+- Gravação real de áudio (`.m4a`) com pausa, retomada e encerramento
+- Parada automática por silêncio configurável
+- Listagem, reprodução, renomeação e exclusão de gravações
+- Histórico persistente de ações
+- Dashboard com métricas reais
+- Configurações persistidas (tema, escuta contínua, feedback sonoro, tempo de silêncio)
+- Comandos de voz contextuais por tela (~45 intents)
+- Escuta contínua com reinício automático
+- Fallback para Gemini (NLU natural quando o parser local não reconhece)
+- Modo híbrido no Editor: STT pausado enquanto o microfone está em uso para gravação
+- Comandos personalizados salvos no banco local
 
-- cadastro e login local;
-- projetos musicais;
-- gravacao real de audio;
-- pausa, retomada e encerramento;
-- parada automatica por silencio;
-- listagem, reproducao, renomeacao e exclusao de gravacoes;
-- historico persistente;
-- dashboard com metricas reais;
-- configuracoes persistidas;
-- escuta continua;
-- comandos contextuais por tela;
-- fallback com Gemini para linguagem natural;
-- modo hibrido no Editor para evitar conflito de microfone durante gravacao.
+---
 
-## Arquitetura De Voz
+## Arquitetura
 
-```text
-SpeechService
-  -> VoiceCommandController
-      -> CommandService local
-      -> AiCommandService/Gemini se local nao entender
-  -> Tela executa acao contextual
-  -> Repositories persistem comando/historico/dados
+### Camadas
+
+```
+Presentation / Page
+  → Controller / ViewModel
+      → Service / UseCase
+          → Repository
+              → SQLite (sqflite)
 ```
 
-`CommandService` e a primeira camada. Ele e local, rapido e sem custo.
+### Pipeline de voz
 
-`AiCommandService` usa Gemini apenas como fallback quando o parser local retorna `desconhecido`.
+```
+SpeechService (singleton STT)
+  → VoiceCommandController
+      → CommandService          (parser local, offline, sem custo)
+      → CustomCommandService    (comandos personalizados do usuário)
+      → AiCommandService        (Gemini — fallback quando local retorna desconhecido)
+  → VoiceCommandDispatcher      (contexto por tela)
+  → Página executa ação
+  → Repositories persistem comando / histórico / dados
+```
+
+### Modo híbrido do Editor
+
+Durante a gravação, o STT é pausado para evitar conflito de microfone no Android:
+
+```
+Modo normal      → escuta contínua ativa
+Modo gravação    → microfone reservado para áudio
+                 → STT pausado
+                 → controles manuais em destaque
+                 → escuta retoma ao finalizar (se configurada)
+```
+
+### Coordenação de escuta
+
+| Artefato | Responsabilidade |
+|----------|-----------------|
+| `SpeechService` | Singleton STT |
+| `VoiceListeningCoordinator` | Dono único de start/stop/cancel do STT |
+| `VoiceRouteObserver` | Cancela escuta ao empilhar rotas |
+| `ContextualVoiceListeningMixin` | Mixin compartilhado pelas páginas |
+| `VoiceCommandDispatcher` | Despacha comandos contextuais por mapa |
+| `VoicePageOwners` | IDs de owner por tela |
+
+---
+
+## Stack
+
+| Tecnologia | Uso |
+|-----------|-----|
+| Flutter / Dart | Framework principal |
+| Android | Plataforma alvo |
+| `sqflite` | Banco local SQLite |
+| `speech_to_text` | STT contínuo |
+| `record` | Captura de áudio (`.m4a`) |
+| `just_audio` | Reprodução de áudio |
+| `permission_handler` | Permissão de microfone |
+| `google_sign_in` | Autenticação Google |
+| `flutter_foreground_task` | Serviço em foreground Android |
+| `crypto` | PBKDF2-HMAC-SHA256 para senhas |
+| `path_provider` / `path` | Caminhos de arquivo |
+| Gemini API (opcional) | NLU de linguagem natural como fallback |
+
+---
+
+## Banco Local
+
+Arquivo: `assistente_musical.db` (SQLite)
+
+| Tabela | Conteúdo |
+|--------|----------|
+| `usuario` | Cadastros locais e vínculos Google |
+| `projeto` | Projetos musicais |
+| `gravacao` | Metadados e caminho dos arquivos de áudio |
+| `comando_voz` | Histórico de comandos reconhecidos |
+| `historico_acao` | Log de ações do usuário |
+| `configuracao_app` | Configurações persistidas por usuário |
+| `comando_personalizado` | Comandos definidos pelo usuário |
+
+---
 
 ## Como Rodar
 
-Sem Gemini:
+### Pré-requisitos
+
+- Flutter SDK (Dart SDK `^3.11.1`)
+- Android SDK / dispositivo ou emulador Android
+
+### Sem Gemini
 
 ```powershell
+flutter pub get
 flutter run
 ```
 
-Com Gemini:
+### Com Gemini (NLU natural como fallback)
 
 ```powershell
 flutter run --dart-define=GEMINI_API_KEY=SUA_CHAVE
 ```
 
-Modelo Gemini opcional:
+### Modelo Gemini customizado (opcional)
 
 ```powershell
 flutter run --dart-define=GEMINI_API_KEY=SUA_CHAVE --dart-define=GEMINI_MODEL=gemini-1.5-flash
 ```
 
-## Validacao
+### Em dispositivo físico
+
+```powershell
+flutter devices
+flutter run -d <DEVICE_ID>
+```
+
+### Gerar APK debug
+
+```powershell
+flutter build apk --debug
+```
+
+---
+
+## Validação
 
 ```powershell
 flutter analyze
@@ -67,18 +158,27 @@ flutter test
 flutter build apk --debug
 ```
 
-Estado atual verificado:
+Estado verificado:
 
-- `flutter analyze`: sem issues.
-- `flutter test`: 34 testes passando.
-- `flutter build apk --debug`: gera APK com sucesso.
-- Checklist manual Android: `docs/ANDROID_MANUAL_TEST_CHECKLIST.md`.
+- `flutter analyze`: sem issues
+- `flutter test`: 34+ testes passando
+- `flutter build apk --debug`: gera APK com sucesso
+- Checklist manual Android: [`docs/ANDROID_MANUAL_TEST_CHECKLIST.md`](docs/ANDROID_MANUAL_TEST_CHECKLIST.md)
 
-## Comandos Exemplos
+### Fallback (se o wrapper travar)
 
-Navegacao:
+```powershell
+C:\Users\aleli\flutter\bin\cache\dart-sdk\bin\dart.exe C:\Users\aleli\flutter\bin\cache\flutter_tools.snapshot analyze
+C:\Users\aleli\flutter\bin\cache\dart-sdk\bin\dart.exe C:\Users\aleli\flutter\bin\cache\flutter_tools.snapshot test --reporter compact
+```
 
-```text
+---
+
+## Comandos de Voz — Exemplos
+
+### Navegação
+
+```
 abrir dashboard
 abrir projetos
 abrir gravacoes
@@ -88,32 +188,33 @@ voltar
 voltar para home
 ```
 
-Projetos:
+### Projetos
 
-```text
+```
 novo projeto
-eu quero que voce coloque o nome abacate
-descricao do projeto ideia simples para tocar na rua
+nome do projeto guitarra rock
+descricao do projeto riff para o verso
 criar projeto
 cancelar projeto
-abrir projeto abacate
-renomear projeto abacate para alface
+abrir projeto guitarra rock
+renomear projeto guitarra rock para blues
 ```
 
-Gravacoes:
+### Gravações
 
-```text
-reproduzir gravacao teste
+```
+reproduzir gravacao ideia inicial
 parar audio
-renomear gravacao teste para ideia inicial
-excluir gravacao ideia inicial
+abrir detalhes da gravacao ideia inicial
+renomear gravacao ideia inicial para riff verso
+excluir gravacao riff verso
 confirmar exclusao
 cancelar exclusao
 ```
 
-Configuracoes:
+### Configurações
 
-```text
+```
 ativar escuta continua
 desativar escuta continua
 ativar feedback sonoro
@@ -121,11 +222,12 @@ desativar feedback sonoro
 ativar parada por silencio
 desativar parada por silencio
 tempo de silencio 8 segundos
+ativar tema escuro
 ```
 
-Editor:
+### Editor
 
-```text
+```
 iniciar gravacao
 pausar gravacao
 retomar gravacao
@@ -135,63 +237,79 @@ parar audio
 criar marcador
 ```
 
-## Modo Hibrido Do Editor
+---
 
-Durante a gravacao, o app pausa a escuta por voz e dedica o microfone a captura musical. Isso evita conflito real do Android entre `speech_to_text` e `record`.
+## Segurança
 
-Fluxo:
+- Senhas locais: PBKDF2-HMAC-SHA256 com salt individual por usuário
+- Migração progressiva de senhas legadas SHA-256 no primeiro login correto
+- API keys não devem ser expostas em logs, prints, UI ou documentos públicos
+- Logout centralizado no `AuthSessionService`
+- Migrations do SQLite usam whitelist de colunas e definições permitidas
 
-```text
-Modo normal
-  -> escuta continua ativa
+### Limitações conhecidas
 
-Modo gravacao
-  -> microfone reservado para audio
-  -> escuta por voz pausada
-  -> controles manuais grandes
-  -> escuta volta ao finalizar se configurada
-```
+- SQLite local sem criptografia em repouso (ver [`docs/security/sqlite_local_storage.md`](docs/security/sqlite_local_storage.md))
+- Validação server-side do `idToken` Google não implementada
+- SHA-1 de release deve ser cadastrado no Google Cloud antes de gerar APK release
 
-## Banco Local
+---
 
-SQLite: `assistente_musical.db`
+## Testes
 
-Tabelas:
+A estratégia prioriza determinismo e isolamento:
 
-- `usuario`
-- `projeto`
-- `gravacao`
-- `comando_voz`
-- `historico_acao`
-- `configuracao_app`
+- Fakes manuais em vez de pacotes de mocking
+- Banco isolado com `sqflite_common_ffi` nos testes de repositórios
+- Nenhum teste abre microfone, player, STT, TTS ou serviço real
+- Clientes injetáveis para Google, permissão, gravador e player
 
-## Segurança e armazenamento local
+### Cobertura atual
 
-Senhas locais usam PBKDF2-HMAC-SHA256 com salt individual. O SQLite local ainda nao possui criptografia em repouso; essa limitacao conhecida esta documentada em [docs/security/sqlite_local_storage.md](docs/security/sqlite_local_storage.md).
+| Grupo | Arquivo(s) |
+|-------|-----------|
+| Parser de voz | `test/features/voices/` |
+| `ComandoVozRepository` | `test/repositories/comando_voz_repository_test.dart` |
+| `HistoricoRepository` | `test/repositories/historico_repository_test.dart` |
+| `UsuarioRepository` | `test/repositories/usuario_repository_test.dart` |
+| Migrations SQLite | `test/database/app_database_migration_test.dart` |
+| `GoogleAuthService` | `test/features/voices/services/` |
+| `VoicePermissionService` | `test/features/voices/services/` |
+| `AudioRecordingService` / `AudioPlayerService` | `test/features/editor/` |
+| `LoginPage` / `CadastroPage` / `HomePage` | `test/features/voices/pages/`, `test/features/home/` |
 
-Para producao, recomenda-se avaliar SQLCipher/`sqflite_sqlcipher` ou criptografia seletiva de campos sensiveis.
+---
 
-## Pendencias Principais
+## Pendências Conhecidas
 
-- Teste manual completo em Android real (gravacao + escuta continua + navegacao).
-- Executar e registrar o checklist manual Android.
-- Centralizar escuta de voz (evitar multiplas instancias `SpeechService`) — ver `docs/VOICE_ARCHITECTURE.md`.
-- Melhorar fluxo de permissao negada.
-- Feedback sonoro/TTS opcional (hoje: click/haptic).
-- Corrigir mojibake remanescente.
-- Decidir destino da `VoicePage` legada.
-- Insights inteligentes no dashboard (placeholder).
-- Atualizar documentacao academica final do TCC.
+- Teste manual completo em Android físico (gravação + escuta contínua + navegação)
+- Preencher o checklist manual Android com evidências
+- Centralizar escuta de voz — evitar múltiplas instâncias de `SpeechService` (ver `docs/VOICE_ARCHITECTURE.md`)
+- Melhorar fluxo de permissão negada permanentemente
+- Feedback TTS opcional (hoje: click/haptic)
+- Insights inteligentes no dashboard (atualmente placeholder)
+- Decidir destino da `VoicePage` legada
+- Documentação acadêmica final do TCC
 
-## Arquitetura De Voz (evolucao)
+---
 
-Plano incremental sem reescrever a base: `docs/VOICE_ARCHITECTURE.md`
+## Documentação Técnica
 
-## Observacao De Git
+| Documento | Conteúdo |
+|-----------|---------|
+| [`docs/VOICE_ARCHITECTURE.md`](docs/VOICE_ARCHITECTURE.md) | Arquitetura de voz, fases de evolução e ADRs |
+| [`docs/ANDROID_MANUAL_TEST_CHECKLIST.md`](docs/ANDROID_MANUAL_TEST_CHECKLIST.md) | Checklist de teste físico em Android |
+| [`docs/validacao_final_tcc.md`](docs/validacao_final_tcc.md) | Validação técnica final e evidências |
+| [`docs/security/sqlite_local_storage.md`](docs/security/sqlite_local_storage.md) | Limitações de segurança do banco local |
+| [`AGENTS.md`](AGENTS.md) | Guia de trabalho para agentes de IA na sprint final |
+
+---
+
+## Observações de Git
 
 Arquivos iOS gerados podem aparecer modificados localmente:
 
 - `ios/Runner/GeneratedPluginRegistrant.h`
 - `ios/Runner/GeneratedPluginRegistrant.m`
 
-Eles nao devem ser commitados sem revisao explicita.
+Não devem ser commitados sem revisão explícita.
