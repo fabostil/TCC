@@ -84,3 +84,8 @@ lib/core/config/picovoice_config.dart
 *.vrb
 *.bak
 *.tmp
+
+# Arquivos locais e gerados do Android
+/android/.gradle/
+/android/local.properties
+/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
