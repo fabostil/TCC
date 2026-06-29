@@ -10,7 +10,7 @@ class ConfiguracaoApp {
   final bool temaEscuro;
   final String dataAtualizacao;
 
-  static const double limiarSilencioDbPadrao = -30.0;
+  static const double limiarSilencioDbPadrao = -20.0;
   static const double limiarSilencioDbMin = -60.0;
   static const double limiarSilencioDbMax = -10.0;
 

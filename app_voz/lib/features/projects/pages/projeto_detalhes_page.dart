@@ -1169,16 +1169,10 @@ class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
     _controller =
         widget.textController ?? TextEditingController(text: widget.nomeInicial);
     _focusNode = FocusNode();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _focusNode.requestFocus();
-        _controller.selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: _controller.text.length,
-        );
-      }
-    });
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _controller.text.length,
+    );
   }
 
   @override
@@ -1205,7 +1199,7 @@ class _RenomearGravacaoDialogState extends State<_RenomearGravacaoDialog> {
         child: TextFormField(
           controller: _controller,
           focusNode: _focusNode,
-          autofocus: false,
+          autofocus: true,
           textInputAction: TextInputAction.done,
           onFieldSubmitted: (_) => _salvar(),
           decoration: const InputDecoration(labelText: 'Novo nome'),
@@ -1249,16 +1243,10 @@ class _RenomearProjetoDialogState extends State<_RenomearProjetoDialog> {
     _controller =
         widget.textController ?? TextEditingController(text: widget.nomeInicial);
     _focusNode = FocusNode();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _focusNode.requestFocus();
-        _controller.selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: _controller.text.length,
-        );
-      }
-    });
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _controller.text.length,
+    );
   }
 
   @override
@@ -1285,7 +1273,7 @@ class _RenomearProjetoDialogState extends State<_RenomearProjetoDialog> {
         child: TextFormField(
           controller: _controller,
           focusNode: _focusNode,
-          autofocus: false,
+          autofocus: true,
           textInputAction: TextInputAction.done,
           onFieldSubmitted: (_) => _salvar(),
           decoration: const InputDecoration(labelText: 'Novo nome'),

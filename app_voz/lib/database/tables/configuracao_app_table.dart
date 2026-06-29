@@ -11,7 +11,7 @@ class ConfiguracaoAppTable {
       feedback_sonoro INTEGER NOT NULL DEFAULT 0,
       parada_silencio INTEGER NOT NULL DEFAULT 1,
       tempo_silencio_segundos INTEGER NOT NULL DEFAULT 3,
-      limiar_silencio_db REAL NOT NULL DEFAULT -30.0,
+      limiar_silencio_db REAL NOT NULL DEFAULT -20.0,
       tema_escuro INTEGER NOT NULL DEFAULT 1,
       data_atualizacao TEXT NOT NULL
     )
@@ -38,7 +38,7 @@ class ConfiguracaoAppTable {
       0,
       1,
       3,
-      -30.0,
+      -20.0,
       1,
       CURRENT_TIMESTAMP
     )

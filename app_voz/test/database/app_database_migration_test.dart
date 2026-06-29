@@ -29,7 +29,7 @@ void main() {
       final db = await AppDatabase.instance.database;
 
       final version = await db.getVersion();
-      expect(version, 10);
+      expect(version, 11);
 
       final usuario = await db.query('usuario', limit: 1);
       expect(usuario.single['email'], 'alex@example.com');
@@ -152,7 +152,7 @@ void main() {
     await AppDatabase.instance.setDatabaseNameForTesting(databaseName);
     final db = await AppDatabase.instance.database;
 
-    expect(await db.getVersion(), 10);
+    expect(await db.getVersion(), 11);
 
     final google = await db.query(
       'usuario',
@@ -206,7 +206,7 @@ void main() {
     await AppDatabase.instance.setDatabaseNameForTesting(databaseName);
     final db = await AppDatabase.instance.database;
 
-    expect(await db.getVersion(), 10);
+    expect(await db.getVersion(), 11);
 
     final usuario = await db.query(
       'usuario',

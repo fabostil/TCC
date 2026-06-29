@@ -567,6 +567,29 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage>
   Future<VoiceCommandPageResult> _dispatchSettingsVoice(
     CommandResult resultado,
   ) async {
+    // Scroll commands do not require the configuration to be loaded.
+    // Handle them first so a transient null config never silently drops them.
+    if (resultado.type == VoiceCommandType.scrollBaixo ||
+        resultado.type == VoiceCommandType.scrollCima ||
+        resultado.type == VoiceCommandType.scrollTopo ||
+        resultado.type == VoiceCommandType.scrollFim) {
+      debugPrint(
+        '[SettingsScroll] raw=${resultado.originalText} '
+        'type=${resultado.type.name} '
+        'hasClients=${_voiceScrollController.hasClients}',
+      );
+      final scrollResult = await VoiceScrollHandler(
+        controller: _voiceScrollController,
+      ).handle(resultado);
+      debugPrint(
+        '[SettingsScroll] result=${scrollResult?.statusMessage ?? "null"}',
+      );
+      return scrollResult ??
+          VoiceCommandPageResult.unavailable(
+            recognized: resultado.recognized,
+          );
+    }
+
     final configuracao = _settingsState.configuration;
     if (configuracao == null) {
       return VoiceCommandPageResult.handled(

@@ -68,7 +68,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 10,
+      version: 11,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -313,6 +313,15 @@ class AppDatabase {
         tableName: ConfiguracaoAppTable.tableName,
         columnName: 'limiar_silencio_db',
         definition: 'REAL NOT NULL DEFAULT -30.0',
+      );
+    }
+
+    if (oldVersion < 11) {
+      // Atualiza o limiar padrão de -30 dB para -20 dB em instalações existentes.
+      await db.execute(
+        'UPDATE ${ConfiguracaoAppTable.tableName} '
+        'SET limiar_silencio_db = -20.0 '
+        'WHERE limiar_silencio_db = -30.0',
       );
     }
   }

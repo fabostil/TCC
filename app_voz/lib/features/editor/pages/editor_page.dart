@@ -996,15 +996,42 @@ class _EditorPageState extends State<EditorPage>
         case VoiceCommandType.abrirProjetoPorNome:
         case VoiceCommandType.renomearProjeto:
         case VoiceCommandType.excluirProjeto:
+        case VoiceCommandType.abrirGravacoes:
+          debugPrint('[EditorVoice] route=navigation action=abrirGravacoes');
+          final gravResult = await _handleAbrirGravacoesGlobal(resultado);
+          if (gravResult.statusMessage != null && mounted) {
+            setState(() {
+              statusProjeto = gravResult.statusMessage!;
+            });
+          }
+          if (gravResult.restartListening) {
+            _reiniciarEscutaContinuaSeNecessario();
+          }
+          debugPrint('[EditorVoice] executed=true');
+          return;
+        case VoiceCommandType.voltar:
+          debugPrint('[EditorVoice] route=navigation action=voltar');
+          final voltarResult =
+              VoiceNavigationCommandHandler.isHomeNavigationCommand(resultado)
+                  ? await _handleIrParaHome(resultado)
+                  : await _handleVoltarGlobal(resultado);
+          if (voltarResult.statusMessage != null && mounted) {
+            setState(() {
+              statusProjeto = voltarResult.statusMessage!;
+            });
+          }
+          if (voltarResult.restartListening) {
+            _reiniciarEscutaContinuaSeNecessario();
+          }
+          debugPrint('[EditorVoice] executed=true');
+          return;
         case VoiceCommandType.abrirNovoProjeto:
         case VoiceCommandType.criarProjeto:
         case VoiceCommandType.cancelarProjeto:
         case VoiceCommandType.abrirDashboard:
         case VoiceCommandType.abrirProjetos:
-        case VoiceCommandType.abrirGravacoes:
         case VoiceCommandType.abrirConfiguracoes:
         case VoiceCommandType.abrirHistorico:
-        case VoiceCommandType.voltar:
         case VoiceCommandType.sair:
         case VoiceCommandType.renomearGravacao:
         case VoiceCommandType.excluirGravacao:

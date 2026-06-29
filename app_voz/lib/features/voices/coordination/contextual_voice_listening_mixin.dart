@@ -679,11 +679,15 @@ mixin ContextualVoiceListeningMixin<T extends StatefulWidget> on State<T>
           reason: 'help_close',
         );
         if (mounted) Navigator.of(context).maybePop();
-        voiceExecutandoComando = false;
-        voiceSessionState = voiceSessionState.transitionTo(
-          VoiceSessionPhase.idle,
-          message: voiceStatusMessage,
-        );
+        voiceSetState(() {
+          setVoiceSession(
+            VoiceSessionPhase.idle,
+            message: voiceStatusMessage,
+            listening: false,
+            thinking: false,
+            processing: false,
+          );
+        });
         scheduleVoiceContinuousRestart();
         return;
       }

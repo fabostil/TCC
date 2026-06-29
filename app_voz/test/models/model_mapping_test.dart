@@ -171,12 +171,12 @@ void main() {
       });
 
       expect(parsed.temaEscuro, isFalse);
-      expect(parsed.limiarSilencioDb, -30.0);
+      expect(parsed.limiarSilencioDb, -20.0);
     });
 
-    test('ConfiguracaoApp padrao usa limiar de silencio de -30 dB', () {
+    test('ConfiguracaoApp padrao usa limiar de silencio de -20 dB', () {
       final padrao = ConfiguracaoApp.padrao();
-      expect(padrao.limiarSilencioDb, -30.0);
+      expect(padrao.limiarSilencioDb, -20.0);
     });
 
     test('ConfiguracaoApp padrao usa tema escuro e silencio de 3 segundos', () {

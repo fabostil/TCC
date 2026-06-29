@@ -90,6 +90,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   bool _retomadaEscutaPlaybackPendente = false;
   String? _erro;
   StreamSubscription? _playerStateSubscription;
+  TextEditingController? _activeRenameController;
 
   @override
   String get voiceOwnerId => VoicePageOwners.detalhesGravacao;
@@ -347,6 +348,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       return;
     }
 
+    debugPrint('[RecordingDetailsRename] saveStarted=true');
     setState(() {
       _salvandoNome = true;
     });
@@ -364,6 +366,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return;
       }
 
+      debugPrint('[RecordingDetailsRename] saveCompleted=true');
       voiceSetState(() {
         voiceStatusMessage = 'Gravação renomeada para ${atualizada.nome}.';
       });
@@ -423,6 +426,9 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
     final externalController =
         TextEditingController(text: novoNomeSugerido);
 
+    _activeRenameController = externalController;
+    debugPrint('[RecordingDetailsRename] modalOpened=true');
+
     final novoNome = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
@@ -449,6 +455,8 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       },
     );
 
+    _activeRenameController = null;
+    debugPrint('[RecordingDetailsRename] modalClosed=true');
     externalController.dispose();
 
     if (!completedByVoice) {
@@ -551,6 +559,9 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   Future<VoiceCommandPageResult> _dispatchContextualVoice(
     CommandResult resultado,
   ) async {
+    debugPrint('[RecordingDetailsVoice] raw=${resultado.originalText}');
+    debugPrint('[RecordingDetailsVoice] parsedType=${resultado.type.name}');
+    debugPrint('[RecordingDetailsVoice] currentRecordingId=${_details?.gravacao.id}');
     switch (resultado.type) {
       case VoiceCommandType.reproduzirGravacao:
         final action = await _alternarReproducao();
@@ -567,25 +578,43 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         await _retomarEscutaAposPlayback();
         return VoiceCommandPageResult.handled(message: 'Reprodução parada.');
       case VoiceCommandType.renomearGravacao:
-        final novoNome = resultado.parametroSecundario;
-        if (novoNome == null || novoNome.trim().isEmpty) {
-          // Frase incompleta — aguarda o usuário completar sem dar erro.
-          return VoiceCommandPageResult.handled(restartListening: true);
+        debugPrint('[RecordingDetailsVoice] action=rename');
+        // Alvo é sempre a gravação aberta; parametro ("gravacao 1", etc.) é ignorado.
+        final gravacaoAlvo = _details?.gravacao;
+        if (gravacaoAlvo == null) {
+          debugPrint('[RecordingDetailsVoice] staleActionIgnored=true');
+          return VoiceCommandPageResult.handled(
+            message: 'Gravação não carregada ainda.',
+          );
         }
-        return _abrirModalRenomearComVoz(novoNome.trim());
+        // parametroSecundario = novo nome quando o usuário já informou ("renomear para X").
+        // Frase incompleta ("renomear gravacao") → reinicia STT para aguardar o nome.
+        final nomeSugerido = resultado.parametroSecundario?.trim();
+        if (nomeSugerido == null || nomeSugerido.isEmpty) {
+          debugPrint('[RecordingDetailsVoice] incompleteRename=true restartListening=true');
+          return VoiceCommandPageResult.handled(
+            message: 'Qual é o novo nome? Diga "renomear para [nome]".',
+            restartListening: true,
+          );
+        }
+        return _abrirModalRenomearComVoz(nomeSugerido);
       case VoiceCommandType.excluirGravacao:
+        debugPrint('[RecordingDetailsVoice] action=delete');
         await _excluirGravacao();
         return VoiceCommandPageResult.handled(restartListening: false);
       case VoiceCommandType.confirmarAcao:
+        debugPrint('[RecordingDetailsVoice] action=confirm');
         return VoiceCommandPageResult.handled(
           message: 'Não há ação aguardando confirmação.',
         );
       case VoiceCommandType.cancelarAcao:
+        debugPrint('[RecordingDetailsVoice] action=cancel');
         return VoiceCommandPageResult.handled(message: 'Ação cancelada.');
       case VoiceCommandType.scrollBaixo:
       case VoiceCommandType.scrollCima:
       case VoiceCommandType.scrollTopo:
       case VoiceCommandType.scrollFim:
+        debugPrint('[RecordingDetailsVoice] action=scroll');
         return await VoiceScrollHandler(
               controller: _voiceScrollController,
             ).handle(resultado) ??
@@ -593,6 +622,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
               recognized: resultado.recognized,
             );
       case VoiceCommandType.voltar:
+        debugPrint('[RecordingDetailsVoice] action=back');
         await suspendContextualVoiceListening();
         if (mounted) {
           Navigator.maybePop(context);
@@ -626,6 +656,24 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
         return VoiceCommandPageResult.handled(
           message: 'Aqui estão os comandos disponíveis.',
         );
+      case VoiceCommandType.preencherFraseComando:
+        // Preenche o campo de texto da modal de renomear enquanto ela está aberta.
+        // "nome teste final" → controller.text = "teste final"
+        final novoTexto = resultado.parametro?.trim();
+        final ctrl = _activeRenameController;
+        if (ctrl != null && novoTexto != null && novoTexto.isNotEmpty) {
+          ctrl.text = novoTexto;
+          ctrl.selection = TextSelection.fromPosition(
+            TextPosition(offset: novoTexto.length),
+          );
+          debugPrint('[RecordingDetailsRename] nameFilled=$novoTexto');
+          return VoiceCommandPageResult.handled(
+            message: 'Nome: "$novoTexto"',
+          );
+        }
+        return VoiceCommandPageResult.unavailable(
+          recognized: resultado.recognized,
+        );
       case VoiceCommandType.abrirConfiguracoes:
       case VoiceCommandType.abrirHistorico:
       case VoiceCommandType.abrirEditor:
@@ -650,7 +698,6 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
       case VoiceCommandType.ativarComandoPersonalizado:
       case VoiceCommandType.desativarComandoPersonalizado:
       case VoiceCommandType.excluirComandoPersonalizado:
-      case VoiceCommandType.preencherFraseComando:
       case VoiceCommandType.salvarComandoPersonalizado:
       case VoiceCommandType.consultarTempoSilencio:
       case VoiceCommandType.ajustarTempoSilencio:
@@ -665,6 +712,7 @@ class _DetalhesGravacaoPageState extends State<DetalhesGravacaoPage>
   }
 
   Future<VoiceCommandPageResult> _handleIrParaHome(CommandResult _) async {
+    debugPrint('[RecordingDetailsVoice] action=home');
     await suspendContextualVoiceListening();
     if (mounted) {
       Navigator.popUntil(context, (route) => route.isFirst);
