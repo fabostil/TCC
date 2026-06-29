@@ -1,694 +1,0 @@
-UNIVERSIDADE TUIUTI DO PARANÁ
-CRISTIAN ALEX ANYAIPOMA LEON FABIO ROGÉRIO MUNHOZ JUNIOR
-ASSISTENTE MUSICAL: APLICATIVO DE APOIO
-À PRODUÇÃO MUSICAL POR COMANDO DE VOZ
-CURITIBA
-2026
-CRISTIAN ALEX ANYAIPOMA LEON FABIO ROGÉRIO MUNHOZ JUNIOR
-ASSISTENTE MUSICAL: APLICATIVO DE APOIO
-À PRODUÇÃO MUSICAL POR COMANDO DE VOZ
-Trabalho apresentado ao curso de Análise e Desenvolvimento de Sistemas da Universidade Tuiuti do Paraná como requisito avaliativo parcial da disciplina de Projeto Interdisciplinar.
-Orientadores: Profª. Patrícia Rucker de Bassi; Prof. Sérgio Luiz Marques Filho; Profª. Ângela Helena Zatti.
-CURITIBA
-2026
-RESUMO
-Este trabalho propõe o desenvolvimento de um assistente virtual baseado em comandos de voz voltado ao apoio de músicos independentes durante o processo de produção musical em dispositivos Android. A solução busca reduzir interrupções no fluxo criativo por meio de funcionalidades como reconhecimento de comandos de voz, controle de gravações de áudio, organização de arquivos, reprodução de gravações, registro de histórico, apresentação de indicadores em dashboard e fornecimento de feedback ao usuário. O sistema permitirá iniciar, pausar, retomar, encerrar, salvar, listar, reproduzir, organizar, nomear e excluir gravações, além de registrar as ações realizadas durante o uso da aplicação. A aplicação será desenvolvida utilizando a linguagem Dart, o framework Flutter e banco de dados local SQLite, permitindo funcionamento parcialmente offline e armazenamento estruturado das informações. Também será considerada uma arquitetura experimental voice-first, voltada à validação de recursos como gerenciamento centralizado da sessão de voz, captura de áudio em stream, processamento em tempo real e diagnóstico de eventos. A metodologia adotada será baseada na Programação Orientada a Objetos, no desenvolvimento incremental e na modelagem UML, com a utilização de diagramas de caso de uso, classes, sequência, arquitetura e entidade-relacionamento. Espera-se como resultado um protótipo funcional, com interface simples, feedback visual e/ou auditivo, dashboard de indicadores e recursos voltados à melhoria da produtividade e organização de ideias musicais.
-Palavras-chave: Assistente virtual; Comando de voz; Produção musical; Gravação de áudio; Android.
-LISTA DE ILUSTRAÇÕES
-FIGURA 1 - DIAGRAMA DE CASO DE USO DO ASSISTENTE VIRTUAL	20
-FIGURA 2 - DIAGRAMA DE CLASSES DO ASSISTENTE VIRTUAL	32
-FIGURA 3 - DIAGRAMA DE SEQUÊNCIA DO ASSISTENTE VIRTUAL	33
-FIGURA 4 - DIAGRAMA DE SEQUÊNCIA DE CRIAÇÃO E AUTENTICAÇÃO	
-DE USUÁRIO	35
-FIGURA 5 - DIAGRAMA DE ARQUITETURA VOICE-FIRST EXPERIMENTAL	36
-FIGURA 6 - DIAGRAMA ENTIDADE-RELACIONAMENTO DO ASSISTENTE	
-VIRTUAL	37
-FIGURA 7 - FLUXO DE NAVEGAÇÃO DE TELAS	38
-FIGURA 8 - TELA DE LOGIN	39
-FIGURA 9 - TELA DE CADASTRO	40
-FIGURA 10 - TELA INICIAL	41
-FIGURA 11 - TELA DE GRAVAÇÕES	42
-FIGURA 12 - TELA DE HISTÓRICO	43
-FIGURA 13 - TELA DE DASHBOARD	44
-FIGURA 14 - TELA DE CONFIGURAÇÕES	45
-FIGURA 15 - RESULTADO DO CONTROLE DE GRAVAÇÃO	56
-
-LISTA DE TABELAS
-TABELA 1 - REQUISITOS FUNCIONAIS DO SISTEMA . . . . . . . . . . . . .	14 TABELA 2 - REQUISITOS NÃO FUNCIONAIS DO SISTEMA . . . . . . . . . .	15 TABELA 3 - CASOS DE TESTE DO SISTEMA . . . . . . . . . . . . . . . . . .	47 TABELA 4 - TESTES DA ARQUITETURA VOICE-FIRST EXPERIMENTAL . .	53
-
-SUMÁRIO
-1 INTRODUÇÃO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .	7
-2 FUNDAMENTAÇÃO TEÓRICA . . . . . . . . . . . . . . . . . . . . .	9
-2.1 ASSISTENTES VIRTUAIS . . . . . . . . . . . . . . . . . . . . . . . .	9
-2.2 RECONHECIMENTO DE VOZ	. . . . . . . . . . . . . . . . . . . . .	9
-2.3 PRODUÇÃO MUSICAL INDEPENDENTE . . . . . . . . . . . . . . .	10
-2.4 DESENVOLVIMENTO MOBILE COM FLUTTER . . . . . . . . . . .	10
-2.5 BANCO DE DADOS LOCAL	. . . . . . . . . . . . . . . . . . . . . .	11
-2.6 MODELAGEM UML	. . . . . . . . . . . . . . . . . . . . . . . . . . .	11
-2.7 ARQUITETURA VOICE-FIRST E PROCESSAMENTO EM TEMPO
-	REAL	. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .	12
-3 ANÁLISE DO SISTEMA ATUAL	. . . . . . . . . . . . . . . . . . . .	13
-4 LEVANTAMENTO DE REQUISITOS . . . . . . . . . . . . . . . . . .	14
-4.1 REQUISITOS FUNCIONAIS . . . . . . . . . . . . . . . . . . . . . . .	14
-4.2 REQUISITOS NÃO FUNCIONAIS	. . . . . . . . . . . . . . . . . . .	15
-5 METODOLOGIA	. . . . . . . . . . . . . . . . . . . . . . . . . . . . .	16
-5.1 FERRAMENTAS UTILIZADAS . . . . . . . . . . . . . . . . . . . . .	17
-6 DIAGRAMAS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .	19
-6.1 DIAGRAMA DE CASO DE USO	. . . . . . . . . . . . . . . . . . . .	19
-6.2 ESPECIFICAÇÃO DOS CASOS DE USO . . . . . . . . . . . . . . .	21
-6.3 DIAGRAMA DE CLASSES	. . . . . . . . . . . . . . . . . . . . . . .	31
-6.4 DIAGRAMA DE SEQUÊNCIA . . . . . . . . . . . . . . . . . . . . . .	33
-6.5 DIAGRAMADESEQUÊNCIADECRIAÇÃOEAUTENTICAÇÃODE
-	USUÁRIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .	34
-6.6 DIAGRAMA DE ARQUITETURA VOICE-FIRST EXPERIMENTAL .	36
-6.7 DIAGRAMA ENTIDADE-RELACIONAMENTO	. . . . . . . . . . . .	37
-6.8 FLUXO DE NAVEGAÇÃO DE TELAS . . . . . . . . . . . . . . . . .	38
-7 PROTÓTIPO DO SISTEMA . . . . . . . . . . . . . . . . . . . . . . .	39
-7.1 TELA DE LOGIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . .	39
-7.2 TELA DE CADASTRO . . . . . . . . . . . . . . . . . . . . . . . . . .	40
-7.3 TELA INICIAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .	41
-7.4 TELA DE GRAVAÇÕES . . . . . . . . . . . . . . . . . . . . . . . . .	42
-7.5 TELA DE HISTÓRICO . . . . . . . . . . . . . . . . . . . . . . . . . .	43
-
-7.6 TELA DE DASHBOARD . . . . . . . . . . . . . . . . . . . . . . . . .	44
-7.7 TELA DE CONFIGURAÇÕES . . . . . . . . . . . . . . . . . . . . . .	45
-8 MODELAGEM DE DADOS	. . . . . . . . . . . . . . . . . . . . . . .	46
-9 PLANO DE TESTES . . . . . . . . . . . . . . . . . . . . . . . . . . .	47
-9.1 CASOS DE TESTE . . . . . . . . . . . . . . . . . . . . . . . . . . . .	47
-9.2 SCRIPT DE CRIAÇÃO DO BANCO DE DADOS . . . . . . . . . . .	50
-9.3 ROTEIRO DE NAVEGAÇÃO PARA TESTES . . . . . . . . . . . . .	51
-9.4 TESTES DA ARQUITETURA VOICE-FIRST EXPERIMENTAL . . .	53
-10 DEMONSTRAÇÃO DE RESULTADOS . . . . . . . . . . . . . . . . .	55
-10.1 CONTROLE DE GRAVAÇÃO POR COMANDO DE VOZ	. . . . . .	55
-10.2 REGISTRO DE HISTÓRICO E INDICADORES . . . . . . . . . . . .	56
-11 MANUAL DE INSTALAÇÃO E USO . . . . . . . . . . . . . . . . . .	57
-11.1 REQUISITOS PARA INSTALAÇÃO	. . . . . . . . . . . . . . . . . .	57
-11.2 INSTALAÇÃO DO PROTÓTIPO	. . . . . . . . . . . . . . . . . . . .	57
-11.3 USO DO SISTEMA . . . . . . . . . . . . . . . . . . . . . . . . . . . .	58
-11.4 OBSERVAÇÕES SOBRE O USO . . . . . . . . . . . . . . . . . . . .	58
-12 CONCLUSÃO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .	59
-REFERÊNCIAS	. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .	60
-
-1 INTRODUÇÃO
-   O avanço das tecnologias digitais e a ampla disseminação de dispositivos móveis têm transformado significativamente a forma como atividades criativas são realizadas. No contexto da produção musical independente, smartphones e tablets passaram a desempenhar um papel importante, permitindo que músicos criem, gravem e organizem suas ideias de maneira prática e acessível.
-   Apesar desses avanços, ainda existem desafios relacionados ao fluxo de trabalho desses usuários. Durante o processo criativo, é comum que o músico precise interromper sua atividade principal para realizar tarefas operacionais, como iniciar uma gravação, salvar um arquivo, nomear um conteúdo ou localizar uma gravação anterior. Essas interrupções podem comprometer a continuidade do pensamento criativo, resultando na perda de ideias ou na redução da produtividade.
-   Além disso, as ferramentas atualmente disponíveis no mercado, como gravadores de áudio, aplicativos de anotações e assistentes virtuais genéricos, funcionam de forma isolada e nem sempre oferecem integração eficiente entre si. Em projetos de software, a compreensão adequada do problema e das necessidades do usuário é fundamental para orientar o desenvolvimento de soluções mais coerentes com o contexto de uso (Pressman; Maxim, 2016).
-   Assistentes virtuais já existentes, como Google Assistant e Siri, embora possuam recursos de reconhecimento de voz, não são projetados especificamente para o contexto da produção musical independente, apresentando limitações no controle de gravações, na organização de conteúdos criativos e no acompanhamento do histórico de uso.
-   Diante desse cenário, torna-se evidente a necessidade de uma solução que integre funcionalidades de gravação, organização, controle por voz e visualização de informações em um único sistema. Nesse contexto, este trabalho propõe o desenvolvimento de um assistente virtual baseado em comandos de voz, voltado ao apoio de músicos independentes em dispositivos Android, com recursos para controle, organização e acompanhamento de gravações de áudio.
-   O objetivo geral deste trabalho é desenvolver um assistente virtual baseado em comandos de voz para dispositivos móveis Android, com o objetivo de auxiliar músicos independentes durante o processo de produção musical, proporcionando maior fluidez, praticidade e eficiência nas atividades de criação, gravação e organização de conteúdos sonoros.
-   Os objetivos específicos deste trabalho são: desenvolver um mecanismo de reconhecimento de comandos de voz; implementar funcionalidades para iniciar, pausar, retomar e encerrar gravações; permitir o salvamento automático dos arquivos de áudio; possibilitar a reprodução, listagem, renomeação, organização e exclusão das gravações; registrar o histórico de gravações, comandos e ações realizadas; implementar cadastro e autenticação de usuário; criar um dashboard com indicadores de uso, como quantidade de gravações realizadas, gravações reproduzidas, comandos executados e gravações excluídas; fornecer feedback visual e/ou auditivo ao usuário; e desenvolver uma interface simples e intuitiva para dispositivos Android.
-   A justificativa deste trabalho está relacionada à necessidade de melhorar o processo de produção musical independente, especialmente no que diz respeito à fluidez criativa e à organização de ideias musicais. Atualmente, músicos enfrentam dificuldades relacionadas à constante interrupção de suas atividades para realizar tarefas operacionais, como iniciar gravações, localizar arquivos, renomear conteúdos ou organizar materiais gravados. Assim, o desenvolvimento de um assistente virtual específico para esse contexto, com recursos de gravação, organização, histórico, dashboard e feedback ao usuário, representa uma contribuição relevante tanto do ponto de vista tecnológico quanto do ponto de vista da experiência do usuário.
-   O problema de pesquisa deste trabalho pode ser definido pela seguinte questão: como desenvolver um assistente virtual baseado em comandos de voz que seja capaz de auxiliar músicos independentes de forma eficiente, reduzindo interrupções e melhorando a produtividade durante o processo de gravação e organização de ideias musicais?
-   A delimitação do projeto compreende o desenvolvimento de um sistema voltado para dispositivos móveis com sistema operacional Android. O sistema terá como foco o controle de gravações de áudio por comandos de voz, a organização dos arquivos, o registro de histórico, o fornecimento de feedback ao usuário e a apresentação de indicadores em dashboard. Não serão contempladas, nesta etapa, funcionalidades avançadas de edição musical profissional, mixagem multipista, aplicação de plugins externos, colaboração em tempo real entre usuários, armazenamento em nuvem ou recursos de edição detalhada de áudio.
-   Como produtos gerados, este trabalho resultará na documentação de requisitos, modelagem UML, modelagem de dados, scripts de criação do banco de dados, telas do protótipo, fluxo de navegação de telas, demonstração de resultados a partir do programa implementado, protótipo funcional da aplicação Android, recursos de gravação e organização de áudio, e código-fonte versionado em repositório digital.
-2 FUNDAMENTAÇÃO TEÓRICA
-   Este capítulo apresenta os principais conceitos teóricos relacionados ao desenvolvimento do sistema proposto. São abordados temas como assistentes virtuais, reconhecimento de voz, produção musical independente, desenvolvimento de aplicações móveis, banco de dados local e modelagem UML. Esses conceitos servem como base para compreender as decisões técnicas adotadas no projeto.
-2.1 ASSISTENTES VIRTUAIS
-   Assistentes virtuais são sistemas computacionais desenvolvidos para auxiliar usuários na execução de tarefas por meio de interações simplificadas, que podem ocorrer por texto, voz ou outros meios de entrada. Esses sistemas buscam interpretar solicitações do usuário e executar ações de forma automatizada, reduzindo a necessidade de interação manual constante. No contexto da interação humano-computador, a redução de esforço durante o uso de um sistema contribui para melhorar a experiência do usuário e tornar a aplicação mais adequada às suas necessidades (Sommerville, 2019).
-   No contexto deste projeto, o assistente virtual tem como objetivo apoiar músicos independentes durante o processo de criação e gravação musical. Diferentemente de assistentes virtuais genéricos, a proposta do sistema está direcionada a um domínio específico: o controle de gravações de áudio, a organização de arquivos, o registro de histórico e a emissão de feedback ao usuário.
-   A utilização de um assistente virtual nesse contexto contribui para a redução deinterrupções durante o fluxo criativo. Ao permitir que ações sejam executadas por comandos de voz, o usuário pode manter o foco em atividades como tocar instrumentos, cantar, compor ou testar ideias musicais, sem depender exclusivamente da manipulação manual da interface do aplicativo.
-2.2 RECONHECIMENTO DE VOZ
-   O reconhecimento de voz é uma tecnologia que permite a captura e interpretação da fala humana por sistemas computacionais. Por meio dessa tecnologia, comandos emitidos oralmente podem ser convertidos em texto ou em instruções compreensíveis pelo sistema. Em aplicações móveis, esse tipo de recurso pode ser integrado para permitir formas alternativas de interação entre usuário e sistema, ampliando as possibilidades de uso da aplicação (Android Developers, 2026).
-No sistema proposto, o reconhecimento de voz será utilizado para identificar comandos relacionados ao controle das gravações, como iniciar, pausar, retomar, encerrar, reproduzir, listar, excluir e nomear gravações. Dessa forma, a voz funciona como uma forma alternativa de entrada de dados e controle da aplicação.
-   Um dos desafios associados ao reconhecimento de voz é o tratamento de comandos não compreendidos ou interpretados de forma incorreta. Por esse motivo, o sistema deve prever fluxos de erro e mecanismos de feedback ao usuário, informando quando um comando não foi reconhecido e solicitando sua repetição. Esse tratamento é importante para tornar a aplicação mais confiável, clara e adequada ao uso em situações reais.
-2.3 PRODUÇÃO MUSICAL INDEPENDENTE
-   A produção musical independente refere-se ao processo de criação, gravação, or-ganização e publicação de músicas sem a dependência direta de grandes gravadoras ou estruturas profissionais tradicionais. Com o avanço das tecnologias digitais, músicos independentes passaram a utilizar computadores, dispositivos móveis, interfaces de áudio, aplicativos e plataformas digitais para desenvolver seus projetos musicais.
-   Nesse cenário, a organização das ideias musicais é um fator importante. Durante uma sessão criativa, o músico pode gerar melodias, letras, arranjos, linhas vocais, ideias de bateria, riffs ou trechos experimentais que precisam ser registrados rapidamente. Quando esse registro exige muitas etapas manuais, existe o risco de perda de concentração ou até mesmo de esquecimento da ideia original.
-   Assim, uma ferramenta voltada ao apoio da produção musical independente deve priorizar praticidade, rapidez e simplicidade. O sistema proposto busca atender essa necessidade ao permitir que o usuário controle gravações e organize arquivos por meio de comandos de voz, contribuindo para a continuidade do processo criativo.
-2.4 DESENVOLVIMENTO MOBILE COM FLUTTER
-   O desenvolvimento de aplicações móveis exige a escolha de tecnologias adequadas ao público-alvo, ao sistema operacional utilizado e às funcionalidades necessárias. Neste projeto, a aplicação será desenvolvida para dispositivos Android, utilizando a linguagem Dart e o framework Flutter. A linguagem Dart é utilizada em conjunto com o Flutter para a construção da lógica da aplicação e da interface do sistema (Dart, 2026).
-   O Flutter é um framework voltado ao desenvolvimento de interfaces e aplicações multiplataforma. Sua utilização permite criar telas, componentes visuais, navegação entre páginas e integração com bibliotecas externas, sendo adequado para o desenvolvimento de protótipos funcionais e aplicações móveis. De acordo com a documentação oficial do Flutter, o framework possibilita o desenvolvimento de aplicações compiladas nativamente a partir de uma única base de código, utilizando a linguagem Dart (Flutter, 2026).
-   A escolha do Flutter se justifica pela possibilidade de desenvolver uma interfacesimples, responsiva e organizada, além de permitir integração com recursos importantes para o sistema, como reconhecimento de voz, gravação de áudio e armazenamento local. Dessa forma, a tecnologia atende às necessidades do projeto, especialmente no que se refere à criação de uma aplicação Android voltada à interação por voz.
-2.5 BANCO DE DADOS LOCAL
-   O armazenamento de dados é uma parte essencial do sistema, pois permite registrar informações de usuários, gravações, arquivos de áudio, comandos de voz, histórico de ações, feedbacks e indicadores utilizados no dashboard. Para esse objetivo, o projeto utilizará um banco de dados local.
-   O SQLite é uma solução de banco de dados leve e adequada para aplicações móveis, pois permite armazenar dados diretamente no dispositivo do usuário. Essa característica contribui para o funcionamento parcialmente offline do sistema, evitando a dependência constante de conexão com a internet para acessar informações básicas da aplicação. Conforme a documentação oficial do SQLite, trata-se de uma biblioteca que implementa um mecanismo de banco de dados SQL incorporado, sem necessidade de um servidor separado (SQLite, 2026).
-   No contexto deste projeto, o banco de dados local será utilizado para armazenar os dados estruturados do sistema. As gravações terão seus dados registrados no banco, incluindo nome, data, duração, status e caminho do arquivo. Já os arquivos de áudio serão armazenados no dispositivo, com seus respectivos caminhos registrados para posterior consulta e reprodução. O banco também será responsável por registrar informações relacionadas aos comandos de voz, feedbacks, histórico de ações e indicadores utilizados no dashboard.
-2.6 MODELAGEM UML
-   A UML, ou Linguagem de Modelagem Unificada, é utilizada para representar visu-almente a estrutura e o comportamento de sistemas orientados a objetos. Segundo Booch, Rumbaugh e Jacobson (2006), a UML permite documentar, visualizar e especificar elementos de um sistema de software, auxiliando na comunicação entre os envolvidos no projeto.
-   Neste trabalho, a UML é utilizada para representar os principais aspectos do sistema proposto. O diagrama de caso de uso apresenta as funcionalidades disponíveis ao usuário. O diagrama de classes descreve a estrutura estática do sistema, indicando classes, atributos, métodos e relacionamentos. O diagrama de sequência representa a interação entre usuário, interface, assistente, reconhecimento de voz, controle de gravação, banco de dados, dashboard e feedback ao longo da execução das funcionalidades.
-   A utilização da modelagem UML contribui para organizar o desenvolvimento, reduzir ambiguidades e facilitar a compreensão do funcionamento do sistema antes da implementação. Além disso, os diagramas servem como documentação técnica do projeto, apoiando a validação dos requisitos e a comunicação entre os integrantes da equipe.
-2.7 ARQUITETURA VOICE-FIRST E PROCESSAMENTO EM TEMPO REAL
-   A arquitetura voice-first corresponde a uma abordagem na qual a interação por vozpassa a ocupar papel central no funcionamento do sistema. Nesse tipo de solução, o usuário pode executar comandos, controlar funcionalidades e receber feedback com menor dependência de interações manuais, favorecendo maior fluidez durante o uso da aplicação.
-   No contexto deste projeto, a arquitetura voice-first é aplicada ao controle de gravações e à organização de ações executadas pelo usuário. Além do reconhecimento de comandos de voz, o sistema passa a considerar aspectos como gerenciamento da sessão de voz, controle do uso do microfone, detecção de silêncio, tratamento de falhas e registro de eventos de diagnóstico.
-   Para reduzir riscos durante o desenvolvimento, a evolução voice-first será realizada de forma incremental. O fluxo principal de gravação e reconhecimento de voz permanece preservado, enquanto recursos experimentais, como captura de áudio em stream, processamento em tempo real, detecção adaptativa de silêncio e roteamento de eventos, são avaliados separadamente por meio de configurações específicas. Essa abordagem permite validar novas funcionalidades sem comprometer o funcionamento estável da aplicação.
-3 ANÁLISE DO SISTEMA ATUAL
-   No cenário atual, músicos independentes utilizam diversas ferramentas para apoiar o processo de criação musical, incluindo aplicativos de gravação de áudio, editores de texto, plataformas de organização de arquivos e assistentes virtuais genéricos. Embora essas ferramentas sejam úteis individualmente, elas não oferecem uma solução integrada, obrigando o usuário a alternar constantemente entre diferentes aplicações.
-   Essa fragmentação do processo impacta negativamente a experiência do usuário, especialmente em momentos de criação, nos quais a agilidade e a continuidade são essenciais. A necessidade de interromper uma atividade criativa para executar ações simples, como iniciar uma gravação, localizar um arquivo, renomear um áudio ou organizar uma ideia registrada, pode resultar na perda de ideias importantes.
-   Além disso, a interação com esses sistemas é predominantemente manual, o que exige atenção constante do usuário à interface do dispositivo. Isso representa uma limitação significativa, principalmente em situações em que o usuário está envolvido em atividades práticas, como tocar instrumentos musicais, cantar, compor ou testar arranjos.
-   Assistentes virtuais disponíveis no mercado apresentam recursos avançados de reconhecimento de voz, porém não são especializados no domínio da produção musical. Dessa forma, não oferecem suporte adequado para ações específicas, como controle detalhado de gravações, organização de sessões criativas, renomeação de arquivos de áudio e acompanhamento do histórico de uso.
-   Diante dessas limitações, observa-se a necessidade de uma solução capaz de integrar funcionalidades de gravação, organização, histórico, dashboard, feedback e interação por comandos de voz, permitindo maior eficiência, acessibilidade e melhor experiência ao usuário.
-4 LEVANTAMENTO DE REQUISITOS
-   O levantamento de requisitos tem como objetivo identificar e definir as funcionalidades e restrições do sistema proposto. Esses requisitos são fundamentais para garantir que o sistema atenda às necessidades dos usuários e funcione de forma adequada.
-   Os requisitos foram divididos em requisitos funcionais, que descrevem as funcionalidades oferecidas pelo sistema, e requisitos não funcionais, que representam características de qualidade, desempenho, segurança e usabilidade.
-	4.1	REQUISITOS FUNCIONAIS
-   Os requisitos funcionais descrevem as ações que o sistema deve permitir ao usuário. Considerando a proposta do assistente virtual, os requisitos contemplam cadastro, autenticação, reconhecimento de comandos de voz, controle de gravações, organização de arquivos, feedback, histórico e dashboard.
-TABELA 1 - REQUISITOS FUNCIONAIS DO SISTEMA
-CódigoDescriçãoRF01O sistema deve permitir o cadastro de usuários.RF02O sistema deve permitir a autenticação de usuários por e-mail e senha.RF03O sistema deve reconhecer comandos de voz do usuário.RF04O sistema deve iniciar gravações de áudio por comando de voz.RF05O sistema deve pausar gravações em andamento.RF06O sistema deve retomar gravações pausadas.RF07O sistema deve encerrar gravações quando solicitado.RF08O sistema deve salvar automaticamente os arquivos de áudio.RF09O sistema deve permitir a reprodução de gravações.RF10O sistema deve fornecer feedback visual e/ou auditivo ao usuário.RF11O sistema deve organizar os arquivos por data ou nome.RF12O sistema deve permitir a exclusão de gravações.RF13O sistema deve permitir a listagem das gravações existentes.RF14O sistema deve permitir nomear gravações por comando de voz.RF15O sistema deve registrar o histórico de gravações, comandos e ações realizadas.CódigoDescriçãoRF16O sistema deve gerar um dashboard com indicadores de uso, como número de gravações realizadas, número de gravações reproduzidas, comandos executados e gravações excluídas.FONTE: Autoria própria.
-	4.2	REQUISITOS NÃO FUNCIONAIS
-   Os requisitos não funcionais descrevem as características de qualidade do sistema, considerando desempenho, compatibilidade, segurança, usabilidade, manutenção e funcionamento adequado dos recursos de gravação e organização de áudio.
-TABELA 2 - REQUISITOS NÃO FUNCIONAIS DO SISTEMA
-CódigoDescriçãoRNF01O sistema deve apresentar tempo de resposta inferior a 2 segundos para comandos simples.RNF02O sistema deve possuir interface simples, intuitiva e acessível.RNF03O sistema deve ser compatível com dispositivos Android versão 8 ou superior.RNF04O sistema deve garantir estabilidade durante o uso.RNF05O sistema deve consumir poucos recursos do dispositivo.RNF06O sistema deve funcionar parcialmente offline.RNF07O sistema deve garantir a integridade dos dados armazenados.RNF08O sistema deve ser de fácil manutenção e atualização.RNF09O sistema deve possuir boa usabilidade.RNF10O sistema deve garantir segurança no armazenamento dos dados do usuário.FONTE: Autoria própria.
-5 METODOLOGIA
-   A metodologia adotada para o desenvolvimento deste projeto será baseada na Programação Orientada a Objetos (POO), uma abordagem amplamente utilizada no desenvolvimento de sistemas devido à sua capacidade de promover organização, reutilização de código e facilidade de manutenção. A orientação a objetos favorece a organização do software em classes, objetos, atributos e métodos, facilitando a manutenção e a evolução do sistema (Booch; Rumbaugh; Jacobson, 2006). A escolha dessa metodologia se justifica pela necessidade de modelar entidades do sistema de forma estruturada, como usuário, gravação, arquivo de áudio, comando de voz, histórico, feedback e dashboard.
-   O processo de desenvolvimento seguirá um modelo incremental, no qual o sistema será construído em etapas progressivas. Segundo Sommerville (2019), o desenvolvimento incremental permite que o sistema seja produzido em partes, possibilitando validações e ajustes ao longo do processo de construção. Cada etapa incluirá a implementação, teste e validação de funcionalidades específicas, permitindo ajustes contínuos e melhoria da qualidade do sistema. Inicialmente serão desenvolvidas as funcionalidades de cadastro e autenticação de usuário, seguidas pelo reconhecimento de voz, controle de gravações, armazenamento local, listagem de arquivos, histórico, feedback e dashboard.
-   O sistema será desenvolvido utilizando a linguagem Dart e o framework Flutter. A escolha dessas tecnologias está relacionada à possibilidade de criação de aplicações móveis com interface responsiva, organização em componentes e uso de uma única base de código para diferentes plataformas, conforme descrito na documentação oficial do Flutter (Flutter, 2026). A escolha do Flutter se justifica por permitir o desenvolvimento de aplicações móveis para Android com boa organização de código, interface responsiva e facilidade de manutenção. Além disso, o framework oferece recursos adequados para criação de telas, navegação, integração com bibliotecas externas e desenvolvimento de protótipos funcionais. Essa característica é importante para o projeto, pois permite integrar recursos relacionados ao reconhecimento de voz, gravação, reprodução e armazenamento local.
-   Para o armazenamento local dos dados, será utilizado o banco de dados SQLite, por ser uma solução leve, integrada ao dispositivo móvel e adequada para aplicações Android que necessitam armazenar informações de forma offline. O SQLite é adequado para esse contexto por funcionar de forma incorporada à aplicação, sem exigir a instalação de um servidor de banco de dados separado (SQLite, 2026). O banco será responsável por registrar dados de usuários, gravações, arquivos de áudio, comandos reconhecidos, histórico de ações, feedbacks e informações utilizadas no dashboard.
-5.1 FERRAMENTAS UTILIZADAS
-   Para o desenvolvimento do projeto, foram selecionadas ferramentas compatíveis com a proposta de criação de uma aplicação móvel Android com reconhecimento de voz, gravação de áudio, armazenamento local, interface simples e evolução gradual para uma arquitetura voice-first.
-   O Visual Studio Code será utilizado como ambiente de desenvolvimento por permitira edição do código-fonte, a organização dos arquivos do projeto e a integração com extensões voltadas ao desenvolvimento em Flutter e Dart. Essa ferramenta contribui para a produtividade da equipe e para a organização da implementação do protótipo.
-   A linguagem Dart será utilizada por ser a linguagem principal do framework Flutter, possibilitando a construção da lógica da aplicação, dos componentes de interface e da navegação entre telas (Dart, 2026). O Flutter será utilizado por permitir o desenvolvimento de aplicações móveis com interface responsiva, componentes reutilizáveis, integração com bibliotecas externas e geração de aplicativos para Android a partir de uma única base de código, sendo adequado à proposta do sistema (Flutter, 2026).
-   O Android SDK será utilizado para compilar, executar e testar a aplicação em dispositivos Android ou emuladores. Essa ferramenta é necessária para validar o funcionamento do sistema no ambiente móvel definido como escopo do projeto, especialmente em recursos que dependem do dispositivo, como permissões de microfone, gravação de áudio e execução do aplicativo.
-   O SQLite será utilizado como banco de dados local por permitir o armazenamento de informações diretamente no dispositivo, sem a necessidade de um servidor separado. No contexto do projeto, essa escolha permite registrar usuários, gravações, arquivos de áudio, comandos de voz, histórico, feedbacks e indicadores do dashboard, contribuindo para o funcionamento parcialmente offline da aplicação (SQLite, 2026).
-   O GitHub será utilizado para o versionamento do código-fonte e para a organização do desenvolvimento em equipe. A ferramenta permite acompanhar alterações, criar branches, preservar o histórico de evolução do projeto e facilitar a integração das contribuições realizadas pelos integrantes.
-   A modelagem do sistema será realizada por meio da UML, utilizando diagramas de caso de uso, classes e sequência para representar o comportamento e a estrutura do sistema, incluindo as funcionalidades de gravação, organização, histórico, feedback e dashboard. Além disso, será elaborado o Diagrama Entidade-Relacionamento (DER) para representar a estrutura do banco de dados. Esses diagramas serão utilizados para melhorar a compreensão do sistema, orientar a implementação e facilitar a comunicação entre os integrantes do projeto.
-   Durante o desenvolvimento, também será considerada uma arquitetura experimental voltada ao uso voice-first em tempo real. Essa arquitetura será organizada de forma modular e controlada por flags de configuração, preservando o fluxo legado de gravação e reconhecimento de voz como comportamento padrão do sistema. Recursos como captura de áudio em stream, processamento em isolate, detecção adaptativa de silêncio, barramento de eventos, telemetria e diagnóstico serão utilizados como elementos de validação incremental, permitindo que a aplicação evolua para um funcionamento mais robusto sem comprometer as funcionalidades já existentes.
-
-6 DIAGRAMAS
-   Este capítulo apresenta os principais diagramas utilizados para representar o funcionamento, a estrutura e o comportamento do sistema proposto. São apresentados o diagrama de caso de uso, as especificações dos casos de uso, o diagrama de classes, os diagramas de sequência, o diagrama de arquitetura voice-first experimental, o diagrama entidade-relacionamento e o fluxo de navegação de telas do assistente virtual.
-6.1 DIAGRAMA DE CASO DE USO
-   O diagrama de caso de uso representa as funcionalidades oferecidas pelo sistema ea interação do usuário com essas funcionalidades. Cada elipse representa um requisito funcional definido no levantamento de requisitos.
-   A Figura 1 apresenta o Diagrama de Caso de Uso do Assistente Virtual, demonstrando as funcionalidades relacionadas ao cadastro, autenticação, reconhecimento de comandos de voz, controle de gravações, gerenciamento de gravações, feedback, histórico e dashboard.
-
-FIGURA 1 - DIAGRAMA DE CASO DE USO DO ASSISTENTE VIRTUAL
-
-FONTE: Autoria própria.
-	6.2	ESPECIFICAÇÃO DOS CASOS DE USO
-   A especificação dos casos de uso descreve detalhadamente o comportamento do sistema em relação às interações do usuário. Para atender aos requisitos definidos, foi elaborada uma especificação para cada requisito funcional do sistema, contendo ator, descrição, pré-condição, pós-condição, fluxo principal, fluxo alternativo e fluxo de erro.
-RF01 - CASO DE USO: CADASTRAR USUÁRIO
-Ator: Usuário.
-Descrição: Permite que o usuário realize seu cadastro no sistema.
-Pré-condição: O usuário deve estar na tela de cadastro.
-Pós-condição: Os dados do usuário são armazenados no banco de dados.
-Fluxo principal:
-1. O usuário acessa a tela de cadastro.
-2. O usuário informa nome, e-mail e senha.
-3. O sistema valida os dados informados.
-4. O sistema armazena os dados no banco de dados.
-5. O sistema informa que o cadastro foi realizado com sucesso.
-Fluxo alternativo:
-1. Caso o usuário já possua cadastro, o sistema permite retornar para a tela de login.
-Fluxo de erro:
-1. Caso algum campo obrigatório esteja vazio, o sistema solicita o preenchimento.
-2. Caso o e-mail já esteja cadastrado, o sistema informa que não é possível concluir o cadastro.
-RF02 - CASO DE USO: AUTENTICAR USUÁRIO
-Ator: Usuário.
-Descrição: Permite que o usuário acesse o sistema por meio de e-mail e senha.
-Pré-condição: O usuário deve estar cadastrado no sistema.
-Pós-condição: O usuário é direcionado para a tela inicial do sistema.
-Fluxo principal:
-1. O usuário acessa a tela de login.
-2. O usuário informa e-mail e senha.
-3. O sistema valida as credenciais informadas.
-4. O sistema libera o acesso à tela inicial.
-Fluxo alternativo:
-1. Caso o usuário não possua cadastro, o sistema permite acessar a tela de cadastro.
-Fluxo de erro:
-1. Caso o e-mail ou a senha estejam incorretos, o sistema exibe uma mensagem de erro.
-RF03 - CASO DE USO: RECONHECER COMANDO DE VOZ
-Ator: Usuário.
-   Descrição: Permite que o sistema capture e interprete comandos de voz emitidos pelo usuário.
-   Pré-condição: O usuário deve estar autenticado e o sistema deve ter permissão de acesso ao microfone.
-   Pós-condição: O comando é interpretado e direcionado para a funcionalidade correspondente.
-Fluxo principal:
-1. O usuário aciona o assistente virtual.
-2. O sistema ativa o reconhecimento de voz.
-3. O usuário emite um comando.
-4. O sistema captura o áudio.
-5. O sistema interpreta o comando.
-6. O sistema identifica a ação correspondente.
-Fluxo alternativo:
-1. Caso o comando seja reconhecido parcialmente, o sistema solicita confirmação do usuário.
-Fluxo de erro:
-1. Caso o comando não seja compreendido, o sistema informa que não conseguiu entender.
-2. O sistema solicita que o usuário repita o comando.
-RF04 - CASO DE USO: INICIAR GRAVAÇÃO
-Ator: Usuário.
-   Descrição: Permite ao usuário iniciar uma gravação de áudio por meio de comando de voz.
-   Pré-condição: O usuário deve estar autenticado, o microfone deve estar disponível e não deve existir gravação em andamento.
-Pós-condição: A gravação é iniciada e registrada no sistema.
-Fluxo principal:
-1. O usuário emite o comando para iniciar uma gravação.
-2. O sistema reconhece o comando.
-3. O sistema inicia a captura de áudio.
-4. O sistema cria um registro inicial da gravação.
-5. O sistema informa que a gravação foi iniciada.
-Fluxo alternativo:
-1. Caso já exista uma gravação em andamento, o sistema informa que não é possível iniciar outra gravação simultaneamente.
-Fluxo de erro:
-1. Caso o comando não seja compreendido, o sistema solicita repetição.
-2. Caso o microfone não esteja disponível, o sistema exibe uma mensagem de erro.
-RF05 - CASO DE USO: PAUSAR GRAVAÇÃO
-Ator: Usuário.
-Descrição: Permite pausar uma gravação em andamento.
-Pré-condição: Deve existir uma gravação ativa.
-Pós-condição: A gravação fica com status pausado.
-Fluxo principal:
-1. O usuário emite o comando para pausar a gravação.
-2. O sistema reconhece o comando.
-3. O sistema pausa a captura de áudio.
-4. O sistema atualiza o status da gravação para pausada.
-5. O sistema informa que a gravação foi pausada.
-Fluxo alternativo:
-1. Caso não exista gravação em andamento, o sistema informa que não há gravação ativa.
-Fluxo de erro:
-1. Caso o comando não seja compreendido, o sistema solicita repetição.
-RF06 - CASO DE USO: RETOMAR GRAVAÇÃO
-Ator: Usuário.
-Descrição: Permite retomar uma gravação pausada.
-Pré-condição: Deve existir uma gravação pausada.
-Pós-condição: A gravação volta ao status em andamento.
-Fluxo principal:
-1. O usuário emite o comando para retomar a gravação.
-2. O sistema reconhece o comando.
-3. O sistema retoma a captura de áudio.
-4. O sistema atualiza o status da gravação.
-5. O sistema informa que a gravação foi retomada.
-Fluxo alternativo:
-1. Caso não exista gravação pausada, o sistema informa que não há gravação para retomar.
-Fluxo de erro:
-1. Caso o comando não seja compreendido, o sistema solicita repetição.
-RF07 - CASO DE USO: ENCERRAR GRAVAÇÃO
-Ator: Usuário.
-Descrição: Permite encerrar uma gravação em andamento ou pausada.
-Pré-condição: Deve existir uma gravação em andamento ou pausada.
-Pós-condição: A gravação é finalizada.
-Fluxo principal:
-1. O usuário emite o comando para encerrar a gravação.
-2. O sistema reconhece o comando.
-3. O sistema finaliza a captura de áudio.
-4. O sistema altera o status da gravação para finalizada.
-5. O sistema informa que a gravação foi encerrada.
-Fluxo alternativo:
-1. Caso a gravação esteja pausada, o sistema encerra a gravação a partir do estado pausado.
-Fluxo de erro:
-1. Caso não exista gravação ativa ou pausada, o sistema informa que não há gravação para encerrar.
-RF08 - CASO DE USO: SALVAR ARQUIVO DE ÁUDIO
-Ator: Usuário.
-   Descrição: Permite que o sistema salve automaticamente o arquivo de áudio após a finalização da gravação.
-Pré-condição: A gravação deve ter sido encerrada corretamente.
-   Pós-condição: O arquivo de áudio é salvo no armazenamento local e registrado no banco de dados.
-Fluxo principal:
-1. O sistema recebe a solicitação de salvamento após o encerramento da gravação.
-2. O sistema gera o arquivo de áudio.
-3. O sistema define o caminho de armazenamento local.
-4. O sistema salva o arquivo.
-5. O sistema registra os dados do arquivo no banco de dados.
-Fluxo alternativo:
-1. Caso o usuário não informe um nome, o sistema salva o arquivo com um nome automático baseado na data e hora.
-Fluxo de erro:
-1. Caso ocorra erro no armazenamento, o sistema informa que não foi possível salvar a gravação.
-RF09 - CASO DE USO: REPRODUZIR GRAVAÇÃO
-Ator: Usuário.
-Descrição: Permite reproduzir uma gravação salva.
-Pré-condição: Deve existir pelo menos uma gravação salva.
-Pós-condição: A gravação selecionada é reproduzida.
-Fluxo principal:
-1. O usuário acessa a lista de gravações.
-2. O usuário seleciona uma gravação.
-3. O sistema localiza o arquivo de áudio.
-4. O sistema inicia a reprodução.
-5. O sistema registra a ação no histórico.
-Fluxo alternativo:
-1. Caso não existam gravações, o sistema informa que nenhuma gravação foi encontrada.
-Fluxo de erro:
-1. Caso o arquivo não seja encontrado, o sistema informa erro ao usuário.
-RF10 - CASO DE USO: FORNECER FEEDBACK AO USUÁRIO
-Ator: Usuário.
-   Descrição: Permite que o sistema forneça feedback visual e/ou auditivo após a execução de comandos ou ocorrência de erros.
-Pré-condição: O usuário deve executar uma ação no sistema.
-   Pós-condição: O usuário recebe uma confirmação ou aviso sobre a ação executada.
-Fluxo principal:
-1. O usuário executa uma ação por comando de voz ou pela interface.
-2. O sistema processa a ação.
-3. O sistema gera uma mensagem de retorno.
-4. O sistema apresenta feedback visual e/ou auditivo ao usuário.
-Fluxo alternativo:
-1. Caso o feedback auditivo não esteja disponível, o sistema apresenta apenas feedback visual.
-Fluxo de erro:
-1. Caso ocorra falha na emissão do feedback, o sistema registra a falha internamente.
-RF11 - CASO DE USO: ORGANIZAR ARQUIVOS
-Ator: Usuário.
-Descrição: Permite organizar os arquivos de áudio por data ou nome.
-Pré-condição: Deve existir pelo menos uma gravação salva.
-   Pós-condição: As gravações são exibidas conforme o critério de organização selecionado.
-Fluxo principal:
-1. O usuário acessa a tela de gravações.
-2. O usuário seleciona o critério de organização.
-3. O sistema consulta as gravações salvas.
-4. O sistema ordena os arquivos por data ou nome.
-5. O sistema exibe a lista organizada.
-Fluxo alternativo:
-1. Caso o usuário não selecione um critério, o sistema utiliza a organização padrão por data.
-Fluxo de erro:
-1. Caso ocorra falha na consulta dos dados, o sistema informa que não foi possível organizar os arquivos.
-RF12 - CASO DE USO: EXCLUIR GRAVAÇÃO
-Ator: Usuário.
-Descrição: Permite excluir uma gravação salva no sistema.
-Pré-condição: Deve existir pelo menos uma gravação cadastrada.
-Pós-condição: A gravação é removida do sistema.
-Fluxo principal:
-1. O usuário acessa a lista de gravações.
-2. O usuário seleciona a gravação desejada.
-3. O usuário solicita a exclusão.
-4. O sistema remove o arquivo de áudio.
-5. O sistema remove ou atualiza o registro da gravação.
-6. O sistema registra a ação no histórico.
-Fluxo alternativo:
-1. Caso o sistema solicite confirmação, o usuário confirma a exclusão antes da remoção.
-Fluxo de erro:
-1. Caso a gravação não seja encontrada, o sistema informa erro ao usuário.
-RF13 - CASO DE USO: LISTAR GRAVAÇÕES
-Ator: Usuário.
-Descrição: Permite listar as gravações existentes no sistema.
-Pré-condição: O usuário deve estar autenticado.
-Pós-condição: O sistema exibe a lista de gravações cadastradas.
-Fluxo principal:
-1. O usuário acessa a tela de gravações.
-2. O sistema consulta as gravações associadas ao usuário.
-3. O sistema exibe a lista de gravações encontradas.
-Fluxo alternativo:
-1. Caso não existam gravações, o sistema exibe uma mensagem informando que a lista está vazia.
-Fluxo de erro:
-1. Caso ocorra falha na consulta dos dados, o sistema informa que não foi possível listar as gravações.
-RF14 - CASO DE USO: NOMEAR GRAVAÇÃO POR COMANDO DE VOZ
-Ator: Usuário.
-   Descrição: Permite nomear ou renomear uma gravação por meio de comando de voz.
-   Pré-condição: Deve existir uma gravação cadastrada ou em processo de finalização.
-Pós-condição: A gravação recebe o nome informado pelo usuário.
-Fluxo principal:
-1. O usuário emite o comando para nomear a gravação.
-2. O sistema reconhece o comando.
-3. O sistema identifica o nome informado.
-4. O sistema atualiza o nome da gravação.
-5. O sistema registra a ação no histórico.
-Fluxo alternativo:
-1. Caso o nome seja reconhecido parcialmente, o sistema solicita confirmação do usuário.
-Fluxo de erro:
-1. Caso o nome não seja identificado, o sistema solicita que o usuário repita o comando.
-RF15 - CASO DE USO: REGISTRAR HISTÓRICO DE GRAVAÇÕES
-Ator: Usuário.
-   Descrição: Permite registrar o histórico de gravações e ações realizadas no sistema.
-Pré-condição: O usuário deve executar uma ação relacionada às gravações.
-Pós-condição: A ação é registrada no histórico do sistema.
-Fluxo principal:
-1. O usuário executa uma ação no sistema.
-2. O sistema identifica a ação realizada.
-3. O sistema registra a ação com data, hora e descrição.
-4. O sistema associa o registro ao usuário e, quando aplicável, à gravação.
-Fluxo alternativo:
-1. Caso a ação não esteja associada a uma gravação específica, o sistema registra apenas a ação vinculada ao usuário.
-Fluxo de erro:
-1. Caso ocorra falha ao salvar o histórico, o sistema informa que a ação foi executada, mas o histórico não foi registrado.
-RF16 - CASO DE USO: VISUALIZAR DASHBOARD
-Ator: Usuário.
-Descrição: Permite visualizar um dashboard com indicadores de uso do sistema.
-Pré-condição: O usuário deve estar autenticado.
-Pós-condição: O sistema apresenta indicadores consolidados ao usuário.
-Fluxo principal:
-1. O usuário acessa a tela de dashboard.
-2. O sistema consulta os dados de gravações, reproduções, comandos e exclusões.
-3. O sistema calcula os indicadores.
-4. O sistema exibe as informações ao usuário.
-Fluxo alternativo:
-1. Caso ainda não existam dados, o sistema exibe os indicadores zerados.
-Fluxo de erro:
-1. Caso ocorra falha na consulta dos dados, o sistema informa que não foi possível carregar o dashboard.
-	6.3	DIAGRAMA DE CLASSES
-   O diagrama de classes representa a estrutura estática do sistema, destacando as principais classes, atributos, métodos e relacionamentos. A modelagem contempla as entidades necessárias para cadastro e autenticação de usuários, reconhecimento de comandos de voz, controle de gravações, armazenamento de arquivos de áudio, registro de histórico, emissão de feedback e visualização de indicadores no dashboard.
-A Figura 2 apresenta o Diagrama de Classes do Assistente Virtual.
-
-FIGURA 2 - DIAGRAMA DE CLASSES DO ASSISTENTE VIRTUAL
-
-FONTE: Autoria própria.
-	6.4	DIAGRAMA DE SEQUÊNCIA
-   O diagrama de sequência demonstra o fluxo de interação entre o usuário e os principais componentes do sistema. A representação contempla o acesso ao sistema, autenticação, ativação do assistente, reconhecimento de comandos de voz, controle de gravações, gerenciamento de gravações, consulta ao dashboard e emissão de feedback ao usuário.
-A Figura 3 apresenta o Diagrama de Sequência do Assistente Virtual.
-FIGURA 3 - DIAGRAMA DE SEQUÊNCIA DO ASSISTENTE VIRTUAL
-
-FONTE: Autoria própria.
-	6.5	DIAGRAMA DE SEQUÊNCIA DE CRIAÇÃO E AUTENTICAÇÃO DE USUÁRIO
-   O diagrama de sequência de criação e autenticação de usuário apresenta o fluxo de interação entre o usuário, a interface do sistema, o validador de dados, o banco de dados, a sessão do usuário e o feedback. Esse fluxo contempla o cadastro de um novo usuário, a validação dos dados informados, a verificação de e-mail já cadastrado, o armazenamento das informações e o processo de autenticação para acesso à tela inicial.
-   A Figura 4 apresenta o Diagrama de Sequência de Criação e Autenticação de Usuário.
-
-FIGURA 4 - DIAGRAMA DE SEQUÊNCIA DE CRIAÇÃO E AUTENTICAÇÃO DE
-USUÁRIO
-
-FONTE: Autoria própria.
-	6.6	DIAGRAMA DE ARQUITETURA VOICE-FIRST EXPERIMENTAL
-   O diagrama de arquitetura voice-first experimental apresenta a organização dos principais componentes relacionados à evolução do assistente virtual para um funcionamento mais orientado por voz. A representação contempla a interface do aplicativo, o gerenciamento centralizado da sessão de voz, o fluxo legado de reconhecimento e gravação, o fluxo experimental de captura em stream, o processamento em isolate, a detecção adaptativa de silêncio, a telemetria e os mecanismos de feedback ao usuário.
-   Essa arquitetura mantém o fluxo legado como padrão e utiliza recursos experimentais controlados por flags de configuração. Dessa forma, funcionalidades como captura de áudio em stream, processamento em tempo real, detecção de silêncio e roteamento de eventos podem ser avaliadas sem substituir imediatamente os recursos estáveis da aplicação.
-A Figura 5 apresenta o Diagrama de Arquitetura Voice-First Experimental.
-FIGURA 5 - DIAGRAMA DE ARQUITETURA VOICE-FIRST EXPERIMENTAL
-
-FONTE: Autoria própria.
-	6.7	DIAGRAMA ENTIDADE-RELACIONAMENTO
-   O Diagrama Entidade-Relacionamento representa a estrutura lógica do banco de dados do sistema. O modelo contempla as entidades necessárias para armazenar dados de usuário, gravações, arquivos de áudio, comandos de voz, histórico de ações, feedbacks e indicadores do dashboard.
-A Figura 6 apresenta o Diagrama Entidade-Relacionamento do Assistente Virtual.
-FIGURA 6 - DIAGRAMA ENTIDADE-RELACIONAMENTO DO ASSISTENTE
-VIRTUAL
-
-FONTE: Autoria própria.
-	6.8	FLUXO DE NAVEGAÇÃO DE TELAS
-   O fluxo de navegação de telas apresenta a organização das principais telas do sistema e os caminhos disponíveis ao usuário durante o uso da aplicação. A representação destaca o acesso ao sistema, a tela inicial, o assistente virtual, o gerenciamento de gravações, o histórico, o dashboard, as configurações e o encerramento da sessão.
-A Figura 7 apresenta o fluxo de navegação de telas da aplicação.
-FIGURA 7 - FLUXO DE NAVEGAÇÃO DE TELAS
-
-FONTE: Autoria própria.
-7 PROTÓTIPO DO SISTEMA
-   Este capítulo apresenta as principais telas do protótipo desenvolvido para o assistente virtual por comando de voz. As telas demonstram a organização da interface, o fluxo de navegação e as funcionalidades previstas para cadastro, autenticação, uso do assistente, gerenciamento de gravações, histórico, dashboard e configurações.
-	7.1	TELA DE LOGIN
-   A tela de login permite que o usuário acesse o sistema utilizando e-mail e senha previamente cadastrados.
-FIGURA 8 - TELA DE LOGIN
-
-FONTE: Autoria própria.
-	7.2	TELA DE CADASTRO
-   A tela de cadastro permite que um novo usuário informe seus dados para criar uma conta no sistema.
-FIGURA 9 - TELA DE CADASTRO
-
-FONTE: Autoria própria.
-	7.3	TELA INICIAL
-   A tela inicial reúne os principais acessos do sistema, permitindo ao usuário navegar para as funcionalidades de criação, gravações, histórico, dashboard e configurações. A tela também apresenta o status dos comandos de voz, indicando quando o assistente está disponível para receber instruções.
-FIGURA 10 - TELA INICIAL
-
-FONTE: Autoria própria.
-	7.4	TELA DE GRAVAÇÕES
-   A tela de gravações apresenta os arquivos de áudio registrados pelo usuário, permitindo buscar, reproduzir e gerenciar gravações salvas.
-FIGURA 11 - TELA DE GRAVAÇÕES
-
-FONTE: Autoria própria.
-	7.5	TELA DE HISTÓRICO
-   A tela de histórico apresenta os eventos realizados no sistema, como gravações iniciadas e finalizadas. Esse recurso permite acompanhar as ações executadas durante o uso da aplicação.
-FIGURA 12 - TELA DE HISTÓRICO
-
-FONTE: Autoria própria.
-	7.6	TELA DE DASHBOARD
-   A tela de dashboard apresenta indicadores de uso do sistema, como quantidade de projetos, gravações, duração total, comandos reconhecidos, comandos não reconhecidos e eventos recentes.
-FIGURA 13 - TELA DE DASHBOARD
-
-FONTE: Autoria própria.
-	7.7	TELA DE CONFIGURAÇÕES
-   A tela de configurações permite consultar ou ajustar preferências da aplicação, incluindo tema visual, controle por voz, escuta contínua, feedback sonoro e comandos personalizados.
-FIGURA 14 - TELA DE CONFIGURAÇÕES
-
-FONTE: Autoria própria.
-8 MODELAGEM DE DADOS
-   A modelagem de dados do sistema foi desenvolvida com o objetivo de garantir organização, integridade e eficiência no armazenamento das informações. A estruturação adequada dos dados é fundamental para preservar a consistência das informações e apoiar as funcionalidades previstas no sistema (Sommerville, 2019). O sistema utilizará um banco de dados relacional local, implementado com SQLite, adequado para aplicações móveis que necessitam de funcionamento parcialmente offline.
-   As principais entidades do sistema são: usuário, gravação, arquivo de áudio, comando de voz, histórico de gravação, feedback e dashboard. A entidade usuário armazena as informações de identificação e acesso, como nome, e-mail, senha e data de cadastro. A entidade gravação registra os dados relacionados aos áudios capturados pelo sistema, como nome, data, duração, status e caminho do arquivo.
-   A entidade arquivo de áudio armazena informações sobre os arquivos gerados pelas gravações, permitindo registrar nome, caminho, formato, tamanho e data de salvamento. A entidade comando de voz registra os comandos reconhecidos pelo sistema, permitindo acompanhar quais comandos foram emitidos e se foram interpretados corretamente. A entidade histórico de gravação registra ações como iniciar, pausar, retomar, encerrar, reproduzir, organizar, renomear e excluir gravações.
-   A entidade feedback armazena as mensagens visuais ou auditivas apresentadas ao usuário após ações executadas ou erros identificados. Já a entidade dashboard permite armazenar ou calcular indicadores de uso do sistema, como total de gravações realizadas, gravações reproduzidas, comandos executados e gravações excluídas.
-   Esse modelo foi projetado para permitir fácil manutenção, integridade dos dados e expansão futura, caso novas funcionalidades sejam adicionadas ao sistema.
-9 PLANO DE TESTES
-   O plano de testes tem como objetivo validar o funcionamento do sistema, garantindo que as funcionalidades atendam aos requisitos definidos. Em engenharia de software, a etapa de testes é essencial para identificar falhas, verificar o atendimento aos requisitos e aumentar a confiabilidade do produto desenvolvido (Pressman; Maxim, 2016). Serão realizados testes funcionais, testes de desempenho, testes de usabilidade e testes de integração.
-	9.1	CASOS DE TESTE
-   Os casos de teste foram definidos com o objetivo de validar se as funcionalidades do sistema atendem aos requisitos funcionais e não funcionais estabelecidos. Os testes contemplam cadastro, autenticação, reconhecimento de voz, controle de gravações, gerenciamento de arquivos, histórico, feedback e dashboard.
-TABELA 3 - CASOS DE TESTE DO SISTEMA
-CasoRequisitoObjetivo do testeResultado esperadoCT01RF01Verificar se o sistema permite cadastrar um novo usuário com nome, e-mail e senha.Usuário cadastrado com sucesso.CT02RF02Verificar se o sistema permite autenticar um usuário com email e senha válidos.Acesso liberado para a tela inicial.CT03RF03Verificar se o sistema reconhece comandos de voz emitidos pelo usuário.Comando reconhecido e interpretado.CT04RF03Verificar o comportamento do sistema quando o comando de voz não for compreendido.Sistema	solicita	repetição do comando.CT05RF04Verificar se o sistema inicia uma gravação por comando de voz.Gravação iniciada corretamente.CT06RF05Verificar se o sistema pausa uma gravação em andamento.Gravação pausada.CT07RF06Verificar se o sistema retoma uma gravação pausada.Gravação retomada.
-CasoRequisitoObjetivo do testeResultado esperadoCT08RF07Verificar se o sistema encerra uma gravação em andamento ou pausada.Gravação encerrada.CT09RF08Verificar se o sistema salva automaticamente o arquivo de áudio após o encerramento da gravação.Arquivo salvo e registrado no banco de dados.CT10RF09Verificar se o sistema reproduz uma gravação salva.Áudio reproduzido corretamente.CT11RF10Verificar se o sistema apresenta feedback visual ou auditivo após uma ação executada.Feedback	apresentado ao usuário.CT12RF11Verificar se o sistema organiza os arquivos por data ou nome.Lista	organizada	conforme	critério	selecionado.CT13RF12Verificar se o sistema permite excluir uma gravação existente.Gravação	removida	do sistema.CT14RF13Verificar se o sistema lista as gravações cadastradas.Lista de gravações exibida.CT15RF14Verificar se o sistema permite nomear ou renomear uma gravação por comando de voz.Nome da gravação atualizado.CT16RF15Verificar se o sistema registra ações relacionadas às gravações no histórico.Histórico atualizado com a ação realizada.CT17RF16Verificar se o sistema exibe o dashboard com indicadores de uso.Indicadores exibidos corretamente.CT18RNF01Verificar se comandos simples são respondidos em tempo inferior a 2 segundos.Tempo de resposta dentro do limite definido.CT19RNF02/
-RNF09Verificar se a interface é simples, intuitiva e fácil de utilizar.Usuário consegue navegar pelas telas principais sem dificuldade.CasoRequisitoObjetivo do testeResultado esperadoCT20RNF03Verificar se a aplicação é compatível com dispositivos Android versão 8 ou superior.Aplicação executada em dispositivo compatível.CT21RNF06Verificar se o sistema mantém funcionalidades básicas disponíveis parcialmente offline.Dados locais acessíveis sem conexão constante com a internet.CT22RNF07/
-RNF10Verificar se os dados do usuário, gravações e histórico são armazenados com integridade e segurança.Dados preservados e associados corretamente ao usuário.FONTE: Autoria própria.
-
-	9.2	SCRIPT DE CRIAÇÃO DO BANCO DE DADOS
-   O script a seguir apresenta a criação das tabelas principais do banco de dados local do sistema, contemplando usuários, gravações, arquivos de áudio, comandos de voz, histórico, feedback e dashboard.
-CREATE TABLE usuario ( id_usuario INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT NOT NULL UNIQUE, senha TEXT NOT NULL, data_cadastro TEXT NOT NULL
-);
-CREATE TABLE gravacao ( id_gravacao INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, data_criacao TEXT NOT NULL, duracao INTEGER, status TEXT NOT NULL, caminho_arquivo TEXT NOT NULL, id_usuario INTEGER NOT NULL,
-FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
-);
-CREATE TABLE arquivo_audio ( id_arquivo INTEGER PRIMARY KEY AUTOINCREMENT, nome_arquivo TEXT NOT NULL, caminho TEXT NOT NULL, formato TEXT, tamanho REAL, data_salvamento TEXT NOT NULL, id_gravacao INTEGER NOT NULL,
-FOREIGN KEY (id_gravacao) REFERENCES gravacao(id_gravacao)
-);
-CREATE TABLE comando_voz ( id_comando INTEGER PRIMARY KEY AUTOINCREMENT, texto_reconhecido TEXT NOT NULL, tipo_comando TEXT NOT NULL, data_hora TEXT NOT NULL, status_reconhecimento TEXT NOT NULL, id_usuario INTEGER NOT NULL,
-FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
-);
-CREATE TABLE historico_gravacao ( id_historico INTEGER PRIMARY KEY AUTOINCREMENT, acao TEXT NOT NULL, descricao TEXT, data_hora TEXT NOT NULL,1
-2
-3
-4
-5
-6
-7
-8
-9
-10
-11
-12
-13
-14
-15
-16
-17
-18
-19
-20
-21
-22
-23
-24
-25
-26
-27
-28
-29
-30
-31
-32
-33
-34
-35
-36
-37
-38
-39
-40
-41
-42
-43
-44
-45
-id_usuario INTEGER NOT NULL, id_gravacao INTEGER,
-FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario),
-FOREIGN KEY (id_gravacao) REFERENCES gravacao(id_gravacao)
-);
-CREATE TABLE feedback ( id_feedback INTEGER PRIMARY KEY AUTOINCREMENT, mensagem TEXT NOT NULL, tipo_feedback TEXT NOT NULL, data_hora TEXT NOT NULL, id_comando INTEGER,
-FOREIGN KEY (id_comando) REFERENCES comando_voz(id_comando)
-);
-CREATE TABLE dashboard_indicador ( id_indicador INTEGER PRIMARY KEY AUTOINCREMENT, total_gravacoes INTEGER DEFAULT 0, total_reproducoes INTEGER DEFAULT 0, total_comandos INTEGER DEFAULT 0, total_exclusoes INTEGER DEFAULT 0, data_atualizacao TEXT NOT NULL, id_usuario INTEGER NOT NULL,
-    FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario) );46
-47
-48
-49
-50
-51
-52
-53
-54
-55
-56
-57
-58
-59
-60
-61
-62
-63
-64
-65
-66
-67
-68
-69
-70
-	9.3	ROTEIRO DE NAVEGAÇÃO PARA TESTES
-   O roteiro de navegação para testes tem como objetivo orientar a validação das principais telas e funcionalidades do sistema. A navegação proposta contempla o acesso inicial à aplicação, cadastro, autenticação, uso do assistente virtual, gerenciamento de gravações, histórico, dashboard, configurações e encerramento da sessão.
-1. Acessar a aplicação pela tela inicial de carregamento.
-2. Verificar se o sistema direciona corretamente o usuário para a tela de login ou para a tela inicial, caso já esteja autenticado.
-3. Acessar a tela de cadastro e realizar o cadastro de um novo usuário.
-4. Retornar à tela de login e autenticar o usuário com e-mail e senha válidos.
-5. Confirmar se o usuário é direcionado para a tela inicial do sistema.
-6. Acessar a tela do assistente virtual.
-7. Acionar o modo de escuta do assistente.
-8. Emitir comandos de voz para iniciar, pausar, retomar e encerrar uma gravação.
-9. Verificar se o sistema fornece feedback visual ou auditivo após cada comando.
-10. Acessar a tela de lista de gravações.
-11. Verificar se as gravações salvas são exibidas corretamente.
-12. Selecionar uma gravação e acessar a tela de detalhes da gravação.
-13. Reproduzir a gravação selecionada.
-14. Renomear a gravação, quando aplicável.
-15. Excluir uma gravação, validando a mensagem de confirmação antes da remoção.
-16. Acessar a tela de histórico e verificar se as ações de gravação foram registradas.
-17. Acessar a tela de dashboard e verificar se os indicadores de gravações, reproduções, comandos e exclusões são exibidos.
-18. Acessar a tela de configurações e verificar as preferências disponíveis.
-19. Realizar logout e confirmar o retorno à tela de login.
-   Esse roteiro permite validar o fluxo principal de uso da aplicação, garantindo que as telas estejam acessíveis e que as funcionalidades previstas nos requisitos sejam executadas corretamente.
-	9.4	TESTES DA ARQUITETURA VOICE-FIRST EXPERIMENTAL
-   Além dos testes funcionais previstos para as funcionalidades principais do sistema, também serão realizados testes voltados à arquitetura voice-first experimental. Esses testes têm como objetivo validar o funcionamento dos módulos de gravação em tempo real, processamento de áudio, detecção de silêncio, telemetria e preservação do fluxo legado.
-TABELA 4 - TESTES DA ARQUITETURA VOICE-FIRST EXPERIMENTAL
-CasoObjetivo do testeResultado esperadoVF01Verificar se o sistema mantém o fluxo legado de gravação e reconhecimento de voz quando o modo experimental estiver desativado.O sistema executa as funcionalidades principais sem depender da arquitetura experimental.VF02Verificar se o modo experimental de captura em stream pode ser ativado por flag de configuração.O sistema inicia o fluxo experimental apenas quando a flag correspondente estiver habilitada.VF03Verificar se a gravação em modo stream gera arquivo de áudio em formato WAV.O arquivo de áudio é gerado e pode ser acessado pelo sistema.VF04Verificar se o arquivo gerado no modo experimental pode ser reproduzido pelo aplicativo.A gravação em WAV é reproduzida corretamente.VF05Verificar se os chunks de áudio são enviados para o fluxo de observação sem bloquear o funcionamento principal da aplicação.O roteamento de áudio ocorre em modo de observação, sem interromper a gravação principal.VF06Verificar se a detecção adaptativa de silêncio identifica períodos sem fala ou som relevante.O sistema identifica silêncio conforme os parâmetros definidos para o teste.VF07Verificar se o processamento em isolate ocorre sem travar a interface do aplicativo.A interface permanece responsiva durante o processamento de áudio.CasoObjetivo do testeResultado esperadoVF08Verificar se os eventos de diagnóstico e telemetria são registrados durante o uso da arquitetura experimental.Os eventos de escuta, gravação, silêncio, erro e recuperação são registrados para análise.VF09Verificar se falhas no fluxo experimental não impedem o uso do fluxo legado.O sistema mantém o funcionamento básico mesmo quando o
-módulo experimental apresenta falha.VF10Verificar se recursos ainda não finalizados, como wake-word real e STT streaming real, permanecem isolados do fluxo principal.Funcionalidades experimentais ou simuladas não executam ações reais sem validação prévia.FONTE: Autoria própria.
-
-10 DEMONSTRAÇÃO DE RESULTADOS
-   Este capítulo apresenta a demonstração dos principais resultados obtidos a partir do protótipo implementado. A demonstração tem como objetivo evidenciar o funcionamento das funcionalidades essenciais do sistema, incluindo autenticação, navegação, controle de gravações, registro de histórico e apresentação de indicadores no dashboard.
-	10.1	CONTROLE DE GRAVAÇÃO POR COMANDO DE VOZ
-   Durante a execução do protótipo, o usuário pode acionar comandos relacionados ao controle de gravações, como iniciar, pausar, retomar e encerrar uma gravação. O sistema fornece feedback visual sobre o estado da gravação, apresenta o nível atual de áudio e permite a parada manual ou automática por silêncio.
-
-FIGURA 15 - RESULTADO DO CONTROLE DE GRAVAÇÃO
-
-FONTE: Autoria própria.
-	10.2	REGISTRO DE HISTÓRICO E INDICADORES
-   Após a execução das ações de gravação, o sistema registra eventos no histórico e atualiza os indicadores apresentados no dashboard. Esses resultados podem ser observados nas telas de histórico e dashboard, que demonstram a gravação iniciada, a gravação finalizada, a duração total, a quantidade de comandos executados e a última gravação registrada, conforme apresentado nas Figuras 12 e 13.
-   Com isso, o protótipo demonstra o funcionamento das funcionalidades principais previstas para a etapa semifinal, evidenciando a navegação entre telas, a execução de comandos de voz, o controle de gravação, o registro das ações realizadas e a consolidação de dados em indicadores visuais.
-11 MANUAL DE INSTALAÇÃO E USO
-   Este capítulo apresenta orientações básicas para instalação, configuração e utilização do protótipo do assistente virtual proposto. O objetivo é permitir que o usuário compreenda os requisitos necessários para executar a aplicação e utilize suas principais funcionalidades de forma adequada.
-11.1 REQUISITOS PARA INSTALAÇÃO
-   Para executar o protótipo, será necessário utilizar um dispositivo móvel ou emulador com sistema operacional Android versão 8 ou superior. Também será necessário conceder permissão de acesso ao microfone, pois o sistema utiliza esse recurso para reconhecer comandos de voz e controlar as gravações de áudio.
-   No ambiente de desenvolvimento, recomenda-se a utilização do Visual Studio Code, do SDK do Flutter, do Android SDK e de um emulador Android ou dispositivo físico conectado ao computador. O código-fonte do projeto deverá estar disponível em um repositório digital, permitindo o versionamento e a execução do sistema pela equipe de desenvolvimento.
-11.2 INSTALAÇÃO DO PROTÓTIPO
-   Para instalar e executar o protótipo em ambiente de desenvolvimento, devem ser seguidos os seguintes passos:
-1. Clonar ou baixar o repositório do projeto.
-2. Abrir a pasta do projeto no Visual Studio Code.
-3. Verificar se o Flutter SDK e o Android SDK estão configurados corretamente.
-4. Executar o comando flutter pub get para instalar as dependências do projeto.
-5. Conectar um dispositivo Android ou iniciar um emulador.
-6. Executar o comando flutter run para iniciar a aplicação.
-7. Conceder as permissões solicitadas pelo aplicativo, especialmente o acesso ao microfone.
-   Após esses passos, o sistema estará disponível para testes das funcionalidades principais, como cadastro, autenticação, reconhecimento de comandos de voz, controle de gravações, histórico, dashboard e configurações.
-   Para testar o modo experimental de captura de áudio em stream, pode-se executar a aplicação utilizando uma flag de configuração específica. Esse modo não representa o fluxo padrão do sistema e deve ser utilizado apenas para validação da arquitetura voice-first experimental.
-flutter run -d <androidDeviceId> --dart-define=USE_STREAM_FIRST_AUDIO=true
-   Quando essa flag não é informada, o sistema utiliza o fluxo legado de gravação e reconhecimento de voz, mantendo o comportamento estável da aplicação.
-11.3 USO DO SISTEMA
-   Ao iniciar o aplicativo, o usuário será direcionado para a tela de login ou para a tela inicial, caso já esteja autenticado. Se ainda não possuir cadastro, deverá acessar a tela de cadastro e informar os dados solicitados.
-   Após a autenticação, o usuário poderá acessar a tela inicial do sistema e navegar pelas funcionalidades principais. Na tela do assistente virtual, será possível acionar o modo de escuta e emitir comandos de voz para iniciar, pausar, retomar, encerrar e nomear gravações. O sistema deverá fornecer feedback visual e/ou auditivo após cada comando executado.
-   Na tela de gravações, o usuário poderá visualizar os arquivos registrados, acessar os detalhes de uma gravação, reproduzir o áudio, renomear o arquivo ou excluir gravações que não deseja manter. As ações realizadas serão registradas no histórico do sistema.
-   A tela de dashboard apresentará indicadores de uso, como quantidade de gravações realizadas, gravações reproduzidas, comandos executados e gravações excluídas. Já a tela de configurações permitirá consultar ou ajustar preferências básicas da aplicação, conforme as funcionalidades disponíveis no protótipo.
-11.4 OBSERVAÇÕES SOBRE O USO
-   O funcionamento do reconhecimento de voz pode variar de acordo com o ambiente, a qualidade do microfone, o nível de ruído externo e as permissões concedidas ao aplicativo. Por esse motivo, recomenda-se utilizar o sistema em um ambiente com pouco ruído durante os testes.
-   O sistema foi delimitado para o controle e organização de gravações por comandos de voz. Portanto, não fazem parte desta etapa recursos avançados de edição de áudio, mixagem multipista, aplicação de plugins externos, armazenamento em nuvem ou colaboração em tempo real entre usuários.
-12 CONCLUSÃO
-   Este trabalho apresentou a proposta de desenvolvimento de um assistente virtual baseado em comandos de voz para apoio à produção musical independente em dispositivos Android. A solução proposta busca reduzir interrupções no processo criativo, oferecendo maior praticidade, organização e eficiência ao usuário durante atividades de gravação e gerenciamento de arquivos de áudio.
-   A proposta foi estruturada com base nas necessidades de músicos independentes, que frequentemente precisam registrar ideias musicais de forma rápida, organizar arquivos sonoros e recuperar gravações durante o processo criativo. Nesse contexto, o uso de comandos de voz permite que o usuário execute ações como iniciar, pausar, retomar, encerrar e nomear gravações com menor dependência da interação manual com a interface do aplicativo.
-   A modelagem do sistema foi elaborada por meio de diagramas UML e diagrama entidade-relacionamento, contemplando os principais módulos da aplicação: assistente virtual, gerenciamento de gravações, histórico, feedback e dashboard. A utilização desses diagramas contribuiu para melhorar a organização da documentação e facilitar a compreensão da estrutura e do comportamento do sistema.
-   O uso da linguagem Dart, do framework Flutter e do banco de dados SQLite mostrou-se adequado à proposta, pois permite o desenvolvimento de uma aplicação Android com interface simples, armazenamento local e funcionamento parcialmente offline. A metodologia baseada em Programação Orientada a Objetos e desenvolvimento incremental também favorece a construção gradual das funcionalidades, possibilitando validações e ajustes ao longo do desenvolvimento.
-   Além das funcionalidades principais, a documentação e a implementação consideram a evolução para uma arquitetura voice-first experimental. Essa evolução contempla gerenciamento centralizado da sessão de voz, controle de estados, diagnóstico de eventos, captura de áudio em stream, processamento em isolate e detecção adaptativa de silêncio. Esses recursos são tratados de forma incremental e controlada, mantendo o fluxo legado como padrão e permitindo validações futuras para funcionalidades mais avançadas.
-   Com isso, espera-se que o sistema proposto contribua para melhorar a produtividade e a organização de músicos independentes durante o processo de criação musical. Como trabalhos futuros, poderão ser estudados recursos como armazenamento em nuvem, sincronização entre dispositivos, integração com plataformas de distribuição musical, reconhecimento de voz em streaming, wake-word real, Audio Focus no Android e comandos de voz personalizados.
-REFERÊNCIAS
-ANDROID DEVELOPERS. Android developer documentation. 2026. Disponível em: https://developer.android.com/. Acesso em: 8 maio 2026.
-ASSOCIAÇÃO BRASILEIRA DE NORMAS TÉCNICAS. NBR 14724: informação e documentação: trabalhos acadêmicos: apresentação. Rio de Janeiro: ABNT, 2011.
-ASSOCIAÇÃO BRASILEIRA DE NORMAS TÉCNICAS. NBR 6023: informação e documentação: referências: elaboração. Rio de Janeiro: ABNT, 2018.
-BOOCH, Grady; RUMBAUGH, James; JACOBSON, Ivar. UML: guia do usuário. 2. ed. Rio de Janeiro: Elsevier, 2006.
-DART. Dart documentation. 2026. Disponível em: https://dart.dev/guides. Acesso em: 8 maio 2026.
-FLUTTER. Flutter documentation. 2026. Disponível em: https://docs.flutter. dev/. Acesso em: 8 maio 2026.
-PRESSMAN, Roger S.; MAXIM, Bruce R. Engenharia de software: uma abordagem profissional. 8. ed. Porto Alegre: AMGH, 2016.
-SOMMERVILLE, Ian. Engenharia de software. 10. ed. São Paulo: Pearson, 2019.
-SQLITE. SQLite documentation. 2026. Disponível em: https://www.sqlite.org/ docs.html. Acesso em: 8 maio 2026.
-
-
-
-
-
-
-7
-
-7
-
-7
-
